@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.realism_authoring import scratch
-from litereality_agent.realism_authoring.run_trace import RunTrace, _run_id_of
+from litereality_agent.pipeline.stages.author import scratch
+from litereality_agent.services.tracing.history import RunTrace, _run_id_of
 
 SCAN = "test-scan-Room"
 

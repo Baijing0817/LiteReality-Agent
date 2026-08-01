@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.realism_authoring.author import checkpoint, room_compiles
+from litereality_agent.pipeline.stages.author.impl import checkpoint, room_compiles
 
 GOOD = "SHELL = {'walls': {}}\n\n\ndef build():\n    return SHELL\n"
 BROKEN = "SHELL = {'walls': {\n\ndef build(:\n"

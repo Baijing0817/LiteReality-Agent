@@ -21,7 +21,7 @@ dependencies = [
     "numpy",
     "pillow",
     "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
+    "pydantic-settings>=2.10.0",
     "rich>=13.7.0",
     # model providers
     "anthropic>=0.40.0",
@@ -49,6 +49,9 @@ collision = ["python-fcl", "networkx"]  # true-mesh QC collision (scene_collisio
 Repository = "https://github.com/ZheningHuang/LiteReality-Agent"
 Issues = "https://github.com/ZheningHuang/LiteReality-Agent/issues"
 
+[project.scripts]
+litereality = "litereality_agent.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -67,7 +70,6 @@ exclude = [
     "/.venv",
     "/data",
     "/dist",
-    "/run",
     "/run",
     "/output_objinit_test",
     "/scans_uploaded",
@@ -100,8 +102,8 @@ markers = [
 line-length = 100
 target-version = "py310"
 extend-exclude = ["data", "run", "output_objinit_test", "scans_uploaded", "weights",
-                   "src/litereality_agent/scene_init/object_init/extract/lr_preprocessing",
-                   "src/litereality_agent/backends", "third_party", "legacy"]
+                   "src/litereality_agent/pipeline/stages/ingest/extract/lr_preprocessing",
+                   "src/litereality_agent/adapters", "third_party", "legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
@@ -109,13 +111,13 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 # Vendored/ported math + Blender helpers — keep their original style instead of risking edits.
-# (Lint is strict for the models / scene_init / realism_authoring / integration / cli layers.)
-"src/litereality_agent/realism_authoring/views/image_selection/**/*.py" = ["E741", "E402", "E731"]
-"src/litereality_agent/backends/procedural/articulated-glb-agent/**/*.py" = ["F841"]
-"src/litereality_agent/realism_authoring/scene/report_html.py" = ["E741"]
+# Lint is strict for pipeline, scene, services, shared, and CLI code.
+"src/litereality_agent/services/rendering/image_selection/**/*.py" = ["E741", "E402", "E731"]
+"src/litereality_agent/adapters/procedural/articulated-glb-agent/**/*.py" = ["F841"]
+"src/litereality_agent/pipeline/stages/publish/report.py" = ["E741"]
 # merge_objects — CLI over merge_boxes, kept in its original style. (The recon-site publishing ops/
 # tools were retired to legacy/litereality_agent/scripts/ops/, excluded above.)
-"src/litereality_agent/scripts/ops/merge_objects.py" = ["E501", "E741", "E402", "E401", "I001", "F841", "F541"]
+"scripts/ops/merge_objects.py" = ["E501", "E741", "E402", "E401", "I001", "F841", "F541"]
 
 [tool.ruff.format]
 quote-style = "double"

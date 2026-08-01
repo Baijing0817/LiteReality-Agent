@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.realism_authoring.run_trace import RunTrace
+from litereality_agent.services.tracing.history import RunTrace
 
 
 def _events(path: Path) -> list[dict]:

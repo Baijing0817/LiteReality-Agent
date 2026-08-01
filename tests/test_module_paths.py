@@ -1,7 +1,7 @@
 """Every module named as a STRING must resolve.
 
 A cross-package call that goes through a subprocess names its target in a string — `-m
-litereality_agent.backends.procedural.generate_procedural` — and a string is invisible to every import
+litereality_agent.adapters.procedural.generate_procedural` — and a string is invisible to every import
 check, every linter and every rename. This has already failed twice in exactly the same way: a
 package moved, the imports were rewritten, and the `-m` strings quietly kept pointing at the old
 name. The symptom is never an ImportError in the parent; it is a stage that "completes" with a
@@ -35,6 +35,8 @@ MODULE_CONST = re.compile(r"""^\s*\w*MODULE\w*\s*=\s*["']([A-Za-z_][\w.]*\.[\w.]
 SOURCES = sorted(
     [p for p in PKG.rglob("*.py")]
     + [p for p in PKG.rglob("*.sh")]
+    + [p for p in (REPO / "scripts").rglob("*.py")]
+    + [p for p in (REPO / "scripts").rglob("*.sh")]
     + [REPO / "run.sh", REPO / "sanity.py"]
 )
 
@@ -94,12 +96,12 @@ def test_no_retired_top_level_spelling():
 
 
 @pytest.mark.parametrize("dotted", [
-    "litereality_agent.backends.procedural.generate_procedural",  # the one that failed a live run
-    "litereality_agent.integration.compile.build_from_room",
-    "litereality_agent.integration.manifest",
-    "litereality_agent.scene_init.object_init.run",
-    "litereality_agent.scene_init.object_init.detect.dino_worker",
-    "litereality_agent.realism_authoring.scene.surface_reference",
+    "litereality_agent.adapters.procedural.generate_procedural",  # the one that failed a live run
+    "litereality_agent.scene.compile.build_from_room",
+    "litereality_agent.scene.manifest",
+    "litereality_agent.pipeline.object_flow",
+    "litereality_agent.pipeline.stages.ingest.detect.dino_worker",
+    "litereality_agent.pipeline.stages.evidence.surfaces",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename

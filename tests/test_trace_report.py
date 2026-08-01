@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.realism_authoring import trace_report
+from litereality_agent.services.tracing import report as trace_report
 
 SEED = "SHELL = {'walls': {}}\n"
 AUTHORED = "SHELL = {'walls': {'Wall0': 1}}\n"

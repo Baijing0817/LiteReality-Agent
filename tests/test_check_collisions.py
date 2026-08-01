@@ -15,8 +15,8 @@ import json
 
 import pytest
 
-from litereality_agent.realism_authoring import qc_room
-from litereality_agent.realism_authoring.tools.check_collisions.tool import (
+from litereality_agent.scene.quality import room as qc_room
+from litereality_agent.services.tools.check_collisions.tool import (
     CheckCollisionsInvocation,
     CheckCollisionsParams,
 )
@@ -183,7 +183,7 @@ def test_tool_works_on_a_python_annotated_shell(tmp_path):
 def test_glb_to_shell_xy_axis_map():
     """The verified frame map SHELL(x, y) = glb(x, -z) — a mesh fix in glb space must land in the
     SHELL plane the model edits, or every mesh-mode suggestion points the wrong way."""
-    from litereality_agent.realism_authoring.scene_collision import glb_to_shell_xy
+    from litereality_agent.scene.quality.collision_mesh import glb_to_shell_xy
 
     assert glb_to_shell_xy(0.3, 0.0) == (0.3, 0.0)
     assert glb_to_shell_xy(0.0, 0.4) == (0.0, -0.4)
@@ -194,7 +194,7 @@ def test_mesh_contacts_booleans():
     are a pair, separated ones are not."""
     trimesh = pytest.importorskip("trimesh")
     pytest.importorskip("fcl")  # python-fcl backend
-    from litereality_agent.realism_authoring import scene_collision as sc
+    from litereality_agent.scene.quality import collision_mesh as sc
 
     a = trimesh.creation.box((1, 1, 1))
     b = trimesh.creation.box((1, 1, 1))
@@ -236,7 +236,7 @@ def test_wall_penetrations_mesh_extent(tmp_path):
     SHELL(x,y)=glb(x,-z)), which the box centre tests can't see."""
     trimesh = pytest.importorskip("trimesh")
     pytest.importorskip("fcl")
-    from litereality_agent.realism_authoring import scene_collision as sc
+    from litereality_agent.scene.quality import collision_mesh as sc
 
     shell = {"walls": {"Wall0": {"start": [0, 0], "end": [4, 0]},
                        "Wall2": {"start": [4, 3], "end": [0, 3]}}}
@@ -267,7 +267,7 @@ def test_check_all_mesh_end_to_end():
     piece past the wall loop is outside_room."""
     trimesh = pytest.importorskip("trimesh")
     pytest.importorskip("fcl")
-    from litereality_agent.realism_authoring import scene_collision as sc
+    from litereality_agent.scene.quality import collision_mesh as sc
 
     shell = {
         "floor_z": 0.0, "ceiling_z": 3.0,

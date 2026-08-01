@@ -11,11 +11,9 @@ order run.sh sources them and the `${K:-default}` semantics of the file itself.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
-from litereality_agent.models import config as env_config
+from litereality_agent.shared.settings import load_settings
 
 MODELS_ENV = """\
 # the one place models are picked
@@ -40,67 +38,59 @@ def repo(tmp_path, monkeypatch):
 
 
 def test_models_env_is_loaded(repo):
-    env_config.load_env(repo)
-    assert os.environ["LR_OPENAI_IMAGE_MODEL"] == "gpt-image-2"
-    assert os.environ["HARNESS_MODEL"] == "claude-opus-5"
+    settings = load_settings(repo)
+    assert settings.image_model == "gpt-image-2"
+    assert settings.harness_model == "claude-opus-5"
 
 
 def test_trailing_comment_is_not_part_of_the_value(repo):
     """`export K="${K:-v}"   # note` — matching the substitution against the whole tail fails on
     these, and the literal `${...}` becomes the model name."""
-    env_config.load_env(repo)
-    assert os.environ["LR_DINO_MODEL"] == "IDEA-Research/grounding-dino-tiny"
+    assert load_settings(repo).dino_model == "IDEA-Research/grounding-dino-tiny"
 
 
 def test_a_default_may_name_another_variable(repo):
-    env_config.load_env(repo)
-    assert os.environ["HARNESS_CRITIC_MODEL"] == "claude-opus-5"
+    assert load_settings(repo).critic_model == "claude-opus-5"
 
 
 def test_unresolvable_reference_sets_nothing(repo):
     """Better unset than the literal string `$NOT_SET_ANYWHERE` reaching an API as a model id."""
-    env_config.load_env(repo)
-    assert "LR_UNRESOLVED" not in os.environ
+    assert "LR_UNRESOLVED" not in load_settings(repo).as_environment()
 
 
-def test_plain_assignment_still_works(repo):
-    env_config.load_env(repo)
-    assert os.environ["PLAIN_KEY"] == "plain-value"
+def test_unknown_assignments_are_ignored(repo):
+    assert "PLAIN_KEY" not in load_settings(repo).as_environment()
 
 
 def test_shell_env_wins(repo, monkeypatch):
     monkeypatch.setenv("LR_OPENAI_IMAGE_MODEL", "gpt-image-1")
-    env_config.load_env(repo)
-    assert os.environ["LR_OPENAI_IMAGE_MODEL"] == "gpt-image-1"
+    assert load_settings(repo).image_model == "gpt-image-1"
 
 
 def test_dotenv_wins_over_models_env(repo):
     """`.env` is yours; `models.env` only ever supplies defaults — the same order run.sh uses."""
     (repo / ".env").write_text("LR_OPENAI_IMAGE_MODEL=gpt-image-1\n", encoding="utf-8")
-    env_config.load_env(repo)
-    assert os.environ["LR_OPENAI_IMAGE_MODEL"] == "gpt-image-1"
+    assert load_settings(repo).image_model == "gpt-image-1"
 
 
 def test_empty_template_values_are_ignored(repo):
     """`.env.example` ships `OPENAI_API_KEY=` — an empty value must not shadow the real one."""
     (repo / ".env").write_text("OPENAI_API_KEY=\n", encoding="utf-8")
-    os.environ["OPENAI_API_KEY"] = "sk-real"
-    env_config.load_env(repo)
-    assert os.environ["OPENAI_API_KEY"] == "sk-real"
+    settings = load_settings(repo, openai_api_key="sk-real")
+    assert settings.openai_api_key.get_secret_value() == "sk-real"
 
 
 def test_loading_twice_is_stable(repo):
-    env_config.load_env(repo)
-    first = os.environ["HARNESS_CRITIC_MODEL"]
-    env_config.load_env(repo)
-    assert os.environ["HARNESS_CRITIC_MODEL"] == first
+    first = load_settings(repo)
+    second = load_settings(repo)
+    assert second == first
 
 
 # --- reference artifact names ------------------------------------------------ #
 def test_artifact_names_are_provider_neutral():
     """The two reference images are named for WHAT they are, not who made them — the old
     `gemini_input` / `nano_banana_raw` outlived both providers."""
-    from litereality_agent.scene_init.object_init import config as oi
+    from litereality_agent.pipeline import paths as oi
 
     assert oi.INPUT_SHEET == "input2imagegen.jpg"
     assert oi.CLEAN_REFERENCE == "clean_obj_reference.png"
@@ -109,7 +99,7 @@ def test_artifact_names_are_provider_neutral():
 def test_readers_accept_the_pre_rename_spelling(tmp_path):
     """An existing tree cost ~6 minutes of model calls to produce. Renaming the writers must not
     make it unreadable — `ref_artifact` finds either spelling, newest name first."""
-    from litereality_agent.scene_init.object_init import config as oi
+    from litereality_agent.pipeline import paths as oi
 
     legacy = tmp_path / "legacy"
     legacy.mkdir()

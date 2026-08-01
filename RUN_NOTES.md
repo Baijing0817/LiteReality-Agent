@@ -237,10 +237,10 @@ diff", reading `authoring_trace.*.jsonl` from `run/<scan>/`.
 **Both halves verified against this run's real output**, mid-authoring:
 
 ```
-$ uv run -m litereality_agent.realism_authoring.trace_report run/Office_room <out.html>
+$ uv run -m litereality_agent.services.tracing.report run/Office_room <out.html>
 wrote <out.html>  (1.9 MB, 12 images, 87 events)                       # works
 
-$ uv run -m litereality_agent.realism_authoring.scene.report_html --scan Office_room --out <out>
+$ uv run -m litereality_agent.pipeline.stages.publish.report --scan Office_room --out <out>
 no iteration with a verify.json under .../run/Office_room/scene_init/scene_stage/stage_1
 $ echo $?
 1                                                                       # and writes nothing
@@ -634,7 +634,7 @@ edits may not have been necessary. Re-running under the current prompt is the fa
 Per-stage command, either scan:
 
 ```bash
-uv run -m litereality_agent.realism_authoring.refine_objects --scene run/<scan>
+uv run -m litereality_agent.pipeline.stages.refine.objects --scene run/<scan>
 ```
 
 ## Still open, in the order I would tackle them

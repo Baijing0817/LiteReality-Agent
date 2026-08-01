@@ -15,7 +15,7 @@ layer on top.
 2. **Scan your room.** One walkthrough captures the RGB frames, depth, and the RoomPlan
    `room.usdz` the pipeline needs.
 3. **Upload the scan** to the machine you'll run on.
-4. **Run LiteReality-Agent** — `./run.sh <path/to/scan>` — for an articulated, realistic room reconstruction.
+4. **Run LiteReality-Agent** — `uv run litereality run <path/to/scan>` — for an articulated, realistic room reconstruction.
 
 The result is an editable room program (Room.py) that can be compiled in Blender and integrated into other engines.
 
@@ -25,7 +25,7 @@ pointing at the folder:
 
 ```bash
 git clone https://github.com/LiteReality/example-scans.git
-./run.sh example-scans/<scan>
+uv run litereality run example-scans/<scan>
 ```
 
 
@@ -74,15 +74,18 @@ uv run python sanity.py
 Both stages, end to end — give it a scan folder, or a name to resolve under `$LR_SCANS_DIR`:
 
 ```bash
-./run.sh example-scans/Office_room     # the capture folder, from anywhere
+uv run litereality run example-scans/Office_room
 ```
 
 Each stage prints as it completes, and per-stage logs land in `run/<scan>/`.
 Or one stage at a time — the point of the seam:
 
 ```bash
-uv run -m litereality_agent scene_init example-scans/Office_room          # stage 1 → a scene package
-uv run -m litereality_agent realism_authoring run/Office_room   # stage 2, realism_authoring
+uv run litereality run example-scans/Office_room --through seed
+uv run litereality run run/Office_room --from evidence
+
+# Or run exactly one resumable stage:
+uv run litereality stage quality run/Office_room
 ```
 
 You get, in `run/<scan>/`:
@@ -107,4 +110,3 @@ reconstruction and QC events, with elapsed times. That is built in by default, n
 ```bash
 ./report.sh <scan>          # richer per-stage report — see the caveat below
 ```
-

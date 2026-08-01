@@ -86,9 +86,9 @@ def _load_dotenv() -> bool:
     where the package is unimportable and only .env's paths and keys still mean anything."""
     envp = ROOT / ".env"
     try:
-        from litereality_agent.models.config import load_env
+        from litereality_agent.shared.settings import load_settings
 
-        load_env(ROOT)
+        load_settings(ROOT).apply_environment()
         return envp.is_file()
     except Exception:  # noqa: BLE001 — sanity must run even from a half-installed tree
         pass
@@ -191,7 +191,7 @@ def main() -> int:
     if "dinov2" in wanted:
         print("── enhanced chair grouping (DINOv2) ──")
         try:
-            from litereality_agent.scene_init.object_init.detect._device import pick_device
+            from litereality_agent.pipeline.stages.ingest.detect._device import pick_device
 
             dev = pick_device()
             label = {"cuda": " (NVIDIA GPU)", "mps": " (Apple Silicon GPU)",
@@ -200,7 +200,7 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             fail(f"could not select a torch device: {type(e).__name__}: {e}")
         try:
-            from litereality_agent.scene_init.object_init.detect import dino_embed
+            from litereality_agent.pipeline.stages.ingest.detect import dino_embed
 
             mid = dino_embed.default_model_id()
             if not dino_embed.available():
@@ -223,7 +223,7 @@ def main() -> int:
     if "detect" in wanted:
         print("── object detection (GroundingDINO, HF transformers) ──")
         try:
-            from litereality_agent.scene_init.object_init.detect import dino_detect
+            from litereality_agent.pipeline.stages.ingest.detect import dino_detect
 
             mid = dino_detect.default_model_id()
             if not dino_detect.available():
@@ -248,7 +248,7 @@ def main() -> int:
         # inside /Applications/Blender.app/Contents/MacOS/) it reported "not found" and aborted a run
         # the pipeline itself would have completed.
         try:
-            from litereality_agent.integration.config import find_blender
+            from litereality_agent.scene.paths import find_blender
 
             binp = find_blender()
         except SystemExit:

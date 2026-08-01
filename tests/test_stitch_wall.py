@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from litereality_agent.realism_authoring.views.stitch_wall_image.stitch_wall import (
+from litereality_agent.services.rendering.stitch_wall_image.stitch_wall import (
     WallPlane,
     _plane_from_corners,
     _plane_grid,
