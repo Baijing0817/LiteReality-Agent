@@ -60,19 +60,39 @@ use it as your ground-truth TARGET. Do NOT trust any cleaned-up/AI reference —
 
 Use the `render_object` tool: it builds your CURRENT `object.py` and returns a montage — 4 turntable
 views of YOUR build next to the real capture frame(s). READ that montage, find the {cat} in the real
-frame, and compare SHAPE, PROPORTIONS and visible DETAIL. Then edit `object.py` to close the gap:
-- fix proportions (height/width/depth ratios, leg thickness, top overhang, panel divisions);
-- add missing structure the reference shows (a table's apron/stretchers/proper legs; a door's
-  panels/rails/stiles/handle; a window's frame/mullions/transom/sill) as procedural parts;
-- correct the silhouette so it reads like the reference from every angle.
-Re-run `render_object`, look again, refine again — do AT MOST {rounds} render->look->fix rounds.
-Stop when you hit that budget even if imperfect: land the highest-value fixes first.
+frame, and compare SHAPE, PROPORTIONS and visible DETAIL.
+
+**First decide whether anything actually needs changing.** If the build already reads as the same
+{cat} as the reference — proportions roughly right, no structure obviously missing — then say so
+and STOP. "No change needed" is a perfectly good, and common, result. Do not invent work: a
+speculative edit to an object that was already fine usually makes it worse, and costs you the
+build.
+
+**If something IS clearly wrong, make small, high-value change — do not rebuild the object.**
+Pick the max 3 most obvious mismatches and fix just them. In rough priority order:
+- Overall structure
+- PBR Materails
+- proportions (height/width/depth ratios, leg thickness, top overhang, panel divisions);
+- ONE piece of missing structure the reference clearly shows (a table's apron or stretchers; a
+  door's panels or handle; a window's mullion or sill) added as a procedural part;
+- the silhouette, so it reads like the reference from every angle.
+
+Only fix what you can actually SEE is wrong in the reference. If the frames are too small, blurry
+or occluded to judge some detail, leave that detail alone — guessing from bad evidence is worse
+than leaving the current build. Do NOT rewrite `object.py`, do NOT refactor it, and do NOT chase
+small details.
+
+BUDGET: do not over-inspect. Read `object.md`, `object.py` and the frames ONCE, render once to see
+where you stand, then either make the one edit or conclude no edit is warranted. Avoid re-cropping
+or re-reading images you have already seen. Do AT MOST {rounds} render->look->fix rounds, and stop
+as soon as you have either landed the change or decided none is needed.
 
 Constraints: edit ONLY `object.py`; it MUST stay valid and build (render_object reports build
 errors — fix them). Keep it PROCEDURAL (boxes/loops, no external mesh). Keep real-world metre scale
 and roughly the same overall bounding size (it must still fit its slot in the room).
 {artic}
-When done, summarise what you changed and how close the build now is to the reference.
+When done, summarise what you changed and how close the build now is to the reference — or, if you
+made no edit, say so and why the existing build was already an acceptable match.
 """
 
 _ARTIC_CLAUSE = """
@@ -134,7 +154,10 @@ def _snapshot_views(obj_dir: Path, blender: str, views_dir: Path, open_frac: flo
     """Build the CURRENT object.py and render 4 turntable views into `views_dir` — isolated from the
     agent's live `_refine_views` dir so a before/after snapshot never clobbers an in-flight render.
     `open_frac` poses the articulation (0=closed, 1=most open) so the opening can be checked.
-    Returns True on success. Never raises (a failed snapshot must not abort refinement)."""
+    Returns True on success. Never raises (a failed snapshot must not abort refinement) — but it
+    does SAY WHY it failed. Staying silent is what let a broken Blender path go unnoticed: the only
+    symptom was a missing before/after image, with nothing in the log connecting the two."""
+    why = ""
     try:
         from litereality_agent.integration.compile.fetch_textures import materialize
         tj = obj_dir / "textures.json"
@@ -148,12 +171,19 @@ def _snapshot_views(obj_dir: Path, blender: str, views_dir: Path, open_frac: flo
         b = subprocess.run([blender, "-b", "--python", str(obj_dir / "object.py"), "--",
                             str(obj_dir / "textures"), str(built)], capture_output=True, text=True)
         if b.returncode != 0 or not built.is_file():
-            return False
-        r = subprocess.run([blender, "-b", "--python", str(OBJVIEW), "--",
-                            str(built), str(views_dir), "4", str(open_frac)], capture_output=True, text=True)
-        return r.returncode == 0 and (views_dir / "view_0.png").is_file()
-    except Exception:  # noqa: BLE001
-        return False
+            why = f"build rc={b.returncode}: {(b.stderr or b.stdout or '').strip()[-300:]}"
+        else:
+            r = subprocess.run([blender, "-b", "--python", str(OBJVIEW), "--",
+                                str(built), str(views_dir), "4", str(open_frac)],
+                               capture_output=True, text=True)
+            if r.returncode == 0 and (views_dir / "view_0.png").is_file():
+                return True
+            why = f"render rc={r.returncode}: {(r.stderr or r.stdout or '').strip()[-300:]}"
+    except Exception as e:  # noqa: BLE001
+        why = f"{type(e).__name__}: {e}"
+    print(f"  [snapshot] {views_dir.name} FAILED — no before/after image will be written. {why}",
+          flush=True)
+    return False
 
 
 def _is_articulated(obj_dir: Path) -> bool:
@@ -319,9 +349,12 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
             print(f"  [{name}] attempt {attempt}/{_RETRIES} error: {type(e).__name__}: {e}", flush=True)
             if attempt < _RETRIES:
                 await asyncio.sleep(5 * attempt)
-    if last_err is not None:
-        return name, {"error": f"{type(last_err).__name__}: {last_err}", "calls": calls,
-                      "rounds": counter.get(name, 0)}
+    # NOTE: a failed session is NOT an empty one. The agent edits `object.py` in place as it goes,
+    # so a run that dies on "Reached maximum number of turns" (or the budget cap) usually leaves
+    # real edits behind. Returning here — as this did — threw away the AFTER render, the
+    # before/after sheet and the code diff for exactly the objects whose result you most need to
+    # look at, and left `refine_beforeafter.png` unwritten whenever any object errored. So fall
+    # through and produce the evidence either way; the error is reported alongside it below.
     dt = round(time.monotonic() - t0, 1)
     # AFTER snapshot: render the refined build, write the before/after visual + a unified code diff.
     after_views = badir / f"{name}_after_views"
@@ -345,12 +378,38 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
     (badir / f"{name}.diff").write_text(diff)
     added = sum(1 for ln in diff.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
     removed = sum(1 for ln in diff.splitlines() if ln.startswith("-") and not ln.startswith("---"))
-    print(f"== {name} done {dt}s calls={calls} {counts} cost=${cost} "
-          f"code Δ +{added}/-{removed} ==", flush=True)
-    return name, {"seconds": dt, "calls": calls, "counts": counts, "cost": cost,
-                  "rounds": counter.get(name, 0), "summary": summary[:1200],
-                  "beforeafter": str(ba_png) if ba_png.is_file() else None,
-                  "diff": str(badir / f"{name}.diff"), "code_delta": {"added": added, "removed": removed}}
+    # An errored session that still changed the code is a PARTIAL result, not a failure with
+    # nothing to show — say which it was, and keep the sheet/diff either way.
+    status = "done" if last_err is None else ("partial" if (added or removed) else "no-edit")
+    print(f"== {name} {status} {dt}s calls={calls} {counts} cost=${cost} "
+          f"code Δ +{added}/-{removed}"
+          + (f" ({type(last_err).__name__}: {last_err})" if last_err is not None else "")
+          + " ==", flush=True)
+    res = {"seconds": dt, "calls": calls, "counts": counts, "cost": cost,
+           "rounds": counter.get(name, 0), "summary": summary[:1200],
+           "beforeafter": str(ba_png) if ba_png.is_file() else None,
+           "diff": str(badir / f"{name}.diff"), "code_delta": {"added": added, "removed": removed}}
+    if last_err is not None:
+        res["error"] = f"{type(last_err).__name__}: {last_err}"
+        res["partial"] = bool(added or removed)
+    return name, res
+
+
+def _blender() -> str:
+    """The Blender BINARY — always via THE resolver, never `$LITEREALITY_BLENDER` raw.
+
+    This is load-bearing, not defensive. The README and .env.example both document `BLENDER_PATH`
+    as the install DIRECTORY ("the folder containing the `blender` binary, not the binary itself"),
+    and run.sh forwards it verbatim. Passing that straight to `subprocess.run` tries to execute a
+    directory — `PermissionError: Permission denied: /Applications/Blender.app/Contents/MacOS` —
+    and `_snapshot_views` swallows the exception and returns False. The visible symptom is not an
+    error at all: every before/after comparison image silently goes missing, because the sheet is
+    only written when the snapshot succeeds. `find_blender` accepts either spelling and returns the
+    binary. (A blank BLENDER_PATH is the same story: `os.environ[...]` raised KeyError, or handed
+    over an empty string.)"""
+    from litereality_agent.integration.config import find_blender
+
+    return find_blender()
 
 
 def _procedural_objects(room: Path) -> list[str]:
@@ -376,7 +435,11 @@ async def main():
     ap.add_argument("--refroot", default=None)
     ap.add_argument("--scan", default=None)
     ap.add_argument("--model", default=os.environ.get("HARNESS_MODEL", "claude-opus-5"))
-    ap.add_argument("--max-turns", type=int, default=int(os.environ.get("LR_REFINE_MAX_TURNS", "25")))
+    # 100, not 25: at 25 an object typically spent every turn just READING (object.md, object.py,
+    # 3 capture frames, then crops of them) and died on "Reached maximum number of turns" before
+    # landing an edit — 7 of 8 objects on a real scene. The prompt now asks for ONE focused change
+    # rather than an exhaustive rebuild, so the extra headroom goes into finishing, not wandering.
+    ap.add_argument("--max-turns", type=int, default=int(os.environ.get("LR_REFINE_MAX_TURNS", "100")))
     ap.add_argument("--rounds", type=int, default=int(os.environ.get("LR_REFINE_ROUNDS", "2")),
                     help="max render->look->fix rounds the agent is told to do (default 2)")
     ap.add_argument("--objects", default=None,
@@ -400,7 +463,7 @@ async def main():
     counter: dict = {}
     print(f"== refine {objs} (<= {a.concurrency} at once) ==", flush=True)
     settled = await asyncio.gather(*(
-        refine_one(n, Path(a.room), Path(a.refroot), Path(a.scan), os.environ["LITEREALITY_BLENDER"],
+        refine_one(n, Path(a.room), Path(a.refroot), Path(a.scan), _blender(),
                    a.model, a.max_turns, counter) for n in objs), return_exceptions=True)
     results = []
     for n, r in zip(objs, settled):
@@ -426,11 +489,23 @@ async def main():
     print("\n== ALL DONE ==")
     n_err = 0
     for n, r in out.items():
+        d = r.get("code_delta") or {}
+        # A session can error AND still have landed edits (it writes object.py as it goes). Report
+        # those as partial, with their delta — calling them a bare ERROR hides real work and makes
+        # a tuning problem (turn cap) look like a broken stage.
+        if r.get("error") and r.get("partial"):
+            print(f"  {n}: ~ PARTIAL — code Δ +{d.get('added', '?')}/-{d.get('removed', '?')} "
+                  f"then {str(r['error'])[:160]}")
+            continue
         if r.get("error"):  # surface failures instead of printing rounds=None calls=None (silent no-op)
             n_err += 1
             print(f"  {n}: ✗ ERROR — {str(r['error'])[:300]}")
             continue
-        d = r.get("code_delta") or {}
+        # A clean session that changed nothing is a real verdict — the build already matched the
+        # reference — not a no-op. Say that, so it is not mistaken for a silent failure.
+        if not (d.get("added") or d.get("removed")):
+            print(f"  {n}: ✓ no change needed — calls={r.get('calls')} cost=${r.get('cost')}")
+            continue
         print(f"  {n}: rounds={r.get('rounds')} calls={r.get('calls')} "
               f"code Δ +{d.get('added', '?')}/-{d.get('removed', '?')} cost=${r.get('cost')}")
     if n_err:

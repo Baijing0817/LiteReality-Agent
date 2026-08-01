@@ -72,11 +72,26 @@ def warn(msg: str, *, env=None, cmd=None, note=None) -> None:
 
 
 def _load_dotenv() -> bool:
-    """Populate os.environ from ./.env so a bare `python sanity.py` sees the SAME config as
-    ./run.sh (which sources .env). Without this, a key sitting in .env reads as "unset" here —
-    confusing, because the real run would have it. Existing shell env wins; .env only fills what
-    is unset. Returns True if a .env file was found."""
+    """Populate os.environ from ./.env AND ./models.env so a bare `python sanity.py` sees the SAME
+    config as ./run.sh (which sources both). Without .env, a key sitting right there reads as
+    "unset" here — confusing, because the real run would have it. Without models.env, every model
+    choice reads as the CODE default instead of the one the run will use, so this script reports a
+    checkpoint (`LR_DINO_MODEL`, `LR_DINO_EMBED_MODEL`) or image model the pipeline will not touch
+    — the opposite of its job. Existing shell env wins. Returns True if a .env file was found.
+
+    The package's own loader is preferred: it is what `uv run -m litereality_agent` calls, so
+    sanity cannot drift from the real run, and it already parses models.env's
+    `export K="${K:-default}"   # comment` grammar (getting the trailing comment right is fiddly —
+    see models/config.py._value). The inline parse below is the fallback for a half-installed tree,
+    where the package is unimportable and only .env's paths and keys still mean anything."""
     envp = ROOT / ".env"
+    try:
+        from litereality_agent.models.config import load_env
+
+        load_env(ROOT)
+        return envp.is_file()
+    except Exception:  # noqa: BLE001 — sanity must run even from a half-installed tree
+        pass
     if not envp.is_file():
         return False
     for raw in envp.read_text().splitlines():
@@ -123,7 +138,9 @@ def _tiny_png() -> str:
 # that would have run perfectly well.
 STAGE_CHECKS = {
     "scene_init": {"deps", "dinov2", "detect", "blender", "providers", "gen3d", "agent_cli", "scan"},
-    "realism_authoring": {"blender", "agent_cli", "scan"},
+    # "collision" belongs to stage 2 only: qc_collision runs in the QC stage, and stage 1 never
+    # touches FCL.
+    "realism_authoring": {"blender", "agent_cli", "scan", "collision"},
 }
 STAGE_CHECKS["all"] = set().union(*STAGE_CHECKS.values())
 
@@ -251,6 +268,23 @@ def main() -> int:
                  env=("BLENDER_PATH", "/path/to/blender-4.5-dir",
                       "the dir with the 'blender' binary. macOS: /Applications/Blender.app/Contents/MacOS"))
 
+    if "collision" in wanted:
+        print("── QC true-mesh collision (python-fcl) ──")
+        # The QC stage runs qc_collision on EVERY default run, and run.sh guards it with `|| true`,
+        # so a missing FCL does not fail the run — it just prints a traceback into the stage log and
+        # the summary still ticks the stage green. That is exactly the silent degradation this
+        # script exists to catch: the deterministic clash gate quietly stops running.
+        try:
+            import trimesh.collision
+
+            trimesh.collision.CollisionManager()
+            ok("python-fcl available (true-mesh clash resolver)")
+        except Exception:  # noqa: BLE001
+            fail("python-fcl NOT available — QC's true-mesh clash resolver will abort and the "
+                 "run will SILENTLY skip it.",
+                 cmd=("uv sync --frozen --extra detect --extra collision --group dev",
+                      "or: uv pip install python-fcl"))
+
     if "agent_cli" in wanted:
         print("── agent CLI (drives every authoring session) ──")
         if shutil.which("claude"):
@@ -264,7 +298,8 @@ def main() -> int:
         print("── providers (policy: OpenAI image-gen · Claude everything else · no Gemini) ──")
         key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
-            fail("OPENAI_API_KEY unset — reference image-gen (gpt-image-1) will fail.",
+            fail("OPENAI_API_KEY unset — reference image-gen "
+                 f"({os.environ.get('LR_OPENAI_IMAGE_MODEL') or 'gpt-image-2'}) will fail.",
                  env=("OPENAI_API_KEY", "sk-<your-openai-key>", "create at https://platform.openai.com/api-keys"))
         else:
             try:

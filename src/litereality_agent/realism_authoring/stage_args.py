@@ -29,7 +29,7 @@ FROM_PACKAGE = {
     "scan": "capture",
     "refroot": "refroot",
     "room_init": "room_init",
-    "results": None,  # special-cased: <package>/obj_refine
+    "results": None,  # special-cased: <authoring>/obj_refine, beside the work room (see bind)
 }
 
 
@@ -93,7 +93,14 @@ def bind(a: argparse.Namespace, *, need: tuple[str, ...] = (), pkg=None) -> argp
                 value = work_room(pkg)
             else:
                 key = FROM_PACKAGE[name]
-                value = (pkg.root / "obj_refine") if key is None else pkg.path(key)
+                # `results` sits NEXT TO the work room, for the same reason work_room() exists:
+                # run.sh passes `--results $AUTHORING/obj_refine`, so defaulting to the package
+                # root instead sent a `--scene` run's before/after sheets somewhere run.sh never
+                # looks — two copies of the evidence in two places, and the run summary's
+                # `before/after` line silently absent. Deriving it from work_room() also picks up
+                # $RUN_TAG and the legacy pre-move layout for free.
+                value = (work_room(pkg, create=False).parent / "obj_refine") if key is None \
+                    else pkg.path(key)
             if value is not None:
                 setattr(a, name, str(value))
 

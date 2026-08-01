@@ -18,11 +18,17 @@
 #               procedural) → seed Room.py + Room.glb
 #   2 stitches  head-on per-surface reference images (input for authoring)
 #   3 author    one-shot authoring edits Room.py — shell materials + fixtures, one pass
-#   4 materials  PBR materials for every fixture-palette key (geometry untouched) — ON by
-#               default; MATERIALS=0 to skip. ~13 min on a 14-key room
-#   5 refine    per-object refinement (tighten each procedural object vs its reference) — OFF by
-#               default; RUN_REFINE=1 to enable (REFINE_OBJECTS still selects WHICH objects).
-#               LR_REFINE_ROUNDS (default 2) caps the render->look->fix rounds per object
+#   4 materials  PBR materials for every fixture-palette key (geometry untouched) — OFF by
+#               default (the authoring pass already textures the shell, so this extra pass on the
+#               fixture palette isn't worth its cost for most runs); MATERIALS=1 to enable.
+#               ~13 min on a 14-key room
+#   5 refine    per-object refinement (tighten each procedural object vs its reference) — ON by
+#               default; RUN_REFINE=0 or SKIP_REFINE=1 to skip (REFINE_OBJECTS still selects WHICH
+#               objects). LR_REFINE_ROUNDS (default 2) caps the render->look->fix rounds per object,
+#               and LR_REFINE_MAX_TURNS (default 25) caps the agent turns per object. 25 is LOW —
+#               objects routinely need ~30 turns just to study the reference before editing, so most
+#               of them end on "Reached maximum number of turns" and land no change. Raise it if you
+#               want this stage to actually converge.
 #   6 export     rebuild Room.glb + a self-contained viewer with OBJECTS (hide/isolate),
 #               QC (deterministic geometry violations), REAL-VS-RENDER pairs and the TRACE
 #               timeline. COMPARE_FRAMES=0 skips the pair renders.
@@ -117,6 +123,12 @@ OUT="$LITEREALITY_OUTPUT/$SCAN"
 # they are what stage 1 actually wrote, so the halves cannot drift when the layout changes. The
 # literal paths are the fallback for a run with no package.
 ROOM_INIT="${LR_ROOM_INIT:-$OUT/scene_init/scene_stage/room_init/room}"
+# The object stage's working tree — where refine/materials/qc_pass read each object's reference
+# images and selected capture frames from. Same package-first, literal-fallback rule as ROOM_INIT.
+# The literal MUST carry the scene_init/ level: without it every object fails with "no selected
+# capture frames", which the refine stage reports as a per-object error and the run summary still
+# ticks green.
+REFROOT="${LR_REFROOT:-$OUT/scene_init/obj_stage/object_init}"
 # RUN_TAG isolates a run into its own _oneshot_<tag> dir + <scan>_<tag>.html, so you can re-run
 # (e.g. after code changes) WITHOUT overwriting a previous result — keep both to compare.
 SUF="${RUN_TAG:+_$RUN_TAG}"
@@ -136,17 +148,25 @@ SCAN_DIR="$LR_SCANS_DIR/$SCAN"
 FINAL_ROOT="${LITEREALITY_FINAL:-$PWD/run}"
 FINAL_OUT="$AUTHORING"
 mkdir -p "$FINAL_OUT"
-# Physical stage data lives in $FINAL_OUT (obj stage writes there via
-# litereality_agent.scene_init.object_init.config.final_root); $OUT/<scan>/ carries back-compat SYMLINKS so
-# every stage that resolves run/<scan>/scene_init/{obj_stage,scene_stage} finds the same files. Without the
-# link a FRESH scene's init reconstructs fine but the seed export can't find the objects.
-# By DEFAULT the two roots coincide ($PWD/run) and, with no RUN_TAG, $OUT == $FINAL_OUT — the mkdir
-# below then already created the dirs, the `[ -e ]` guards short-circuit, and no symlink is made:
-# run/<scan>/ is one real directory. The links only appear when RUN_TAG or a custom root splits them.
+# Physical stage-1 data lives under $STAGE_ROOT — the PER-SCAN deliverables dir the object stage
+# writes into via litereality_agent.scene_init.object_init.config.final_root, i.e.
+# $LITEREALITY_FINAL/<scan>/scene_init/{obj_stage,scene_stage}. $OUT/<scan>/ carries back-compat
+# SYMLINKS so every stage that resolves run/<scan>/scene_init/{obj_stage,scene_stage} finds the same
+# files. Without the link a FRESH scene's init reconstructs fine but the seed export can't find the
+# objects.
+# This MUST be the per-scan final dir, not $FINAL_OUT: stage 2's deliverables live one level deeper
+# ($AUTHORING), so linking there buried stage 1's output INSIDE stage 2's folder — and then
+# `rm -rf run/<scan>/realism_authoring`, which this file and the README both call safe ("Either half
+# can be deleted and re-run without disturbing the other"), silently deleted the expensive seed:
+# the TRELLIS reconstructions and the paid reference images. scene.json models the two as siblings.
+# By DEFAULT the two roots coincide ($PWD/run) and $OUT == $STAGE_ROOT — the mkdir below then
+# already created the dirs, the `[ -e ]` guards short-circuit, and no symlink is made:
+# run/<scan>/ is one real directory. The links only appear when a custom root splits them.
 # $OUT/scene_init must exist before a stage dir can be linked INTO it.
-mkdir -p "$OUT/scene_init" "$FINAL_OUT/scene_init/obj_stage" "$FINAL_OUT/scene_init/scene_stage"
-[ -e "$OUT/scene_init/obj_stage" ]   || ln -sfn "$FINAL_OUT/scene_init/obj_stage"   "$OUT/scene_init/obj_stage"
-[ -e "$OUT/scene_init/scene_stage" ] || ln -sfn "$FINAL_OUT/scene_init/scene_stage" "$OUT/scene_init/scene_stage"
+STAGE_ROOT="$FINAL_ROOT/$SCAN"
+mkdir -p "$OUT/scene_init" "$STAGE_ROOT/scene_init/obj_stage" "$STAGE_ROOT/scene_init/scene_stage"
+[ -e "$OUT/scene_init/obj_stage" ]   || ln -sfn "$STAGE_ROOT/scene_init/obj_stage"   "$OUT/scene_init/obj_stage"
+[ -e "$OUT/scene_init/scene_stage" ] || ln -sfn "$STAGE_ROOT/scene_init/scene_stage" "$OUT/scene_init/scene_stage"
 # Write the viewer straight into the run tree (no redundant copy).
 VIEWER_HTML="$FINAL_OUT/${SCAN}${SUF}.html"
 
@@ -246,7 +266,7 @@ do_qc(){
   $PY -m litereality_agent.realism_authoring.qc_collision  --room "$WORKROOM" --apply || true  # TRUE-MESH clash resolve -> Room.py
   if [ "${QC_MODEL_PASS:-0}" = 1 ]; then
     $PY -m litereality_agent.realism_authoring.qc_pass --room "$WORKROOM" --surface-ref "$SURFREF" --scan "$SCAN_DIR" \
-        --refroot "$OUT/obj_stage/object_init" --model "${QC_MODEL:-${HARNESS_MODEL:-claude-opus-5}}" \
+        --refroot "$REFROOT" --model "${QC_MODEL:-${HARNESS_MODEL:-claude-opus-5}}" \
         --max-turns "${QC_TURNS:-160}"
   fi
 }
@@ -261,7 +281,7 @@ do_refine(){
   [ -n "$objs" ] || { echo "   no procedural objects to refine — skipping"; return 0; }
   echo "   refining objects: $objs  (concurrency=${REFINE_CONCURRENCY:-2}, budget=\$${REFINE_BUDGET:-8}/obj)"
   $PY -m litereality_agent.realism_authoring.refine_objects --room "$WORKROOM" \
-        --refroot "$OUT/obj_stage/object_init" --scan "$SCAN_DIR" \
+        --refroot "$REFROOT" --scan "$SCAN_DIR" \
         --results "$FINAL_OUT/obj_refine" --objects "$objs" \
         --concurrency "${REFINE_CONCURRENCY:-2}" --budget "${REFINE_BUDGET:-8}"; }
 # PBR materials pass — geometry is finished; this only changes what things are MADE OF. The
@@ -269,7 +289,7 @@ do_refine(){
 # colours; a simple box with a real captured PBR set reads far closer to the photo. MATERIALS=0 to
 # skip; MATERIALS_TARGETS caps how many surfaces it aims for.
 do_materials(){ $PY -m litereality_agent.realism_authoring.materials_pass --room "$WORKROOM" --surface-ref "$SURFREF" \
-                    --scan "$SCAN_DIR" --refroot "$OUT/obj_stage/object_init" \
+                    --scan "$SCAN_DIR" --refroot "$REFROOT" \
                     --targets "${MATERIALS_TARGETS:-8}" --max-turns "${MATERIALS_TURNS:-80}"; }
 do_export(){
   # rebuild Room.glb from the (authored + refined) Room.py so the viewer reflects every edit —
@@ -317,7 +337,11 @@ do_export(){
 }
 
 # ---- run -------------------------------------------------------------------
-printf "\n${C_CY}── realism_authoring · %s %s${C_0}\n" "$SCAN" \
+# Name the halves this run will actually do. Announcing "realism_authoring" and then printing
+# "▶ init…" one line later contradicts the two-stage split the README makes load-bearing.
+RUN_LABEL="scene_init + realism_authoring"
+[ "${SKIP_INIT:-0}" = 1 ] && RUN_LABEL="realism_authoring"
+printf "\n${C_CY}── %s · %s %s${C_0}\n" "$RUN_LABEL" "$SCAN" \
        "$(printf '─%.0s' $(seq 1 $((50 - ${#SCAN}))))"
 printf "   ${C_DIM}editor %s · vlm %s · image %s${C_0}\n" \
        "${HARNESS_MODEL:-?}" "${HARNESS_VLM:-?}" "${LR_OPENAI_IMAGE_MODEL:-?}"

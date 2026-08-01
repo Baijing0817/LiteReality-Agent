@@ -126,7 +126,7 @@ the authoring/refine sessions:
 | `gen3d` | **neural** RunPod/Local TRELLIS · **procedural** (articulated, QC-gated) | `gen3d_for_env()` / `gen3d_for_route()` — `classify_complexity` routes box/articulated → procedural, organic → TRELLIS |
 | `detect` | GroundingDINO | in-process (default) or isolated via `$LR_DINO_PYTHON` |
 | `vlm` | Claude (default) | `HARNESS_VLM` |
-| image-gen | OpenAI `gpt-image-1` | `LR_IMAGE_PROVIDER` (default `openai`) |
+| image-gen | OpenAI `gpt-image-2` (`gpt-image-1` legacy) | `LR_IMAGE_PROVIDER` (default `openai`) · model via `LR_OPENAI_IMAGE_MODEL` |
 
 `llm`, `gen3d` and `detect` are wired into `ModelRegistry` today via `factory.build_model_registry`;
 `vlm` and image-gen are still selected directly by their env vars (their registry wrappers are
