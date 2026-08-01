@@ -1,0 +1,39 @@
+# envs / heavy / generated — ignored whether dir OR symlink
+/.venv
+/run
+# stale: superseded by run/, kept locally only
+/output
+/data
+/weights
+/scans_uploaded
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+/research/
+/.cache
+run_back
+
+
+# Kept locally, deliberately out of the repo.
+/.python-version
+/NOTICE
+/SETUP.md
+/web/
+__MACOSX
+
+# Agent scratch state. The procedural backend ships a real `.claude/skills/` tree (loaded at
+# runtime — do NOT ignore that), but per-machine session/memory dirs must never be committed.
+**/.claude/projects/
+**/.claude/settings.local.json
+**/.claude/todos/
+
+# raw scans (large, local)
+/scanned_scene/
+
+# retired code, kept locally for reference only (recoverable), not pushed
+/legacy/

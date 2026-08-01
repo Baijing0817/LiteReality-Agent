@@ -1,0 +1,122 @@
+[project]
+name = "litereality-agent"
+version = "0.0.1"
+description = "Agentic scene reconstruction: a deterministic init followed by a one-shot agentic authoring pass (scan -> editable Room.py -> Room.glb)."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Zhening Huang" }, { name = "LiteReality contributors" }]
+keywords = ["3d-scene", "reconstruction", "agentic", "roomplan", "trellis", "blender"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+]
+
+dependencies = [
+    "numpy",
+    "pillow",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.7.0",
+    # model providers
+    "anthropic>=0.40.0",
+    "google-genai",
+    "openai>=1.40.0",
+    "claude-agent-sdk",
+    # init / preprocessing (DINO, projection, meshes)
+    "trimesh>=4.0",
+    "opencv-python",
+    "tqdm",
+    "open3d",
+    # viewer (later)
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+# Heavy local models run in their OWN env (isolated subprocess workers); install these only
+# in that env, NOT the light loop/agent env.
+detect = ["torch", "torchvision", "transformers"]  # GroundingDINO detect + DINOv2 grouping (torchvision required by DINOv2 image processor)
+gen3d = ["torch", "trimesh"]            # TRELLIS (gen3d role) — later
+collision = ["python-fcl", "networkx"]  # true-mesh QC collision (scene_collision.py / check_collisions method='mesh')
+
+[project.urls]
+Repository = "https://github.com/ZheningHuang/LiteReality-Agent"
+Issues = "https://github.com/ZheningHuang/LiteReality-Agent/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/litereality_agent"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.claude",
+    "/.github",
+    "/.mypy_cache",
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/.uv-cache",
+    "/.venv",
+    "/data",
+    "/dist",
+    "/run",
+    "/run",
+    "/output_objinit_test",
+    "/scans_uploaded",
+    "/weights",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.11.0",
+]
+
+[tool.uv]
+required-version = ">=0.9.17"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The default run must stay offline and fast, so it is worth running before every commit. Anything
+# needing Blender, a real scan, or a paid model call is opt-in by marker.
+addopts = "-m 'not blender and not scan and not live' --strict-markers"
+markers = [
+    "blender: needs a Blender install ($LITEREALITY_BLENDER) — run with `-m blender`",
+    "scan: needs real scan data under scans_uploaded/ — run with `-m scan`",
+    "live: makes paid model calls — run with `-m live`",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["data", "run", "output_objinit_test", "scans_uploaded", "weights",
+                   "src/litereality_agent/scene_init/object_init/extract/lr_preprocessing",
+                   "src/litereality_agent/backends", "third_party", "legacy"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Vendored/ported math + Blender helpers — keep their original style instead of risking edits.
+# (Lint is strict for the models / scene_init / realism_authoring / integration / cli layers.)
+"src/litereality_agent/realism_authoring/views/image_selection/**/*.py" = ["E741", "E402", "E731"]
+"src/litereality_agent/backends/procedural/articulated-glb-agent/**/*.py" = ["F841"]
+"src/litereality_agent/realism_authoring/scene/report_html.py" = ["E741"]
+# merge_objects — CLI over merge_boxes, kept in its original style. (The recon-site publishing ops/
+# tools were retired to legacy/litereality_agent/scripts/ops/, excluded above.)
+"src/litereality_agent/scripts/ops/merge_objects.py" = ["E501", "E741", "E402", "E401", "I001", "F841", "F541"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
