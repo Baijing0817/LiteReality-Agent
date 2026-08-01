@@ -69,23 +69,6 @@ If you do not want to use RunPod and are on Linux, install TRELLIS locally and p
 uv run python sanity.py
 ```
 
-## Two stages
-
-The pipeline is two halves that meet at a folder, and it is worth knowing which one you are in —
-they fail differently, cost differently, and are re-run independently.
-
-| | **1 · `scene_init`** | **2 · `realism_authoring`** |
-|---|---|---|
-| what | scan → per-object references → reconstructed GLBs → seed `Room.py` + `Room.glb` | edit `Room.py` until it looks like the real room: shell materials, fixtures, PBR, per-object refinement, QC, viewer |
-| driven by | **deterministic** — models are called for specific decisions (grouping, classification, reference images), but the control flow is fixed and reproducible | **agentic** — self-paced model passes that look at renders and edit code |
-| needs | the capture, GPU/RunPod for TRELLIS, Blender | the seed from stage 1, a logged-in agent CLI, Blender |
-| re-run | when the capture or the reconstruction changes | freely — it never touches the seed |
-| output | a **scene package**: `run/<scan>/` + `scene.json` | the authored `Room.py`, `Room.glb`, and the viewer |
-
-The seam is the scene package. Stage 1 seals its output folder with a `scene.json` manifest
-recording every path, root and capture location, so **stage 2 launches from that folder alone** —
-no scan name, no `$LR_SCANS_DIR`, no per-stage path flags.
-
 ## Run
 
 Both stages, end to end — give it a scan folder, or a name to resolve under `$LR_SCANS_DIR`:
@@ -102,12 +85,6 @@ uv run -m litereality_agent scene_init example-scans/Office_room          # stag
 uv run -m litereality_agent realism_authoring run/Office_room   # stage 2, realism_authoring
 ```
 
-Stage 2 takes the package and nothing else; omit the argument entirely when `$LR_SCENE` is set,
-when you are standing inside a package, or when there is only one on disk. `./run.sh --scene <dir>`
-is the same thing.
-
-
-
 You get, in `run/<scan>/`:
 
 | file | what |
@@ -122,24 +99,6 @@ glance, and does **not** reproduce the full PBR shading. For the accurate look, 
 file — `Room.blend`, written next to the preview GLB at
 `run/<scan>/scene_stage/_oneshot/room_preview/`.
 
-**Where the code lives.** Everything importable is one package, `src/litereality_agent/`, laid out along
-the same two stages:
-
-```
-src/litereality_agent/
-├── scene_init/          STAGE 1 — the deterministic half (object_init + seed export + package)
-├── realism_authoring/   STAGE 2 — the agentic half (author · materials · refine · qc · viewer)
-├── integration/         the Room program: Room.py → Room.glb, and manifest.py (the scene package)
-├── models/              one front door per model role: llm · vlm · detect · gen3d
-├── backends/            heavy/external behind launchers: TRELLIS · GroundingDINO · procedural
-├── scripts/             standalone entry points and batch runners
-└── cli.py               the command line — `uv run -m litereality_agent <command>`
-```
-
-`run.sh`, `sanity.py`, `report.sh` and `tests/` stay at the repo root, alongside the data trees
-they operate on (`run/`, `scans_uploaded/`). See
-[ARCHITECTURE.md](ARCHITECTURE.md).
-
 ### Seeing what the agent did
 
 The viewer's **trace** panel shows the run's event log — stage boundaries, image-generation calls,
@@ -149,7 +108,3 @@ reconstruction and QC events, with elapsed times. That is built in by default, n
 ./report.sh <scan>          # richer per-stage report — see the caveat below
 ```
 
-> **Caveat:** `report.sh` renders `litereality_agent.realism_authoring.scene.report_html`, which reads the per-iteration
-> `scene_stage/stage_<N>/iteration_<M>/verify.json` layout written by the older multi-stage harness.
-> The current one-shot authoring path does not produce that layout, so on a default run the report
-> comes out as an empty shell. It is useful only for runs made with the staged harness.
