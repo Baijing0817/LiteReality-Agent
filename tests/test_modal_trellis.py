@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import base64
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 
 class FakeClient:
@@ -13,6 +14,36 @@ class FakeClient:
     def map(self, inputs):
         self.inputs = list(inputs)
         return self.outputs
+
+
+def test_pipeline_installs_background_bypass_before_model_construction(monkeypatch):
+    from litereality_agent.models.trellis import inference
+
+    calls = []
+
+    class Pipeline:
+        @classmethod
+        def from_pretrained(cls, model_name):
+            calls.append(("load", model_name))
+            return cls()
+
+        def cuda(self):
+            calls.append(("cuda", None))
+
+    torch = ModuleType("torch")
+    torch.backends = SimpleNamespace(cudnn=SimpleNamespace(enabled=True))
+    trellis = ModuleType("trellis2")
+    pipelines = ModuleType("trellis2.pipelines")
+    pipelines.Trellis2ImageTo3DPipeline = Pipeline
+    trellis.pipelines = pipelines
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "trellis2", trellis)
+    monkeypatch.setitem(sys.modules, "trellis2.pipelines", pipelines)
+    monkeypatch.setattr(inference, "install_noop_rembg", lambda: calls.append(("bypass", None)))
+
+    inference.load_pipeline("model")
+
+    assert calls == [("bypass", None), ("load", "model"), ("cuda", None)]
 
 
 def test_modal_trellis_maps_model_payloads_and_writes_outputs(tmp_path):

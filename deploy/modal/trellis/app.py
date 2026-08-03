@@ -32,6 +32,10 @@ image = (
         gpu="H100",
         env={"TORCH_CUDA_ARCH_LIST": "9.0"},
     )
+    # TRELLIS.2 reaches into DINOv3 internals that changed in Transformers 5.x.
+    # Keep this after the cached native-extension layer so the compatibility pin
+    # remains a CPU-only image operation and cannot trigger another GPU build.
+    .pip_install("transformers==4.57.5")
     .env(
         {
             "LR_REPO_ROOT": str(REMOTE_REPO_ROOT),
@@ -42,6 +46,7 @@ image = (
     .add_local_python_source("litereality_agent")
 )
 weights = modal.Volume.from_name(MODEL_VOLUME, create_if_missing=True)
+huggingface = modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])
 app = modal.App(APP_NAME)
 _pipeline = None
 
@@ -65,6 +70,7 @@ def _load_pipeline():
     image=image,
     gpu="H100",
     volumes={str(WEIGHTS_ROOT): weights},
+    secrets=[huggingface],
     timeout=20 * 60,
     scaledown_window=60,
     max_containers=8,
