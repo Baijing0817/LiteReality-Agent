@@ -10,6 +10,10 @@ inside the remote worker. Attach a RunPod network volume and configure the endpo
 `HF_HOME=/runpod-volume/huggingface`; the first worker downloads both public Hugging Face models,
 and later scale-from-zero workers reuse the cached weights.
 
+Both models use Hugging Face Transformers and Hugging Face-hosted weights, but neither is currently
+served by a Hugging Face Inference Provider. This image has no custom CUDA compilation: its build
+is CPU-only, while the RunPod endpoint supplies a GPU only during inference.
+
 Configure the local application with:
 
 ```text

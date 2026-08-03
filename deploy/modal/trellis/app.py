@@ -22,7 +22,14 @@ image = (
     modal.Image.from_dockerfile(
         deployment_root / "Dockerfile",
         context_dir=deployment_root,
+    )
+    .run_commands(
+        "cd /root/TRELLIS.2 && "
+        ". ./setup.sh --cumesh --o-voxel --flexgemm --nvdiffrast --nvdiffrec",
+        # Upstream checks nvidia-smi before installing its native extensions. Scope the
+        # billable builder GPU to this cached layer instead of the complete Docker build.
         gpu="H100",
+        env={"TORCH_CUDA_ARCH_LIST": "9.0"},
     )
     .add_local_python_source("litereality_agent")
     .env(
