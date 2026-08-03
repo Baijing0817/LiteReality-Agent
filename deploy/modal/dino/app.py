@@ -17,8 +17,8 @@ image = (
         deployment_root / "Dockerfile",
         context_dir=deployment_root,
     )
-    .add_local_python_source("litereality_agent")
     .env({"HF_HOME": str(WEIGHTS_ROOT / "huggingface")})
+    .add_local_python_source("litereality_agent")
 )
 weights = modal.Volume.from_name(MODEL_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)

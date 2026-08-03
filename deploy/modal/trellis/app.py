@@ -31,7 +31,6 @@ image = (
         gpu="H100",
         env={"TORCH_CUDA_ARCH_LIST": "9.0"},
     )
-    .add_local_python_source("litereality_agent")
     .env(
         {
             "LR_REPO_ROOT": str(REMOTE_REPO_ROOT),
@@ -39,6 +38,7 @@ image = (
             "HF_XET_HIGH_PERFORMANCE": "1",
         }
     )
+    .add_local_python_source("litereality_agent")
 )
 weights = modal.Volume.from_name(MODEL_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)
