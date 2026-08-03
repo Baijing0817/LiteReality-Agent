@@ -18,7 +18,7 @@ folders:
         reconstructed_objs/                # GLBs the launcher generates from the refs
             <Object>.glb, <ChairCluster>.glb
         traces/                            # process log for later visualization
-            trace.jsonl, gemini/, agent/
+            trace.jsonl, images/, agent/
         manifest.json                      # per-scan roll-up of everything above
 
 (The room-build half lands in a sibling ``scene_stage/`` — see integration.config.)
@@ -39,9 +39,9 @@ import sys
 from pathlib import Path
 
 from litereality_agent import PACKAGE_ROOT, REPO_ROOT
-from litereality_agent.shared.settings import load_settings
+from litereality_agent.settings import load_settings
 
-OBJECT_INIT_DIR = PACKAGE_ROOT / "pipeline" / "stages" / "ingest"
+OBJECT_INIT_DIR = PACKAGE_ROOT / "pipeline" / "ingest"
 PIPELINE_DIR = PACKAGE_ROOT / "pipeline"
 AGENT_DIR = REPO_ROOT
 LR_PREPROC_DIR = OBJECT_INIT_DIR / "extract" / "lr_preprocessing"
@@ -50,10 +50,7 @@ LR_PREPROC_DIR = OBJECT_INIT_DIR / "extract" / "lr_preprocessing"
 # via $LR_SCANS_DIR so init can run on existing scan data without copying it.
 SCANS_ROOT = load_settings().resolved_scans_dir()
 
-# Optional extra secrets file (KEY=value lines). Point $LR_STUDIO_KEYS at one to use it.
-STUDIO_KEYS_FILE = load_settings().studio_keys
-
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-image"
+DEFAULT_IMAGE_MODEL = "gpt-image-2"
 
 # The scan whose per-scan output tree the helpers below resolve against. Set by
 # :func:`set_scan` / :func:`enter_work_root`; falls back to ``_shared`` so the
@@ -117,7 +114,7 @@ def obj_stage_dir(scan: str | None = None) -> Path:
     clustering, reconstructed GLBs). It lives under stage 1's own root in the deliverables tree,
     ``run/<scan>/scene_init/obj_stage`` (override the root via $LITEREALITY_FINAL). When the
     staging and deliverables roots differ, the staging spelling is kept as a symlink to here, so
-    integration / run.sh / tooling resolve to the same physical tree either way."""
+    integration / the CLI / tooling resolve to the same physical tree either way."""
     return scene_init_dir(scan) / "obj_stage"
 
 
@@ -127,7 +124,7 @@ def reconstruct_dir(scan: str | None = None) -> Path:
 
 
 def traces_dir(scan: str | None = None) -> Path:
-    """Process trace (Gemini calls, agent steps) for later visualization."""
+    """Process trace (model calls and agent steps) for later visualization."""
     return obj_stage_dir(scan) / "traces"
 
 
@@ -169,7 +166,7 @@ def object_refs_root() -> Path:
 
 
 def final_root() -> Path:
-    """Top-level deliverables tree (``<repo>/run``), shared with run.sh's FINAL_ROOT.
+    """Top-level deliverables tree (``<repo>/run``), shared with the CLI's FINAL_ROOT.
     Override with $LITEREALITY_FINAL. The whole object stage (obj_stage_dir) roots here."""
     settings = load_settings()
     return (settings.final_root or settings.resolved_output_root()).resolve()
@@ -205,60 +202,3 @@ def ensure_lr_on_path() -> None:
     p = str(LR_PREPROC_DIR)
     if p not in sys.path:
         sys.path.insert(0, p)
-
-
-# ── secrets ──────────────────────────────────────────────────────────────────
-def _parse_env_file(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            out[key.strip()] = value.strip().strip('"').strip("'").strip()
-    except OSError:
-        pass
-    return out
-
-
-def _clean_key_value(value: str) -> str:
-    """Take the value of a ``.key`` file, tolerating ``name=value`` / quotes.
-
-    Accepts a bare key (``AIza...``), or a single ``NAME="AIza..."`` / ``NAME=AIza...``
-    line — returns just the key in every case.
-    """
-    value = value.strip()
-    if "=" in value:
-        value = value.split("=", 1)[1].strip()
-    return value.strip().strip('"').strip("'").strip()
-
-
-def gemini_api_key() -> str:
-    """Resolve the Google AI Studio key.
-
-    Order: ``$GEMINI_API_KEY`` -> repo ``.key`` (bare key, or a single
-    ``NAME="key"`` line) -> repo ``.keys`` -> the original LiteReality-Studio ``.keys``.
-    """
-    settings = load_settings()
-    if settings.google_api_key:
-        return settings.google_api_key.get_secret_value()
-
-    dot_key = REPO_ROOT / ".key"
-    if dot_key.exists():
-        value = _clean_key_value(dot_key.read_text(encoding="utf-8"))
-        if value:
-            return value
-
-    for keys_file in (REPO_ROOT / ".keys", STUDIO_KEYS_FILE):
-        if keys_file and keys_file.exists():
-            parsed = _parse_env_file(keys_file)
-            for name in ("GEMINI_API_KEY", "GEMINI_API_KEYS"):
-                if parsed.get(name):
-                    # GEMINI_API_KEYS may be a comma-separated list; take the first.
-                    return parsed[name].split(",")[0].strip()
-
-    raise RuntimeError(
-        "No Gemini API key found. Set $GEMINI_API_KEY, or put one in "
-        f"{REPO_ROOT / '.key'} (or a KEY=value file pointed to by $LR_STUDIO_KEYS)."
-    )

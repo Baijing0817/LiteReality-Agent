@@ -1,6 +1,6 @@
 """The scene PACKAGE — a scan's init output as a SELF-DESCRIBING folder.
 
-`scene_init` used to leave its results as a pile of directories whose meaning lived in `run.sh`:
+`scene_init` used to leave its results as a pile of directories whose meaning lived in `the CLI`:
 the caller had to know that the seed room is `run/<scan>/scene_init/scene_stage/room_init/room`, that the
 object references are `run/<scan>/scene_init/obj_stage/object_init`, that the capture is
 `$LR_SCANS_DIR/<scan>`, and that four separate `$LITEREALITY_*` env vars have to agree for any of
@@ -20,10 +20,10 @@ Given that folder — and nothing else — stage 2 can rebuild the whole environ
 
     pkg = manifest.require("run/<scan>")  # or None: discovered from $LR_SCENE / cwd
     manifest.apply_env(pkg)                         # exports the $LITEREALITY_* contract
-    ...                                             # litereality_agent.services.rendering.config now resolves
+    ...                                             # litereality_agent.scene.rendering.config now resolves
 
 From a shell, `python -m litereality_agent.scene.manifest env <dir>` prints those exports for
-`eval` — that is how `run.sh --scene <dir>` rebuilds its environment.
+`eval` — that is how `the CLI --scene <dir>` rebuilds its environment.
 
 Deliberately **stdlib only**, importing nothing else in this package: it is the seam between the
 deterministic and agentic halves, so it must stay cheap enough for either side to depend on —
@@ -59,7 +59,7 @@ SCHEMA = "litereality.scene/1"
 MANIFEST_NAME = "scene.json"
 
 # Paths the manifest carries. `required` ones are what stage 2 cannot start without — `check()`
-# reports them separately from the merely-nice-to-have. Keys are stable API: run.sh and the
+# reports them separately from the merely-nice-to-have. Keys are stable API: the CLI and the
 # authoring CLIs address them by name.
 PATH_KEYS = (
     "obj_stage",
@@ -158,7 +158,7 @@ class ScenePackage:
         return env
 
     def stage_env(self) -> dict[str, str]:
-        """`LR_*` conveniences for shell callers (run.sh) — one per stage-2 argument."""
+        """`LR_*` conveniences for shell callers (the CLI) — one per stage-2 argument."""
         out: dict[str, str] = {}
         for key, var in (
             ("room_init", "LR_ROOM_INIT"),
@@ -310,7 +310,7 @@ def _manifest_at(path: Path) -> Path | None:
 def _spellings(path: Path) -> list[Path]:
     """A path and its realpath — `run/<scan>/…` and `run/<scan>/…` are the same tree.
 
-    run.sh symlinks `run/<scan>/{obj_stage,scene_stage}` at `run/<scan>/…`, so a cwd
+    the CLI symlinks `run/<scan>/{obj_stage,scene_stage}` at `run/<scan>/…`, so a cwd
     under the `output/` spelling walks up to `run/<scan>/`, which holds no manifest. Searching
     the resolved spelling as well is what makes discovery work from either side of that link.
     """
@@ -430,7 +430,7 @@ def bootstrap(argv: list[str] | None = None, *, hint: Path | str | None = None) 
     """Resolve a package from `--scene`/`$LR_SCENE`/cwd and apply its env. Never raises.
 
     Call this BEFORE importing anything that reads `$LITEREALITY_*` at import time (chiefly
-    `litereality_agent.services.rendering.config`, which resolves every harness path the moment it is imported).
+    `litereality_agent.scene.rendering.config`, which resolves every harness path the moment it is imported).
 
     `--scene` is PEEKED at, not consumed: the entry point's own argparse still declares it, so
     `--help` stays honest and a typo is still an argparse error rather than a silent miss.
@@ -511,7 +511,7 @@ def capture_stats(capture: Path | str) -> dict[str, Any]:
 # ── the shell interface ──────────────────────────────────────────────────────
 # `python -m litereality_agent.scene.manifest <cmd> [<dir>]`
 #
-#     env    eval-able exports that rebuild the stage-2 environment — run.sh sources this
+#     env    eval-able exports that rebuild the stage-2 environment — the CLI sources this
 #     show   human summary + which recorded paths are actually on disk
 #     check  exit 1 if a required path is missing
 #     list   every package under run/
@@ -530,7 +530,7 @@ def _cli(argv: list[str] | None = None) -> int:
         return 0 if found else 1
 
     if cmd == "env":
-        # Quiet on failure: run.sh guards this and falls back to the legacy <scan>-derived paths,
+        # Quiet on failure: the CLI guards this and falls back to the legacy <scan>-derived paths,
         # so a noisy stderr here would be alarming rather than useful.
         pkg = discover(hint)
         if pkg is None:

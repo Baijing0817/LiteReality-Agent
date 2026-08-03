@@ -15,11 +15,11 @@ import json
 
 import pytest
 
-from litereality_agent.scene.quality import room as qc_room
-from litereality_agent.services.tools.check_collisions.tool import (
+from litereality_agent.pipeline.author.tools.check_collisions.tool import (
     CheckCollisionsInvocation,
     CheckCollisionsParams,
 )
+from litereality_agent.scene.quality import room as qc_room
 
 # A 4 m × 3 m room (footprint x[0,4] y[0,3], centre (2,1.5)), floor at z=0.
 _WALLS = {

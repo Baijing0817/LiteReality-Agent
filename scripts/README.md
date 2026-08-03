@@ -6,21 +6,6 @@ directly. All of them resolve the repo root themselves, so they work from any wo
 The supported entrypoint is `uv run litereality`. Files here are maintenance and batch wrappers,
 not importable application code. Use `uv run litereality stage <name> <scene>` for one stage.
 
-## Batch pipeline stages
-
-Each defaults its worklist to every scan directory under `$LR_SCANS_DIR`; pass scan names to narrow
-it. All are idempotent — finished work is skipped unless you pass `--force`.
-
-| script | stage |
-|---|---|
-| `pipeline/init_batch.sh` | deterministic pipeline through seed `Room.py` |
-| `pipeline/preprocess_objects.sh` | ingest up to chair grouping |
-| `pipeline/generate_objects.sh` | reference generation before reconstruction |
-| `pipeline/reconstruct_objects.sh` | reconstruction for named scans |
-| `pipeline/reconstruct_all.sh` | reconstruction across scans with bounded parallelism |
-| `pipeline/scene_init_all.sh` | seed assembly only |
-| `pipeline/qc_batch.sh`, `pipeline/qc_fallback.sh` | batch quality operations |
-
 ## Capture utilities
 
 Fuse the raw RoomPlan capture into geometry for render-vs-real comparison.

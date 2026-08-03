@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.services.tracing.history import RunTrace
+from litereality_agent.pipeline.tracing.history import RunTrace
 
 
 def _events(path: Path) -> list[dict]:
@@ -101,7 +101,14 @@ def test_stitch_coverage_is_tracked_where_the_tool_name_exists():
     Checked statically because the accounting is inline in `author.run()` around a live `query()`
     call; extracting it is the fix, not the test.
     """
-    src = (Path(__file__).resolve().parents[1] / "src" / "litereality_agent" / "realism_authoring" / "author.py").read_text()
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "litereality_agent"
+        / "pipeline"
+        / "author"
+        / "agent.py"
+    ).read_text()
     after_result_branch = src.split('elif b == "ToolResultBlock":', 1)[1]
     assert "read_surfaces.add" not in after_result_branch, (
         "coverage tracking sits in the ToolResultBlock branch, where input is always empty"

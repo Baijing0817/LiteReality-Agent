@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from litereality_agent import REPO_ROOT
-from litereality_agent.shared.settings import LiteRealitySettings, load_settings
+from litereality_agent.settings import LiteRealitySettings, load_settings
 
 SCAN_MARKERS = ("room.usdz", "roomplan/room.usdz")
 

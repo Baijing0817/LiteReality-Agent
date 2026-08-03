@@ -170,7 +170,7 @@ class _StageStream:
 
     A slow stage used to sit on a static `▶ chair groups…` for ninety seconds with no sign of
     life. Its own narration already says what it is doing — DINOv2 embeddings, the judge call,
-    each nano-banana image — so that narration is reused as a one-line status that refreshes in
+    each hosted reference image — so that narration is reused as a one-line status that refreshes in
     place, and still lands in the log in full.
     """
 

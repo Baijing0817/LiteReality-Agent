@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 from litereality_agent import PACKAGE_ROOT, REPO_ROOT
-from litereality_agent.shared.settings import load_settings
+from litereality_agent.settings import load_settings
 
 HERE = Path(__file__).resolve().parent
 # REPO_ROOT is the CHECKOUT (output/, scans_uploaded/, .env) — not this package. PACKAGE_ROOT is

@@ -20,7 +20,7 @@ still writes a `Room.py`.
 | `test_surfaces.py` | Surface discovery from `Room.py`: sliver-stub exclusion, numeric wall ordering, opening keys not becoming phantom walls, no hidden wall cap, graceful degradation. |
 | `test_run_trace.py` | The evidence trail: one trace file per pass, edit events, MCP prefix stripping, totals, and that a broken trace never breaks a run. |
 | `test_projection.py` | The pinhole projection in the vendored preprocessing: points behind the camera (which mirror onto a plausible in-frame pixel) and on the camera plane are not counted visible, valid points are unmoved, and no non-finite value reaches an int cast. That mask picks an object's reference frames, so a false positive seeds the whole object from a frame it is not in. |
-| `test_module_paths.py` | Every module named as a STRING (`-m …` in subprocess calls, run.sh and the batch runners) resolves to a file, and no retired top-level spelling comes back. A string is invisible to imports, linters and renames — this exact case has broken a live run twice. |
+| `test_module_paths.py` | Every module named as a STRING (`-m …` in subprocess calls, the CLI and the batch runners) resolves to a file, and no retired top-level spelling comes back. A string is invisible to imports, linters and renames — this exact case has broken a live run twice. |
 | `test_console.py` | The stage display and the reconstruction phase's bookkeeping: no escape codes into a non-tty, a distinct colour per stage, a build stage that produced nothing marked ✗ rather than ✓, never raising on an unexpected payload, and the progress denominator counting both GLB layouts. |
 | `test_scan_input.py` | A scan named or handed over as a folder must mean the same thing: the folder → (`$LR_SCANS_DIR`, name) translation, every spelling (absolute, relative, trailing slash), refusal of a non-capture directory, and that a bare name is never probed against the CWD. |
 | `test_scene_package.py` | The manifest that lets stage 2 launch from a folder: relative (movable) paths, discovery from either path spelling, every stage resolving off `--scene` alone, explicit flags and an exported environment still winning, and the work room never clobbering an edited one. |
@@ -28,7 +28,7 @@ still writes a `Room.py`.
 ## Conventions
 
 - **`stage_tree` (conftest) reproduces the real layout**, including the `run/<scan>/<stage>` →
-  `run/<scan>/<stage>` symlinks `run.sh` creates. Most tool bugs here are *path-shape*
+  `run/<scan>/<stage>` symlinks `the CLI` creates. Most tool bugs here are *path-shape*
   bugs, and a fixture that just makes a directory named `room` cannot catch them.
 - **`$LITEREALITY_SCAN` is isolated per test** (autouse fixture). `compose._config_for` *writes* it as
   a side effect, so without isolation one test's write becomes the next test's fallback and the suite

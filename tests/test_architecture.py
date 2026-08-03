@@ -1,4 +1,4 @@
-"""Keep the package dependency graph pointed inward."""
+"""Keep the three package areas and their dependency direction explicit."""
 
 from __future__ import annotations
 
@@ -6,14 +6,11 @@ import ast
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "litereality_agent"
-LAYERS = {"shared", "scene", "services", "adapters", "pipeline", "cli"}
+LAYERS = {"models", "scene", "pipeline"}
 ALLOWED = {
-    "shared": set(),
-    "scene": {"shared"},
-    "services": {"shared", "scene"},
-    "adapters": {"shared", "services"},
-    "pipeline": {"shared", "scene", "services", "adapters"},
-    "cli": {"shared", "scene", "services", "adapters", "pipeline"},
+    "models": set(),
+    "scene": set(),
+    "pipeline": {"models", "scene"},
 }
 
 
@@ -40,3 +37,11 @@ def test_layer_imports_only_point_inward():
             if target in LAYERS and target != owner and target not in ALLOWED[owner]:
                 violations.append(f"{relative}:{owner} -> {target}")
     assert not violations, "invalid layer imports:\n" + "\n".join(violations)
+
+
+def test_only_supported_package_areas_exist():
+    retired = {"adapters", "services", "shared"}
+    present = {
+        path.name for path in PACKAGE.iterdir() if path.is_dir() and any(path.rglob("*.py"))
+    }
+    assert not present & retired

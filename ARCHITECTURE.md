@@ -1,108 +1,73 @@
-# LiteReality-Agent architecture
+# Architecture
 
-LiteReality is one resumable Python pipeline. Every major stage has one public boundary and returns
-a structured `StageResult`; `PipelineRunner` owns ordering, prerequisites, reuse, invalidation,
-failure policy, and state persistence.
+LiteReality is one resumable pipeline with five public stages:
 
 ```text
-ingest → reconstruct → seed → evidence → author → refine → quality → publish
+cli.py → PipelineRunner → ingest → reconstruct → seed → author → publish
 ```
 
-Run the full workflow or one stage through the installed uv entrypoint:
-
-```bash
-uv run litereality run <scan-or-capture>
-uv run litereality run <scene> --from author --through quality
-uv run litereality stage publish <scene>
-```
+Each stage exposes `run(context, options) -> StageResult`. `PipelineRunner` owns ordering,
+prerequisites, reuse, failure handling, and state in `run/<scene>/.litereality/pipeline.json`.
 
 ## Package layout
 
 ```text
 src/litereality_agent/
-├── cli/                 argument parsing, compatibility aliases, presentation
-├── pipeline/
-│   ├── context.py       explicit paths and typed settings for one run
-│   ├── result.py        StageStatus and StageResult
-│   ├── runner.py        dependency-aware orchestration and resume state
-│   ├── providers.py     composition of model protocols with adapters
-│   └── stages/          ingest, reconstruct, seed, evidence, author, refine, quality, publish
-├── scene/               scene manifest, path rules, Room.py compiler, materials, geometry QC
-├── services/
-│   ├── models/          provider-neutral model protocols and value types
-│   ├── rendering/       Blender rendering, view selection, comparisons, overlays
-│   ├── tracing/         structured event history, narration, reports
-│   └── tools/           closed authoring capability-tool registry
-├── adapters/            Claude/Codex, DINO, TRELLIS, procedural, Blender, Sketchfab integrations
-└── shared/              typed Pydantic settings and dependency-light utilities
+├── cli.py               the supported command surface
+├── settings.py          Pydantic environment settings
+├── telemetry.py         dependency-neutral event logging
+├── pipeline/            workflow ordering and stage implementations
+│   ├── ingest/          capture → crops and reference images
+│   ├── reconstruct/     object routing and 3D generation
+│   ├── author/          evidence and Room.py authoring tools
+│   └── publish/         final compilation and viewer
+├── scene/               scene data, geometry, rendering, export, and QC
+└── models/
+    ├── <model>/local/    implementations executed on a configured local machine
+    └── <model>/hosted/   implementations executed through a hosted API
 
-scripts/
-├── pipeline/            batch and compatibility wrappers
-├── capture/             capture geometry utilities
-└── ops/                 repair and migration operations
+scripts/                  standalone capture and publishing utilities
 ```
 
-Top-level `scripts/` is not part of the wheel and must never be imported. Reusable behavior belongs
-under `src/litereality_agent/`; scripts only translate operational arguments into package calls.
+There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layers. The directory
+name answers the ownership question: workflow decisions belong in `pipeline`, reusable scene
+behavior belongs in `scene`, and inference runtimes belong under their named model.
 
-## Dependency direction
-
-Imports point inward and are checked by `tests/test_architecture.py`:
+Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text
-shared ← scene ← services ← adapters ← pipeline ← cli
+models    scene
+    \      /
+     pipeline → cli.py
 ```
 
-- `scene` owns portable scene data and geometry behavior, not orchestration.
-- `services.models` defines protocols; concrete provider implementations live in `adapters`.
-- `pipeline.providers` is the composition root that binds protocols to adapters.
-- Services and adapters never import pipeline stages.
-- Pipeline stages may use every lower layer but not the CLI.
+Models and scene code never import pipeline code. Hosted/local model selection happens in
+`models/registry.py`; the pipeline consumes that small composition boundary.
 
-## Stage contract
+## Configuration and runtimes
 
-Every stage exposes `run(context, options) -> StageResult` and declares:
-
-- prerequisites;
-- whether failure is required or optional;
-- how completion is recognized on disk;
-- the artifacts it produced.
-
-Statuses are `completed`, `reused`, `skipped`, and `failed`. Required failures stop the run.
-Optional failures remain visible and later independent stages continue; `--strict` promotes them to
-fatal failures. `--force <stage>` removes saved state for that stage and all dependents.
-
-The runner writes orchestration state to `run/<scene>/.litereality/pipeline.json`. Existing
-`scene.json` fields and generated artifact paths remain compatible, so completed reconstruction work
-does not need to be regenerated after this source restructure.
-
-## Configuration
-
-`shared.settings.LiteRealitySettings` is the typed configuration boundary, implemented with
-`pydantic-settings`. Precedence is:
+`LiteRealitySettings` uses `pydantic-settings` and loads values in this order:
 
 ```text
 process environment > .env > models.env > typed defaults
 ```
 
-Aliases such as `BLENDER_PATH` and `GROUNDING_DINO_PYTHON` are normalized into canonical fields.
-Secrets use `SecretStr`. The CLI loads settings once and `RunContext` passes them explicitly;
-canonical environment variables are exported only for isolated legacy subprocesses. Importing a
-module never searches for Blender, requires credentials, creates output folders, or requires a scan.
+Heavy inference is isolated from the main environment. `models/<name>/local` means the code can be
+run on a separately configured compute machine; it does not mean the main pipeline silently loads
+that model in-process. TRELLIS can instead use `models/trellis/hosted` with RunPod. The CLI and unit
+tests do not start DINO, TRELLIS, Blender, or paid model calls.
 
-## Generated scene layout
+## Output compatibility
 
-The generated layout remains stable during this cleanup:
+Generated paths remain stable so previous work can be resumed:
 
 ```text
 run/<scene>/
 ├── scene.json
-├── scene_init/
-│   ├── obj_stage/       crops, references, reconstructed objects, traces
-│   └── scene_stage/     seed Room.py, assets, seed preview
-├── realism_authoring/   authored room, renders, refinement, QC, final deliverables
-└── .litereality/        pipeline resume state
+├── scene_init/          crops, references, reconstructed objects, seed room
+├── realism_authoring/  authored room and final deliverables
+└── .litereality/        resume state
 ```
 
-`scene_init/` and `realism_authoring/` are siblings, so rerunning or removing authoring output cannot
-destroy expensive reconstructed seed assets.
+Some legacy artifact filenames such as `nano_banana_raw.png` are still read for compatibility;
+they are data-format details, not supported providers or package boundaries.

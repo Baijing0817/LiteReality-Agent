@@ -1,14 +1,13 @@
 """Every module named as a STRING must resolve.
 
 A cross-package call that goes through a subprocess names its target in a string — `-m
-litereality_agent.adapters.procedural.generate_procedural` — and a string is invisible to every import
+litereality_agent.models.procedural.local.generate_procedural` — and a string is invisible to every import
 check, every linter and every rename. This has already failed twice in exactly the same way: a
 package moved, the imports were rewritten, and the `-m` strings quietly kept pointing at the old
 name. The symptom is never an ImportError in the parent; it is a stage that "completes" with a
 subprocess exit code nobody reads, and a missing GLB fifteen minutes later.
 
-So: find every module path spelled as text — in the Python sources, in `run.sh`, and in the batch
-runners — and check it is a file on disk.
+So: find every module path spelled as text in package and script sources and check it exists.
 """
 
 from __future__ import annotations
@@ -25,8 +24,8 @@ PKG = REPO / "src" / "litereality_agent"
 # third-party module (`json.tool`, `pytest`) and not ours to check.
 OURS = ("litereality_agent",)
 # Spellings that USED to be importable and must never come back — the exact regression above.
-RETIRED = ("authoring", "scene_builder", "scene_package", "init", "cli", "object_init",
-           "backends", "models", "integration", "scene_init", "realism_authoring")
+RETIRED = ("authoring", "scene_builder", "scene_package", "init", "object_init",
+           "backends", "integration", "scene_init", "realism_authoring", "services", "adapters")
 
 # `-m foo.bar` on a command line, and `NAME_MODULE = "foo.bar"` constants.
 DASH_M = re.compile(r"""-m["'\s,\]]+\s*["']?([A-Za-z_][\w.]*\.[\w.]+)""")
@@ -37,7 +36,7 @@ SOURCES = sorted(
     + [p for p in PKG.rglob("*.sh")]
     + [p for p in (REPO / "scripts").rglob("*.py")]
     + [p for p in (REPO / "scripts").rglob("*.sh")]
-    + [REPO / "run.sh", REPO / "sanity.py"]
+    + [REPO / "sanity.py"]
 )
 
 
@@ -96,12 +95,12 @@ def test_no_retired_top_level_spelling():
 
 
 @pytest.mark.parametrize("dotted", [
-    "litereality_agent.adapters.procedural.generate_procedural",  # the one that failed a live run
+    "litereality_agent.models.procedural.local.generate_procedural",  # the one that failed a live run
     "litereality_agent.scene.compile.build_from_room",
     "litereality_agent.scene.manifest",
     "litereality_agent.pipeline.object_flow",
-    "litereality_agent.pipeline.stages.ingest.detect.dino_worker",
-    "litereality_agent.pipeline.stages.evidence.surfaces",
+    "litereality_agent.models.grounding_dino.local.worker",
+    "litereality_agent.pipeline.author.evidence",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename

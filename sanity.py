@@ -73,7 +73,7 @@ def warn(msg: str, *, env=None, cmd=None, note=None) -> None:
 
 def _load_dotenv() -> bool:
     """Populate os.environ from ./.env AND ./models.env so a bare `python sanity.py` sees the SAME
-    config as ./run.sh (which sources both). Without .env, a key sitting right there reads as
+    config as ./the CLI (which sources both). Without .env, a key sitting right there reads as
     "unset" here — confusing, because the real run would have it. Without models.env, every model
     choice reads as the CODE default instead of the one the run will use, so this script reports a
     checkpoint (`LR_DINO_MODEL`, `LR_DINO_EMBED_MODEL`) or image model the pipeline will not touch
@@ -86,7 +86,7 @@ def _load_dotenv() -> bool:
     where the package is unimportable and only .env's paths and keys still mean anything."""
     envp = ROOT / ".env"
     try:
-        from litereality_agent.shared.settings import load_settings
+        from litereality_agent.settings import load_settings
 
         load_settings(ROOT).apply_environment()
         return envp.is_file()
@@ -160,14 +160,12 @@ def main() -> int:
     scan = positional[0] if positional else None
     sys.path.insert(0, str(ROOT))
 
-    # Load .env + apply the same provider defaults run.sh bakes in, so a bare `python sanity.py`
-    # reports what the real run will actually see (not "unset" for keys that are right there).
+    # Load the same dotenv file as the application.
     loaded = _load_dotenv()
-    os.environ.setdefault("LR_IMAGE_PROVIDER", "openai")
     os.environ.setdefault("LR_CLASSIFY_PROVIDER", "claude")
     os.environ.setdefault("HARNESS_VLM", "claude")
     # Honor the documented alias names (BLENDER_PATH / GROUNDING_DINO_PYTHON / TRELLIS_PYTHON)
-    # as in run.sh + agent/config.py; otherwise the check below falls back to `blender` on PATH.
+    # as in the CLI + agent/config.py; otherwise the check below falls back to `blender` on PATH.
     # No machine-specific path is baked in.
     for _alias, _canon in (("BLENDER_PATH", "LITEREALITY_BLENDER"),
                            ("BLENDER", "LITEREALITY_BLENDER"),
@@ -191,7 +189,7 @@ def main() -> int:
     if "dinov2" in wanted:
         print("── enhanced chair grouping (DINOv2) ──")
         try:
-            from litereality_agent.pipeline.stages.ingest.detect._device import pick_device
+            from litereality_agent.models.device import pick_device
 
             dev = pick_device()
             label = {"cuda": " (NVIDIA GPU)", "mps": " (Apple Silicon GPU)",
@@ -200,7 +198,7 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             fail(f"could not select a torch device: {type(e).__name__}: {e}")
         try:
-            from litereality_agent.pipeline.stages.ingest.detect import dino_embed
+            from litereality_agent.models.dinov2.local import embed as dino_embed
 
             mid = dino_embed.default_model_id()
             if not dino_embed.available():
@@ -223,7 +221,7 @@ def main() -> int:
     if "detect" in wanted:
         print("── object detection (GroundingDINO, HF transformers) ──")
         try:
-            from litereality_agent.pipeline.stages.ingest.detect import dino_detect
+            from litereality_agent.models.grounding_dino.local import detect as dino_detect
 
             mid = dino_detect.default_model_id()
             if not dino_detect.available():
@@ -270,7 +268,7 @@ def main() -> int:
 
     if "collision" in wanted:
         print("── QC true-mesh collision (python-fcl) ──")
-        # The QC stage runs qc_collision on EVERY default run, and run.sh guards it with `|| true`,
+        # The QC stage runs qc_collision on EVERY default run, and the CLI guards it with `|| true`,
         # so a missing FCL does not fail the run — it just prints a traceback into the stage log and
         # the summary still ticks the stage green. That is exactly the silent degradation this
         # script exists to catch: the deterministic clash gate quietly stops running.
@@ -295,7 +293,7 @@ def main() -> int:
                       "then re-open the shell so PATH updates"))
 
     if "providers" in wanted:
-        print("── providers (policy: OpenAI image-gen · Claude everything else · no Gemini) ──")
+        print("── hosted models (OpenAI images · Claude reasoning) ──")
         key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
             fail("OPENAI_API_KEY unset — reference image-gen "
@@ -314,21 +312,12 @@ def main() -> int:
             except Exception as e:  # noqa: BLE001
                 warn(f"OpenAI key not verified (network): {type(e).__name__}",
                      note="check network / proxy, then re-run to confirm the key")
-        if os.environ.get("LR_IMAGE_PROVIDER", "gemini").lower() != "openai":
-            warn("LR_IMAGE_PROVIDER is not 'openai' (policy is openai).",
-                 env=("LR_IMAGE_PROVIDER", "openai", ""))
-        else:
-            ok("LR_IMAGE_PROVIDER=openai")
-        if os.environ.get("LR_CLASSIFY_PROVIDER", "gemini").lower() != "claude":
+        if os.environ.get("LR_CLASSIFY_PROVIDER", "claude").lower() != "claude":
             warn("LR_CLASSIFY_PROVIDER is not 'claude' (policy is claude).",
                  env=("LR_CLASSIFY_PROVIDER", "claude", ""))
         else:
             ok("LR_CLASSIFY_PROVIDER=claude")
-        if os.environ.get("HARNESS_VLM", "claude").lower().startswith("gem"):
-            warn("HARNESS_VLM is gemini (policy is claude).",
-                 env=("HARNESS_VLM", "claude", ""))
-        else:
-            ok("HARNESS_VLM=claude")
+        ok("HARNESS_VLM=claude")
 
     if "gen3d" in wanted:
         print("── gen3d (TRELLIS) ──")
@@ -391,7 +380,7 @@ def _print_fix_block() -> None:
         for note in NOTE_FIXES:
             print(f"- {note}")
     print(_c("2", "\nThen re-run: .venv/bin/python sanity.py   "
-                  "(./run.sh loads .env automatically, so env fixes apply on the next run)"))
+                  "(./the CLI loads .env automatically, so env fixes apply on the next run)"))
 
 
 if __name__ == "__main__":

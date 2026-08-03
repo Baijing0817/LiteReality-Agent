@@ -1,9 +1,8 @@
 """Turn a room scan into an editable, realistic 3D program.
 
-The package is organized around a resumable eight-stage pipeline. Dependency direction is
-``shared ← scene ← services ← adapters ← pipeline ← cli``; architecture tests enforce it.
-The supported entrypoint is ``uv run litereality``. Repository-level ``scripts/`` contains only
-operational wrappers and is never imported or shipped in the wheel.
+The package has three feature-oriented areas: ``pipeline`` coordinates work, ``scene`` owns
+portable room behavior, and ``models`` owns local and hosted inference implementations. The
+supported entrypoint is ``uv run litereality``.
 
 ## The two roots
 
@@ -11,8 +10,8 @@ Code and data live in different places, and conflating them is the classic src-l
 
     PACKAGE_ROOT   src/litereality_agent — where the CODE is. Use for anything shipped in the wheel:
                    a prompt template, a Blender helper script, a tool a subprocess must exec.
-    REPO_ROOT      the checkout — where the DATA is: run/, scans_uploaded/,
-                   .env, .key, run.sh. Override with $LR_REPO_ROOT when the package is installed
+    REPO_ROOT      the checkout — where the DATA is: run/, scans_uploaded/, and .env.
+                   Override with $LR_REPO_ROOT when the package is installed
                    somewhere other than beside its data.
 
 Reach for `REPO_ROOT` when you mean "where this user's scans and results live" and `PACKAGE_ROOT`

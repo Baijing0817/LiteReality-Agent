@@ -20,7 +20,7 @@ import json
 import pickle
 from pathlib import Path
 
-from litereality_agent.pipeline.stages.ingest import merge_boxes
+from litereality_agent.pipeline.ingest import merge_boxes
 
 
 def box(name: str, pos: tuple[float, float, float], size: tuple[float, float, float],
@@ -263,12 +263,3 @@ def test_merge_runs_before_crop_in_the_pipeline():
     assert i_extract < i_merge < i_crop, (
         "box merge must sit between extract (writes objects.pkl) and crop (reads it)"
     )
-
-
-def test_ops_cli_shares_the_pipeline_implementation():
-    """One algorithm, two entry points. A forked copy in scripts/ops is how the manual path and the
-    automatic path drift until only one of them is right."""
-    src = (Path(__file__).resolve().parents[1] / "scripts" / "ops" / "merge_objects.py").read_text()
-    assert "from litereality_agent.pipeline.stages.ingest import merge_boxes" in src
-    for forked in ("def _union_obb", "def auto_groups", "def _footprint_overlap"):
-        assert forked not in src, f"{forked} is duplicated in the ops CLI instead of imported"

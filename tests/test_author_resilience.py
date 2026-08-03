@@ -1,6 +1,6 @@
 """A long authoring session must not be able to lose its work.
 
-`run.sh` runs authoring as a HARD stage — a non-zero exit aborts the whole pipeline. The SDK
+`the CLI` runs authoring as a HARD stage — a non-zero exit aborts the whole pipeline. The SDK
 raises when `--max-turns` is reached, so a 200-turn session that used its budget threw away
 every edit it had made and killed the run, despite `Room.py` being edited IN PLACE and sitting
 valid on disk the entire time. Running out of turns means "time's up", not "this is broken".
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.stages.author.impl import checkpoint, room_compiles
+from litereality_agent.pipeline.author.agent import checkpoint, room_compiles
 
 GOOD = "SHELL = {'walls': {}}\n\n\ndef build():\n    return SHELL\n"
 BROKEN = "SHELL = {'walls': {\n\ndef build(:\n"

@@ -1,9 +1,9 @@
-"""The Python composition root owns run layout; the shell file only delegates."""
+"""The Python composition root owns the canonical run layout."""
 
 from pathlib import Path
 
 from litereality_agent.pipeline.context import RunContext
-from litereality_agent.shared.settings import LiteRealitySettings
+from litereality_agent.settings import LiteRealitySettings
 
 
 def context(tmp_path: Path) -> RunContext:
@@ -30,9 +30,3 @@ def test_context_has_one_canonical_output_tree(tmp_path):
     assert ctx.scene_dir == tmp_path / "run" / "Office"
     assert ctx.object_root == ctx.scene_dir / "scene_init" / "obj_stage"
     assert ctx.seed_room == ctx.scene_dir / "scene_init" / "scene_stage" / "room_init" / "room"
-
-
-def test_shell_launcher_contains_no_pipeline_logic():
-    run_sh = (Path(__file__).resolve().parents[1] / "run.sh").read_text(encoding="utf-8")
-    assert 'exec uv run litereality run "$@"' in run_sh
-    assert "stage(){" not in run_sh

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""object_init orchestrator — raw scan folder -> per-object crops + Nano Banana refs + chair groups.
+"""Detailed object workflow used by the ingest and reconstruct stage boundaries.
 
 Pipeline per scan:
     extract_scene -> box_merge -> crop_objects -> object_references -> chair_clusters
@@ -7,7 +7,7 @@ Pipeline per scan:
 
 Run (from the repo root):
     python -m litereality_agent.pipeline.object_flow --scan office-elliott
-    python -m litereality_agent.pipeline.object_flow --scan office-elliott --skip-gemini
+    python -m litereality_agent.pipeline.object_flow --scan office-elliott --skip-image-generation
     python -m litereality_agent.pipeline.object_flow --scan /abs/path/to/raw_scan --name my_room
     python -m litereality_agent.pipeline.object_flow --scan office-elliott --reconstruct
 
@@ -29,19 +29,19 @@ from pathlib import Path
 
 from litereality_agent import console
 from litereality_agent.pipeline import paths as config
-from litereality_agent.pipeline.stages.ingest import merge_boxes
-from litereality_agent.pipeline.stages.ingest.crop import crop_objects
-from litereality_agent.pipeline.stages.ingest.detect import bbox_polish
-from litereality_agent.pipeline.stages.ingest.extract import extract_scene
-from litereality_agent.pipeline.stages.ingest.references import (
+from litereality_agent.pipeline import tracing
+from litereality_agent.pipeline.ingest import merge_boxes
+from litereality_agent.pipeline.ingest.crop import crop_objects
+from litereality_agent.pipeline.ingest.detect import bbox_polish
+from litereality_agent.pipeline.ingest.extract import extract_scene
+from litereality_agent.pipeline.ingest.references import (
     chair_clusters,
     object_references,
     opening_references,
 )
-from litereality_agent.pipeline.stages.reconstruct import flow as reconstruct
-from litereality_agent.pipeline.stages.reconstruct.classify import classify_complexity
-from litereality_agent.pipeline.stages.reconstruct.qc import chair_qc
-from litereality_agent.services import tracing
+from litereality_agent.pipeline.reconstruct import flow as reconstruct
+from litereality_agent.pipeline.reconstruct.classify import classify_complexity
+from litereality_agent.pipeline.reconstruct.qc import chair_qc
 
 
 def resolve_scan(value: str, name: str | None) -> tuple[Path, str]:
@@ -135,7 +135,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         if not args.skip_openings:
             tracing.stage("opening_references", scan, "start")
             op = opening_references.generate_for_scan(
-                scan, config.opening_refs_root(), skip_gemini=True, crops_only=True, only=only
+                scan, config.opening_refs_root(), skip_image_generation=True, crops_only=True, only=only
             )
             tracing.stage("opening_references", scan, "done", n_openings=len(op["openings"]))
         print(
@@ -157,9 +157,9 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     obj_result = object_references.generate_for_scan(
         scan,
         config.object_refs_root(),
-        skip_gemini=args.skip_gemini,
-        force_gemini=args.force_gemini,
-        model=args.gemini_model,
+        skip_image_generation=args.skip_image_generation,
+        force_image_generation=args.force_image_generation,
+        model=args.image_model,
         max_images=args.max_images,
         only=only,
         include_openings=args.include_openings,
@@ -171,9 +171,9 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     chair_result = chair_clusters.cluster_and_generate(
         scan,
         config.chair_clusters_root(),
-        skip_gemini=args.skip_gemini,
-        force_gemini=args.force_gemini,
-        model=args.gemini_model,
+        skip_image_generation=args.skip_image_generation,
+        force_image_generation=args.force_image_generation,
+        model=args.image_model,
     )
     tracing.stage(
         "chair_clusters",
@@ -183,16 +183,16 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         clusters=len(chair_result["clusters"]),
     )
 
-    # 5. door/window references (projected 3D opening boxes -> nano-banana)
+    # 5. door/window references (projected 3D opening boxes → clean hosted references)
     opening_result = {"openings": []}
     if not args.skip_openings:
         tracing.stage("opening_references", scan, "start")
         opening_result = opening_references.generate_for_scan(
             scan,
             config.opening_refs_root(),
-            skip_gemini=args.skip_gemini,
-            force_gemini=args.force_gemini,
-            model=args.gemini_model,
+            skip_image_generation=args.skip_image_generation,
+            force_image_generation=args.force_image_generation,
+            model=args.image_model,
         )
         tracing.stage(
             "opening_references", scan, "done", n_openings=len(opening_result["openings"])
@@ -359,7 +359,7 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
             tracing.stage("chair_qc", scan, "start")
             qc = chair_qc.repair_scan(
                 scan, max_attempts=args.qc_attempts, include_warn=args.qc_include_warn,
-                python=args.trellis_python, model=args.gemini_model, seed=args.seed,
+                python=args.trellis_python, model=args.image_model, seed=args.seed,
                 decimation=args.decimation, dry_run=args.dry_run_reconstruct,
             )
             result["chair_qc"] = qc
@@ -478,7 +478,7 @@ def summarize(results: list[dict]) -> None:
         n_clusters = len(r["chairs"]["clusters"])
         print(f"\n{r['scan']}:")
         print(f"  output dir:    {r['paths']['output']}")
-        print(f"  objects:       {n_obj} ({ok_obj} nano-banana ok)")
+        print(f"  objects:       {n_obj} ({ok_obj} references ok)")
         print(f"  chairs:        {n_chairs} chairs -> {n_clusters} groups")
         for c in r["chairs"]["clusters"]:
             print(
@@ -486,7 +486,7 @@ def summarize(results: list[dict]) -> None:
             )
         openings = r.get("openings", [])
         ok_op = sum(1 for o in openings if o["status"] == "ok")
-        print(f"  openings:      {len(openings)} doors/windows ({ok_op} nano-banana ok)")
+        print(f"  openings:      {len(openings)} doors/windows ({ok_op} references ok)")
         if "routing" in r:
             print(
                 f"  routing:       {r['routing']['procedural']} procedural, {r['routing']['trellis']} trellis"
@@ -537,12 +537,12 @@ def main(argv: list[str] | None = None) -> int:
         "No nano references, no object generation.",
     )
     parser.add_argument(
-        "--skip-gemini", action="store_true", help="No paid Gemini calls; placeholder references."
+        "--skip-image-generation", action="store_true", help="Skip hosted image calls; write placeholders."
     )
     parser.add_argument(
-        "--force-gemini", action="store_true", help="Regenerate references even if they exist."
+        "--force-image-generation", action="store_true", help="Regenerate references even if they exist."
     )
-    parser.add_argument("--gemini-model", default=config.DEFAULT_GEMINI_MODEL)
+    parser.add_argument("--image-model", default=config.DEFAULT_IMAGE_MODEL)
     parser.add_argument(
         "--max-images", type=int, default=5, help="Max evidence crops per object sheet."
     )

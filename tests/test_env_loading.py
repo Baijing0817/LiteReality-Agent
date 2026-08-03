@@ -1,19 +1,19 @@
-"""`.env` + `models.env` must mean the same thing from the CLI as from run.sh.
+"""`.env` + `models.env` must mean the same thing from the CLI as from the CLI.
 
 `models.env` is shell, so shell entry points just source it. Everything reachable only through
-the CLI could not, and the two silently diverged: `./run.sh` generated references with the model
+the CLI could not, and the two silently diverged: `./the CLI` generated references with the model
 the file names while `uv run -m litereality_agent scene_init` fell back to the code default. Nothing
 fails — you just get different images, and only notice by inspecting them.
 
 The precedence chain is the load-bearing part: shell env > `.env` > `models.env`, matching the
-order run.sh sources them and the `${K:-default}` semantics of the file itself.
+order the CLI sources them and the `${K:-default}` semantics of the file itself.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from litereality_agent.shared.settings import load_settings
+from litereality_agent.settings import load_settings
 
 MODELS_ENV = """\
 # the one place models are picked
@@ -68,7 +68,7 @@ def test_shell_env_wins(repo, monkeypatch):
 
 
 def test_dotenv_wins_over_models_env(repo):
-    """`.env` is yours; `models.env` only ever supplies defaults — the same order run.sh uses."""
+    """`.env` is yours; `models.env` only ever supplies defaults — the same order the CLI uses."""
     (repo / ".env").write_text("LR_OPENAI_IMAGE_MODEL=gpt-image-1\n", encoding="utf-8")
     assert load_settings(repo).image_model == "gpt-image-1"
 

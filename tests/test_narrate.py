@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.services.tracing.narrate import ToolNarrator, hint_for, tool_label
+from litereality_agent.pipeline.tracing.narrate import ToolNarrator, hint_for, tool_label
 
 sdk_types = pytest.importorskip("claude_agent_sdk.types")
 ToolUseBlock = sdk_types.ToolUseBlock
@@ -98,7 +98,7 @@ def test_hints_show_the_thing_being_worked_on(name, inp, want):
 
 
 def test_hint_never_breaks_the_status_row():
-    """run.sh redraws ONE line; a newline in a goal would smear the display."""
+    """the CLI redraws ONE line; a newline in a goal would smear the display."""
     hint = hint_for("critic", {"goal": "line one\nline two\n\tline three", "images": []})
     assert "\n" not in hint and "\t" not in hint
     assert hint == "line one line two line three"
@@ -155,7 +155,7 @@ def test_missing_and_empty_inputs_degrade_quietly():
 
 
 def test_the_tool_column_stays_put_as_the_counter_grows():
-    """run.sh redraws this line in place; a column that shifts at 10 and again at 100 reads as
+    """the CLI redraws this line in place; a column that shifts at 10 and again at 100 reads as
     flicker rather than progress."""
     nar = ToolNarrator()
     lines = [nar.use(ToolUseBlock(id=f"t{i}", name="Read", input={"file_path": "/x/y.jpg"}))

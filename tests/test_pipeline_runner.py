@@ -7,7 +7,7 @@ from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.result import StageResult, StageStatus
 from litereality_agent.pipeline.runner import PipelineRunner
 from litereality_agent.pipeline.stage import Stage
-from litereality_agent.shared.settings import LiteRealitySettings
+from litereality_agent.settings import LiteRealitySettings
 
 
 def context(tmp_path: Path) -> RunContext:

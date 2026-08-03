@@ -37,9 +37,9 @@ def work_room(pkg, *, create: bool = True) -> Path:
     """The room this run EDITS — `realism_authoring[_<RUN_TAG>]/room`.
 
     Never the seed: `room_init/room` is the deterministic output of scene_init and stays pristine
-    so a re-run can always start over. This must be the SAME directory run.sh's `do_author`
+    so a re-run can always start over. This must be the SAME directory the CLI's `do_author`
     prepares (`$AUTHORING/room`, where `AUTHORING=<scan>/realism_authoring$SUF`), or a
-    package-launched stage and a run.sh-launched stage quietly fork into two rooms and the
+    package-launched stage and a the CLI-launched stage quietly fork into two rooms and the
     later stages export whichever one they happen to find.
 
     Older packages — written before stage 2 got its own output tree — record no `authoring_room`
@@ -81,7 +81,7 @@ def bind(a: argparse.Namespace, *, need: tuple[str, ...] = (), pkg=None) -> argp
     unset = [n for n in bindable if hasattr(a, n) and getattr(a, n) is None]
     if pkg is None and (hint or any(n in need for n in unset)):
         # Go looking only when a REQUIRED path is missing (or a package was named). A
-        # fully-explicit invocation — run.sh passes every flag it needs — must not be retargeted
+        # fully-explicit invocation — the CLI passes every flag it needs — must not be retargeted
         # by a package that merely happens to be discoverable from the current directory, and an
         # unset optional like `--results` is not reason enough to demand one.
         pkg = manifest.discover(hint) or manifest.require(hint)
@@ -94,8 +94,8 @@ def bind(a: argparse.Namespace, *, need: tuple[str, ...] = (), pkg=None) -> argp
             else:
                 key = FROM_PACKAGE[name]
                 # `results` sits NEXT TO the work room, for the same reason work_room() exists:
-                # run.sh passes `--results $AUTHORING/obj_refine`, so defaulting to the package
-                # root instead sent a `--scene` run's before/after sheets somewhere run.sh never
+                # the CLI passes `--results $AUTHORING/obj_refine`, so defaulting to the package
+                # root instead sent a `--scene` run's before/after sheets somewhere the CLI never
                 # looks — two copies of the evidence in two places, and the run summary's
                 # `before/after` line silently absent. Deriving it from work_room() also picks up
                 # $RUN_TAG and the legacy pre-move layout for free.
