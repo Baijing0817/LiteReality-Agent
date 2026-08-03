@@ -11,6 +11,8 @@ on:
       - "src/litereality_agent/models/device.py"
       - "src/litereality_agent/models/dinov2/**"
       - "src/litereality_agent/models/grounding_dino/**"
+      - "src/litereality_agent/runtimes/**"
+      - "deploy/runpod/grounding_dino/**"
   workflow_dispatch:
 
 permissions:
@@ -55,7 +57,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: src/litereality_agent/models/grounding_dino/hosted/Dockerfile
+          file: deploy/runpod/grounding_dino/Dockerfile
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}

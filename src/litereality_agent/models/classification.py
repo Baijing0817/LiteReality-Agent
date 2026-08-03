@@ -21,9 +21,9 @@ def provider() -> str:
 def classify_image(*args, **kwargs):
     p = provider()
     if p == "openai":
-        from litereality_agent.models.openai.hosted import classify
+        from litereality_agent.models.openai import classify
 
         return classify.classify_image(*args, **kwargs)
-    from litereality_agent.models.claude.hosted import classify
+    from litereality_agent.models.claude import classify
 
     return classify.classify_image(*args, **kwargs)

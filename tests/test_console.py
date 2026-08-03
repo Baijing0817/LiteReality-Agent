@@ -269,7 +269,7 @@ def test_runpod_report_separates_waiting_from_computing():
     """`wall - exec` was left for the reader to infer. A serverless endpoint that scaled to zero
     spends most of a run booting, and that is a console setting to change, not code — so the
     split has to be visible."""
-    from litereality_agent.models.trellis.hosted.service import AssetReport, BatchReport
+    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
 
     r = BatchReport(wall_s=278.5, assets=[
         AssetReport("ChairCluster0", True, 256.8, 23.1, None, "", delay_s=233.1),
@@ -283,7 +283,7 @@ def test_runpod_report_separates_waiting_from_computing():
 def test_runpod_delay_is_maxed_not_summed():
     """Assets are submitted in parallel and wait concurrently — summing their delays would
     triple-count a single shared cold start and report more wait than the batch took."""
-    from litereality_agent.models.trellis.hosted.service import AssetReport, BatchReport
+    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
 
     r = BatchReport(wall_s=280.0, assets=[
         AssetReport("a", True, 250.0, 20.0, None, "", delay_s=230.0),
@@ -296,7 +296,7 @@ def test_runpod_delay_is_maxed_not_summed():
 def test_asset_report_positional_fields_did_not_shift():
     """Both call sites build this positionally, so a field added anywhere but the end silently
     re-points glb_path and error."""
-    from litereality_agent.models.trellis.hosted.service import AssetReport
+    from litereality_agent.models.trellis.runpod import AssetReport
 
     ok = AssetReport("id", True, 1.0, 2.0, 0.5, "/tmp/a.glb")
     assert ok.glb_path == "/tmp/a.glb" and ok.error == "" and ok.delay_s is None
@@ -306,7 +306,7 @@ def test_asset_report_positional_fields_did_not_shift():
 
 def test_report_without_delay_still_renders():
     """A RunPod response that omits delayTime must not add an empty clause or crash."""
-    from litereality_agent.models.trellis.hosted.service import AssetReport, BatchReport
+    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
 
     out = BatchReport(wall_s=10.0, assets=[
         AssetReport("a", True, 9.0, 5.0, None, "")]).render()

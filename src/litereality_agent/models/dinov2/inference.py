@@ -1,4 +1,4 @@
-"""DINOv2 image embeddings — viewpoint-tolerant descriptors for chair grouping.
+"""Canonical DINOv2 image embeddings for chair grouping.
 
 The chair clusterer needs a similarity that says "same chair *design*", not "photographed
 in the same pose". The old hand-crafted features (32x32 grayscale template + Canny edge

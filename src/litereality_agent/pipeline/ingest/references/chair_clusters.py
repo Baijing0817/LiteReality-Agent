@@ -34,7 +34,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from litereality_agent.fonts import font as _shared_font
-from litereality_agent.models.openai.hosted import image as image_model
+from litereality_agent.models.openai import image as image_model
 from litereality_agent.pipeline import paths as config
 
 from ..detect import detector  # DINOv2 embeddings (isolated torch tool) for the visual signal

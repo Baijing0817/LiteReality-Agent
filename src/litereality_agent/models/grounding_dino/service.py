@@ -1,7 +1,7 @@
-"""GroundingDINO behind the registry `detect` role — ISOLATED subprocess env.
+"""GroundingDINO service for an isolated local subprocess runtime.
 Mirrors the TRELLIS isolation pattern: the heavy torch+transformers model lives in its own
-interpreter (`$LR_DINO_PYTHON`), and we talk to a persistent JSON-lines worker
-(`scene_init/object_init/dino_worker.py`) so the loop env never imports torch/CUDA. One warm process
+interpreter (`$LR_DINO_PYTHON`), and we talk to the canonical persistent JSON-lines worker so the
+application environment never imports torch/CUDA. One warm process
 serves many crops.
     svc = DinoSubprocessService()                 # python from $LR_DINO_PYTHON (else sys.executable)
     registry.register("detect", svc)
@@ -48,7 +48,7 @@ class DinoSubprocessService:
             self.python,
             "-u",
             "-m",
-            "litereality_agent.models.grounding_dino.local.worker",
+            "litereality_agent.models.grounding_dino.worker",
         ]
         self.model_id = model_id or os.environ.get("LR_DINO_MODEL")
         self.cwd = str(cwd or REPO_ROOT)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from litereality_agent.models.grounding_dino.local import detect as dino_detect
+from litereality_agent.models.grounding_dino import inference as dino_detect
 
 _SERVICE: Any = None  # a DetectionService (DinoSubprocessService); None → in-process fallback
 
@@ -44,7 +44,7 @@ def embed_available() -> bool:
     """True if DINOv2 embeddings can be produced (via the tool, or in-process torch)."""
     if _SERVICE is not None and hasattr(_SERVICE, "embed"):
         return True
-    from litereality_agent.models.dinov2.local import embed as dino_embed
+    from litereality_agent.models.dinov2 import inference as dino_embed
 
     return dino_embed.available()
 
@@ -60,7 +60,7 @@ def embed(images: list, *, upright: bool = True) -> list[list[float]]:
     import os
     import tempfile
 
-    from litereality_agent.models.dinov2.local import embed as dino_embed
+    from litereality_agent.models.dinov2 import inference as dino_embed
 
     paths: list[str] = []
     temps: list[str] = []

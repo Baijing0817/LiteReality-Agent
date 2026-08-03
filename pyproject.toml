@@ -111,8 +111,8 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 # Vendored/ported math + Blender helpers — keep their original style instead of risking edits.
 "src/litereality_agent/scene/rendering/image_selection/**/*.py" = ["E741", "E402", "E731"]
-"src/litereality_agent/models/procedural/local/articulated-glb-agent/**/*.py" = ["F841", "I001"]
-"src/litereality_agent/models/trellis/local/trellis_launcher.py" = ["I001"]
+"src/litereality_agent/models/procedural/articulated-glb-agent/**/*.py" = ["F841", "I001"]
+"src/litereality_agent/models/trellis/inference.py" = ["I001"]
 
 [tool.ruff.format]
 quote-style = "double"

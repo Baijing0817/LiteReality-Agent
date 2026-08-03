@@ -1,4 +1,4 @@
-"""Shared GroundingDINO detector (HF transformers backend).
+"""Canonical GroundingDINO inference (HF transformers backend).
 
 One open-vocabulary detector used by both bbox-refinement paths:
   - :mod:`bbox_polish` — tighten projected object boxes to the real 2D detection

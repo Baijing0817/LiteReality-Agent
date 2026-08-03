@@ -68,9 +68,7 @@ class ProceduralService:
         """{asset_id: image} (+ per-id `meta` = {category, dims, scan}) → {asset_id: glb_path}.
 
         Runs the articulated agent per object, concurrently. Failed assets → "" (logged)."""
-        from litereality_agent.models.procedural.local import (
-            generate_procedural as gp,  # lazy: pulls object_init
-        )
+        from litereality_agent.models.procedural import generate as gp  # lazy: pulls object_init
 
         meta = meta or {}
         out = Path(out_dir)

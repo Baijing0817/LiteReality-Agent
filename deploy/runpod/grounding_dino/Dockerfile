@@ -7,10 +7,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY src/litereality_agent/models/grounding_dino/hosted/requirements.txt /tmp/requirements.txt
+COPY deploy/runpod/grounding_dino/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --no-deps torchvision==0.20.1 \
     && pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY src /app/src
 
-CMD ["python", "-u", "-m", "litereality_agent.models.grounding_dino.hosted.worker_runpod"]
+CMD ["python", "-u", "-m", "litereality_agent.models.grounding_dino.worker", "--runpod"]

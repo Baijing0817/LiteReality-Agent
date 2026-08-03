@@ -164,7 +164,7 @@ SURFACE_REF_MANIFEST = SURFACE_REF / "surface_ref_manifest.json"
 STITCH_PPM = int(os.environ.get("HARNESS_STITCH_PPM", "160"))  # ortho resolution (px/m)
 
 # the object-building + PBR-fetch skill (referenced by path in the prompts)
-GLB_AGENT = PACKAGE_ROOT / "models" / "procedural" / "local" / "articulated-glb-agent"
+GLB_AGENT = PACKAGE_ROOT / "models" / "procedural" / "articulated-glb-agent"
 PBR_SCRIPTS = GLB_AGENT / ".claude" / "skills" / "image-to-articulated-glb" / "scripts"
 FETCH_POLYHAVEN = PBR_SCRIPTS / "fetch_polyhaven.py"
 BLENDER_LIB = PBR_SCRIPTS / "blender_lib.py"

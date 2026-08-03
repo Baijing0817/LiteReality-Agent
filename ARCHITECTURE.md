@@ -22,16 +22,16 @@ src/litereality_agent/
 │   ├── author/          evidence and Room.py authoring tools
 │   └── publish/         final compilation and viewer
 ├── scene/               scene data, geometry, rendering, export, and QC
-└── models/
-    ├── <model>/local/    implementations executed on a configured local machine
-    └── <model>/hosted/   implementations executed through a hosted API
+├── models/             canonical inference and model-specific service adapters
+└── runtimes/           execution transports such as RunPod
 
 scripts/                  standalone capture and publishing utilities
+deploy/runpod/            container packaging; never imported by application code
 ```
 
 There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layers. The directory
 name answers the ownership question: workflow decisions belong in `pipeline`, reusable scene
-behavior belongs in `scene`, and inference runtimes belong under their named model.
+behavior belongs in `scene`, models own inference, and runtimes own execution location.
 
 `pipeline/author` also owns the optional post-authoring passes (`refine_objects`, `materials`, and
 model-driven `quality`). They remain part of the authoring feature rather than separate public
@@ -40,12 +40,12 @@ pipeline stages.
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text
-models    scene
-    \      /
-     pipeline → cli.py
+runtimes → models    scene
+             \      /
+              pipeline → cli.py
 ```
 
-Models and scene code never import pipeline code. Hosted/local model selection happens in
+Models and scene code never import pipeline code. Runtime selection happens in
 `models/registry.py`; the pipeline consumes that small composition boundary.
 
 ## Configuration and runtimes
@@ -56,10 +56,11 @@ Models and scene code never import pipeline code. Hosted/local model selection h
 process environment > .env > models.env > typed defaults
 ```
 
-Heavy inference is isolated from the main environment. `models/<name>/local` means the code can be
-run on a separately configured compute machine; it does not mean the main pipeline silently loads
-that model in-process. TRELLIS can instead use `models/trellis/hosted` with RunPod. The CLI and unit
-tests do not start DINO, TRELLIS, Blender, or paid model calls.
+Heavy inference is isolated from the main environment. A model package owns one inference path
+regardless of where it executes. A local adapter can run it in a separately configured process;
+a RunPod adapter sends its request contract through `runtimes/runpod.py`. Container-only files
+live under `deploy/runpod`, outside application source. The CLI and unit tests do not start DINO,
+TRELLIS, Blender, or paid model calls.
 
 ## Output compatibility
 

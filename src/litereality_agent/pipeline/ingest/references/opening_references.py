@@ -32,7 +32,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from litereality_agent.models.openai.hosted import image as image_model
+from litereality_agent.models.openai import image as image_model
 from litereality_agent.pipeline import paths as config
 
 from ..detect import detector

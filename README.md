@@ -49,19 +49,20 @@ Output lives under `run/<scene>/`:
 
 ## Models
 
-Every runtime is grouped by model and execution location:
+Model packages contain one inference implementation and its application-facing adapters:
 
 ```text
-models/grounding_dino/local/
-models/dinov2/local/
-models/trellis/local/
-models/trellis/hosted/
-models/openai/hosted/
-models/claude/hosted/
+models/grounding_dino/{inference,service,runpod,worker}.py
+models/dinov2/inference.py
+models/trellis/{inference,service,runpod}.py
+models/{openai,claude,procedural}/
+runtimes/runpod.py
+deploy/runpod/<model>/
 ```
 
-`local/` implementations run only when explicitly configured; hosted TRELLIS uses the RunPod
-credentials in `.env`. The normal offline test suite never loads models or starts Blender.
+Inference does not move when execution moves. Local services use an isolated process; RunPod
+adapters call an endpoint through the shared runtime transport; container-only files live outside
+`src` under `deploy/`. The normal offline test suite never loads models or starts Blender.
 
 ## Development
 

@@ -1,7 +1,7 @@
 """Turn a room scan into an editable, realistic 3D program.
 
 The package has three feature-oriented areas: ``pipeline`` coordinates work, ``scene`` owns
-portable room behavior, and ``models`` owns local and hosted inference implementations. The
+portable room behavior, ``models`` owns inference, and ``runtimes`` owns execution transports. The
 supported entrypoint is ``uv run litereality``.
 
 ## The two roots

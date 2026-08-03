@@ -1,4 +1,4 @@
-"""Keep the three package areas and their dependency direction explicit."""
+"""Keep package ownership and dependency direction explicit."""
 
 from __future__ import annotations
 
@@ -6,9 +6,10 @@ import ast
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "litereality_agent"
-LAYERS = {"models", "scene", "pipeline"}
+LAYERS = {"models", "runtimes", "scene", "pipeline"}
 ALLOWED = {
-    "models": set(),
+    "models": {"runtimes"},
+    "runtimes": set(),
     "scene": set(),
     "pipeline": {"models", "scene"},
 }

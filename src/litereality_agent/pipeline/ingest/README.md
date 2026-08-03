@@ -14,8 +14,8 @@ The public boundary is `ingest.run(context, options)`. Generated data stays unde
 - `references/` selects evidence and generates clean object/opening references.
 - `merge_boxes.py` combines RoomPlan boxes that represent one physical object.
 
-GroundingDINO and DINOv2 live under `models/<model>/local`; hosted reference generation lives under
-`models/openai/hosted`. Ingest coordinates those implementations but does not own them.
+GroundingDINO, DINOv2, and reference-image providers live under their named `models/` packages.
+Ingest coordinates those implementations but does not own them; RunPod is an execution runtime.
 
 Old runs may contain provider-specific artifact names. `pipeline.paths.ref_artifact` reads those as
 fallbacks; new code uses provider-neutral names.

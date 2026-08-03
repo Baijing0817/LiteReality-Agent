@@ -1,1 +1,1 @@
-"""Local and hosted model implementations, grouped by model name."""
+"""Canonical inference and service adapters, grouped by model name."""

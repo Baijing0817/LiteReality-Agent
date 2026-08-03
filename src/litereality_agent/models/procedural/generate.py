@@ -10,9 +10,9 @@ cabinet door swings on its outer edge).
 
 Run (from repo root, with Blender 4.x/5.x on PATH):
     PATH=/path/to/blender_dir:$PATH \
-      python procedural/generate_procedural.py                 # all procedural-route objects
-    ... procedural/generate_procedural.py --only storage dishwasher   # by category
-    ... procedural/generate_procedural.py --scan tea_room --dry-run    # preview prompts
+      python -m litereality_agent.models.procedural.generate
+      python -m litereality_agent.models.procedural.generate --only storage dishwasher
+      python -m litereality_agent.models.procedural.generate --scan tea_room --dry-run
 
 Needs claude_agent_sdk (uses logged-in Claude Code creds if no ANTHROPIC_API_KEY).
 Outputs: procedural/glb/<scan>/<name>/<name>.glb (+ object.py/md, previews, textures).
@@ -378,7 +378,7 @@ def drop_build_recipe(obj_dir: Path) -> list[str]:
 async def run_one(job: Job, args, feedback: str = "") -> None:
     """Generate one articulated GLB via the chosen agent backend (claude | codex).
 
-    Both run the SAME skill (``image-to-articulated-glb`` in backends/procedural/articulated-glb-agent): Claude
+    Both run the same bundled ``image-to-articulated-glb`` skill: Claude
     Code loads it natively via claude_agent_sdk; Codex has no skill system, so the SKILL.md is
     injected as instructions. Keep the skill as the single shared playbook for both.
 

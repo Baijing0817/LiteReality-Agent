@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 from types import SimpleNamespace
 
-from litereality_agent.models.grounding_dino.hosted.service import RunPodDinoService
+from litereality_agent.models.grounding_dino.runpod import RunPodDinoService
 
 
 class Client:
@@ -58,4 +58,3 @@ def test_registry_prefers_hosted_dino(monkeypatch):
     assert isinstance(service, RunPodDinoService)
     assert service.model_id == "detector"
     assert service.embed_model_id == "embedder"
-

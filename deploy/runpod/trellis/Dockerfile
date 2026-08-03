@@ -69,6 +69,6 @@ RUN aria2c --console-log-level=error -c -x 16 -s 16 -k 1M https://huggingface.co
 RUN pip install --no-cache-dir transformers "numpy==1.26.4" && \
     sed -i '/trellis_text_to_3d/d; /TrellisTextTo3DPipeline/d' /content/TRELLIS/trellis/pipelines/__init__.py
 
-COPY ./worker_runpod.py /content/TRELLIS/worker_runpod.py
+COPY deploy/runpod/trellis/worker.py /content/TRELLIS/worker.py
 WORKDIR /content/TRELLIS
-CMD python worker_runpod.py
+CMD python worker.py

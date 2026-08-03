@@ -8,7 +8,7 @@ Env:
     RUNPOD_API_KEY (or RUNPOD)       — bearer key
     RUNPOD_TRELLIS_ENDPOINT          — the deployed endpoint id
 
-Worker I/O contract (see integrations/trellis/remote/handler.py):
+Worker I/O contract (see deploy/runpod/trellis):
     input  = {"image_b64", "seed", "decimation", "texture_size"}
     output = {"glb_b64"}   OR   {"glb_url"}
 """
@@ -16,7 +16,6 @@ Worker I/O contract (see integrations/trellis/remote/handler.py):
 from __future__ import annotations
 
 import base64
-import json
 import os
 import time
 import urllib.error
@@ -25,6 +24,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from litereality_agent.runtimes.runpod import RunPodClient
 
 _TERMINAL_OK = {"COMPLETED"}
 _TERMINAL_BAD = {"FAILED", "CANCELLED", "TIMED_OUT"}
@@ -105,53 +106,6 @@ def _api_key_from_env() -> str | None:
     return None
 
 
-class _RunPodClient:
-    """Thin RunPod serverless REST client (stdlib only)."""
-
-    def __init__(
-        self,
-        api_key: str,
-        endpoint_id: str,
-        base_url: str = "https://api.runpod.ai/v2",
-        http_timeout: float = 60.0,
-    ) -> None:
-        self.api_key = api_key
-        self.endpoint_id = endpoint_id
-        self.base = f"{base_url.rstrip('/')}/{endpoint_id}"
-        self.http_timeout = http_timeout
-
-    def _req(self, method: str, path: str, payload: dict | None = None) -> dict:
-        url = f"{self.base}/{path}"
-        data = json.dumps(payload).encode() if payload is not None else None
-        req = urllib.request.Request(
-            url,
-            data=data,
-            method=method,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=self.http_timeout) as r:
-            return json.loads(r.read().decode())
-
-    def run(self, job_input: dict) -> str:
-        resp = self._req("POST", "run", {"input": job_input})
-        jid = resp.get("id")
-        if not jid:
-            raise RuntimeError(f"RunPod /run returned no id: {resp}")
-        return jid
-
-    def status(self, job_id: str) -> dict:
-        return self._req("GET", f"status/{job_id}")
-
-    def cancel(self, job_id: str) -> dict:
-        return self._req("POST", f"cancel/{job_id}")
-
-    def health(self) -> dict:
-        return self._req("GET", "health")
-
-
 class RunPodTrellisService:
     name = "trellis-runpod"
 
@@ -186,7 +140,7 @@ class RunPodTrellisService:
                 raise ValueError(
                     "RunPod TRELLIS needs RUNPOD_API_KEY (or RUNPOD) and RUNPOD_TRELLIS_ENDPOINT."
                 )
-            self.client = _RunPodClient(key, ep, base_url=base_url)
+            self.client = RunPodClient(key, ep, base_url=base_url)
 
     # -- Generation3DService -----------------------------------------------------
     def reconstruct(

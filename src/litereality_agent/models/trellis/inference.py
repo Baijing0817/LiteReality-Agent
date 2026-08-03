@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""trellis_launcher.py — image -> textured GLB via the pristine TRELLIS.2 clone.
+"""Canonical TRELLIS.2 image-to-3D inference and CLI.
 
 Drives ``backends/TRELLIS.2`` (never editing it) to turn a clean object-only
 reference PNG — exactly what ``object_init`` produces — into a GLB. The model
@@ -7,18 +7,18 @@ reference PNG — exactly what ``object_init`` produces — into a GLB. The mode
 ``backends/weights/`` on first run.
 
     # one image
-    python trellis_launcher.py -i ref.png -o out/ref.glb
+    python -m litereality_agent.models.trellis.inference -i ref.png -o out/ref.glb
 
     # a whole folder (batch)
-    python trellis_launcher.py -i refs/ -o out/
+    python -m litereality_agent.models.trellis.inference -i refs/ -o out/
 
     # parallel shards (each loads its own ~18 GB model)
-    python trellis_launcher.py -i refs/ -o out/ --parallel 2 --seed 7 --decimation 50000
+    python -m litereality_agent.models.trellis.inference -i refs/ -o out/ --parallel 2
 
 Inputs are expected to be object-only PNGs on a (near-)black background, so the
 gated RMBG-2.0 matting model is skipped by default (``--no-skip-rembg`` to force
-it). Needs the TRELLIS.2 runtime env (torch 2.6+cu124, o_voxel, natten); run it
-with that interpreter — ``run_trellis.sh`` selects one for you.
+it). Run this module with the configured TRELLIS.2 interpreter; it needs torch 2.6+cu124,
+o_voxel, and the other compiled TRELLIS.2 dependencies.
 """
 
 from __future__ import annotations

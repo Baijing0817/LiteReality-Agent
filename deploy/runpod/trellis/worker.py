@@ -1,4 +1,4 @@
-"""RunPod serverless TRELLIS worker — clean image → GLB, returned inline (no external storage).
+"""RunPod TRELLIS container entrypoint — clean image to an inline GLB response.
 
 Built on camenduru/trellis-tost's proven Dockerfile (CUDA 12.6 + torch 2.5.1 + flash-attn +
 kaolin/nvdiffrast/diso/spconv + TRELLIS-image-large weights baked in at /content/model). We keep

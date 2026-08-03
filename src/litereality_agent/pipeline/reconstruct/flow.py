@@ -1,7 +1,7 @@
-"""Reconstruction stage — object_init references -> textured GLBs via TRELLIS.2.
+"""Reconstruction stage — object-init references to textured GLBs via TRELLIS.2.
 
 This is the bridge from this package's clean object-only references to the local
-TRELLIS.2 launcher under ``integrations/trellis/local/``. It gathers, for one scan:
+canonical TRELLIS.2 inference module under ``models/trellis``. It gathers, for one scan:
 
     object_refs/<scan>/<Object>/reference_1024.png
     chair_clusters/<scan>/references/<ChairCluster>.png
@@ -30,8 +30,8 @@ from litereality_agent import PACKAGE_ROOT
 from litereality_agent.pipeline import paths as config
 from litereality_agent.pipeline import tracing
 
-LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "local" / "trellis_launcher.py"
-PROC_MODULE = "litereality_agent.models.procedural.local.generate_procedural"
+LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "inference.py"
+PROC_MODULE = "litereality_agent.models.procedural.generate"
 
 
 def resolve_python(explicit: str | None) -> str:

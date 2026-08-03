@@ -1,17 +1,15 @@
-"""Shared environment wiring for the backends launchers.
+"""Environment wiring for canonical TRELLIS.2 inference.
 
-The two clones — ``TRELLIS.2/`` and ``GroundingDINO/`` — are kept **pristine**
-(direct ``git clone``, never edited) so anyone can reproduce them on their own
-server. These launchers make the clones usable without touching them by:
+The ``TRELLIS.2/`` clone is kept pristine so it can be reproduced on another machine.
+This module makes that clone usable without modifying it by:
 
-  * putting the clone packages on ``sys.path`` (so ``import trellis2`` /
-    ``import groundingdino`` resolve to the clone source),
+  * putting the clone package on ``sys.path`` so ``import trellis2`` resolves,
   * pointing the HuggingFace cache at ``backends/weights/`` so model weights
     **auto-download there on first run** (nothing is vendored into git),
   * setting the GPU-friendly defaults TRELLIS.2 expects (sdpa attention, EXR I/O,
     expandable CUDA segments, a writable flex-gemm autotune cache).
 
-Import this first, before importing ``trellis2`` / ``groundingdino``.
+Import this first, before importing ``trellis2``.
 """
 
 from __future__ import annotations
@@ -28,7 +26,6 @@ LAUNCHER_DIR = Path(__file__).resolve().parent
 # `__file__` would follow the code into the wheel and download gigabytes into site-packages.
 THIRD_PARTY = REPO_ROOT
 TRELLIS2_DIR = THIRD_PARTY / "TRELLIS.2"
-GROUNDING_DINO_DIR = THIRD_PARTY / "GroundingDINO"
 WEIGHTS_DIR = Path(os.environ.get("LITEREALITY_WEIGHTS", THIRD_PARTY / "weights")).resolve()
 
 # TRELLIS.2's pipeline.json references the GATED `facebook/dinov3-vitl16-pretrain-lvd1689m`
@@ -74,12 +71,4 @@ def configure_trellis_runtime() -> None:
     # source `o-voxel/` dir to sys.path (its `_C` isn't built there).
     sp = str(TRELLIS2_DIR)
     if TRELLIS2_DIR.exists() and sp not in sys.path:
-        sys.path.insert(0, sp)
-
-
-def configure_grounding_dino() -> None:
-    """Make the clone's ``groundingdino`` importable and route weights downloads."""
-    configure_hf_cache()
-    sp = str(GROUNDING_DINO_DIR)
-    if GROUNDING_DINO_DIR.exists() and sp not in sys.path:
         sys.path.insert(0, sp)

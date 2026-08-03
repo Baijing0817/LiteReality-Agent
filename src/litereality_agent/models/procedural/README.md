@@ -26,16 +26,16 @@ Code creds if `ANTHROPIC_API_KEY` is unset). From the repo root:
 export PATH="$LITEREALITY_BLENDER:$PATH"   # your Blender install dir
 
 # preview the composed prompts (free, no agent calls)
-uv run python procedural/generate_procedural.py --only storage --dry-run
+uv run python -m litereality_agent.models.procedural.generate --only storage --dry-run
 
 # the articulated categories (highest value — correct motion)
-uv run python procedural/generate_procedural.py --only storage dishwasher
+uv run python -m litereality_agent.models.procedural.generate --only storage dishwasher
 
 # everything on the procedural route
-uv run python procedural/generate_procedural.py
+uv run python -m litereality_agent.models.procedural.generate
 
 # one scan
-uv run python procedural/generate_procedural.py --scan tea_room
+uv run python -m litereality_agent.models.procedural.generate --scan tea_room
 ```
 
 Flags: `--scan`, `--only <categories>`, `--concurrency` (default 2),
@@ -62,12 +62,12 @@ straight by a simulator.
 ```
 procedural/
   category_specs.py        ★ per-RoomPlan-category geometry + articulation specs (the domain knowledge)
-  generate_procedural.py   category-aware launcher (routing -> composed prompt -> agent -> sorted GLBs)
+  generate.py              category-aware launcher (routing -> composed prompt -> agent -> sorted GLBs)
   README.md
 ```
 
 The agent engine + Blender helper scripts live in
-[`adapters/procedural/articulated-glb-agent`](articulated-glb-agent/) (the
+[`articulated-glb-agent`](articulated-glb-agent/) (the
 `image-to-articulated-glb` skill). `batch_glb.py` there is the generic
 (non-category) batch driver; this module adds the category intelligence.
 

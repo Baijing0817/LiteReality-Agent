@@ -17,4 +17,6 @@ RUNPOD_API_KEY=...
 RUNPOD_DINO_ENDPOINT=...
 ```
 
-The worker image is built from the repository root using this directory's `Dockerfile`.
+The worker image is built from the repository root using this directory's `Dockerfile`. Model
+inference and the worker contract remain in `litereality_agent.models`; this directory contains
+deployment packaging only.

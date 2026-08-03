@@ -1,4 +1,4 @@
-"""Local TRELLIS — the `gen3d` registry backend that runs the on-box launcher (local GPU).
+"""TRELLIS service for an isolated local process runtime.
 
 Symmetric with RunPodTrellisService (same Generation3DService interface), so `reconstructor`
 calls it the same way. Use this until the RunPod endpoint is grounded; to switch, just register
@@ -7,8 +7,8 @@ the other backend under the "gen3d" role.
     reconstructor.set_service(LocalTrellisService())          # local GPU now
     # later: reconstructor.set_service(RunPodTrellisService()) # RunPod when the endpoint exists
 
-Needs the trellis2 GPU env: `$LITEREALITY_TRELLIS_PYTHON` (else the trellis2 conda python), and
-the launcher (vendored at integrations/trellis/local/trellis_launcher.py; override `$LITEREALITY_TRELLIS_LAUNCHER`).
+Needs the TRELLIS.2 GPU environment selected by `$LITEREALITY_TRELLIS_PYTHON`. The canonical
+inference module is used by default and can be overridden with `$LITEREALITY_TRELLIS_LAUNCHER`.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from typing import Any
 
 from litereality_agent import PACKAGE_ROOT  # the launcher is CODE, shipped in the wheel
 
-DEFAULT_LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "local" / "trellis_launcher.py"
+DEFAULT_LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "inference.py"
 
 
 def _resolve_python(explicit: str | None) -> str:
