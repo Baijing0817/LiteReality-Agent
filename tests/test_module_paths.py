@@ -135,6 +135,12 @@ def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
     assert Path(flow.resolve_python(None)) == REPO / ".venv" / "bin" / "python"
 
 
+def test_agent_render_tool_uses_the_moved_room_format_engine():
+    source = (PKG / "agent" / "tools" / "render" / "tool.py").read_text(encoding="utf-8")
+    assert "from litereality_agent.room_format.rendering import engine" in source
+    assert "from litereality_agent.agent.tools.render import engine" not in source
+
+
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

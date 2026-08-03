@@ -4,7 +4,8 @@ Layered by target (there is no aimless render):
   - "room"    → scene mode, every object chip-labelled
   - "Wall<N>" → wall_focus mode, only that wall outlined (both sides)
   - <Object>  → object mode, bbox on that object
-If `frames` is omitted the best frames are auto-picked via select_views. The engine lives in ./engine/ (lazy import — needs Blender).
+If `frames` is omitted the best frames are auto-picked via select_views. The room-format
+rendering engine is imported lazily because it needs Blender.
 """
 
 from __future__ import annotations
@@ -119,7 +120,7 @@ async def render_target(scene_path, target: str, frames: list[int] | None, n: in
         selection = res.output["frames"]
         frames = [r["frame"] for r in selection]
 
-    from litereality_agent.agent.tools.render import engine as irt  # lazy: Blender
+    from litereality_agent.room_format.rendering import engine as irt  # lazy: Blender
 
     room = str(room_dir)
     if target.lower() == "room" or target in ("Floor0", "Ceiling0"):
