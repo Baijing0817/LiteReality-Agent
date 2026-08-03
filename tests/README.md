@@ -18,7 +18,7 @@ still writes a `Room.py`.
 | `test_scan_inference.py` | `_scan_from_room`, the choke point under `render` / `select_views` / `survey`. Both path spellings (a staging root and its resolved deliverables realpath), `Room.py` vs room-dir input, nested object rooms, `$LITEREALITY_SCAN` fallback, and that no tool grows its own inline copy. |
 | `test_capability_tools.py` | The four tools stage 3 hands the model exist, carry SDK-valid schemas, and are reachable: `select_views` must get as far as its data layer rather than dying on layout. |
 | `test_surfaces.py` | Surface discovery from `Room.py`: sliver-stub exclusion, numeric wall ordering, opening keys not becoming phantom walls, no hidden wall cap, graceful degradation. |
-| `test_run_trace.py` | The evidence trail: one trace file per pass, edit events, MCP prefix stripping, totals, and that a broken trace never breaks a run. |
+| `test_agent_trace.py` | The agent evidence trail: one trace file per pass, edit events, MCP prefix stripping, totals, and that a broken trace never breaks a run. |
 | `test_projection.py` | The pinhole projection in the vendored preprocessing: points behind the camera (which mirror onto a plausible in-frame pixel) and on the camera plane are not counted visible, valid points are unmoved, and no non-finite value reaches an int cast. That mask picks an object's reference frames, so a false positive seeds the whole object from a frame it is not in. |
 | `test_module_paths.py` | Every module named as a STRING (`-m …` in subprocess calls, the CLI and the batch runners) resolves to a file, and no retired top-level spelling comes back. A string is invisible to imports, linters and renames — this exact case has broken a live run twice. |
 | `test_console.py` | The stage display and the reconstruction phase's bookkeeping: no escape codes into a non-tty, a distinct colour per stage, a build stage that produced nothing marked ✗ rather than ✓, never raising on an unexpected payload, and the progress denominator counting both GLB layouts. |
@@ -40,7 +40,7 @@ still writes a `Room.py`.
 
 ## Known-failing, on purpose
 
-`test_run_trace.py::test_stitch_coverage_is_tracked_where_the_tool_name_exists` is `xfail(strict=True)`:
+`test_agent_trace.py::test_stitch_coverage_is_tracked_where_the_tool_name_exists` is `xfail(strict=True)`:
 `agent/author.py` counts tools and tracks stitch coverage inside the `ToolResultBlock`
 branch, but that block carries no `name` and no `input` (pinned by the test above it), so a real run
 reports `calls=88 {'?': 88}` and marks every stitch `NEVER OPENED`. When those four statements move

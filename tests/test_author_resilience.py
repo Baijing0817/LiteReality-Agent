@@ -119,7 +119,7 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
 
     assert result.ok
     assert [module for module, _, _ in calls] == [
-        "litereality_agent.agent.author",
+        "litereality_agent.pipeline.realism_authoring.author.entrypoint",
         "litereality_agent.pipeline.realism_authoring.author.refine_objects",
         "litereality_agent.pipeline.realism_authoring.author.materials",
         "litereality_agent.pipeline.realism_authoring.author.quality",

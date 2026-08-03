@@ -63,7 +63,7 @@ STAGES: dict[str, tuple[str, str, bool, str]] = {
 }
 
 # How each stage's payload reads as one short phrase. Keys are the kwargs the stage already
-# passes to `tracing.stage(...)`, so adding a counter there is all it takes to surface it.
+# passes to `telemetry.stage(...)`, so adding a counter there is all it takes to surface it.
 def _summary(name: str, data: dict) -> str:
     def n(key, one, many=None):
         if key not in data:
@@ -103,7 +103,7 @@ _announced: set[str] = set()
 # --- stage output capture ---------------------------------------------------- #
 # The vendored preprocessing narrates: a line per object, a tqdm bar per loop, a line per
 # stitched folder. Forty lines of it to say "9 crops in 1.4s". Since every stage is already
-# bracketed by tracing.stage(start) / tracing.stage(done), that bracket is exactly where the
+# bracketed by telemetry.stage(start) / telemetry.stage(done), that bracket is exactly where the
 # noise can be diverted to a log, leaving the one summary row. $LR_VERBOSE=1 turns it off.
 _capture_dir: "Path | None" = None
 _capture: dict[str, object] = {}
@@ -112,7 +112,7 @@ _capture: dict[str, object] = {}
 def restore_capture() -> None:
     """Force stdout/stderr back to the terminal. Safe to call when nothing is captured.
 
-    A stage that raises never reaches its `tracing.stage(done)`, so the paired `_end_capture`
+    A stage that raises never reaches its `telemetry.stage(done)`, so the paired `_end_capture`
     never runs and every later byte — including the traceback — lands in a log file nobody is
     looking at. Callers put this in a `finally`.
     """
@@ -313,7 +313,7 @@ def short(path) -> str:
 
 
 def stage_event(name: str, scan: str, status: str, data: dict) -> None:
-    """Render one stage boundary. Called from `tracing.stage`; never raises."""
+    """Render one stage boundary. Called from `telemetry.stage`; never raises."""
     if not enabled():
         return
     try:

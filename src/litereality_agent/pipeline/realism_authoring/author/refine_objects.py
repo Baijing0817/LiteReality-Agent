@@ -30,8 +30,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from litereality_agent import PACKAGE_ROOT, REPO_ROOT
+from litereality_agent.agent.tool_narration import hint_for
 from litereality_agent.fonts import font as _shared_font
-from litereality_agent.pipeline.tracing.narrate import hint_for
 
 # Blender execs this by path, so it must be absolute: the CWD of a stage is not the repo.
 OBJVIEW = str(PACKAGE_ROOT / "scene" / "rendering" / "object_turntable.py")

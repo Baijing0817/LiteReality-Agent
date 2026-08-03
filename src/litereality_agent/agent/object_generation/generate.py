@@ -10,9 +10,9 @@ cabinet door swings on its outer edge).
 
 Run (from repo root, with Blender 4.x/5.x on PATH):
     PATH=/path/to/blender_dir:$PATH \
-      python -m litereality_agent.models.procedural.generate
-      python -m litereality_agent.models.procedural.generate --only storage dishwasher
-      python -m litereality_agent.models.procedural.generate --scan tea_room --dry-run
+      python -m litereality_agent.agent.object_generation.generate
+      python -m litereality_agent.agent.object_generation.generate --only storage dishwasher
+      python -m litereality_agent.agent.object_generation.generate --scan tea_room --dry-run
 
 Needs claude_agent_sdk (uses logged-in Claude Code creds if no ANTHROPIC_API_KEY).
 Outputs: procedural/glb/<scan>/<name>/<name>.glb (+ object.py/md, previews, textures).
@@ -37,7 +37,7 @@ from litereality_agent import REPO_ROOT, telemetry
 from .category_specs import CANONICAL_ORIENTATION, get_spec
 
 HERE = Path(__file__).resolve().parent
-# the image-to-articulated-glb skill package, shipped under adapters/procedural/
+# The bundled image-to-articulated-glb skill package used by this agent workflow.
 AGENT_PKG = HERE / "articulated-glb-agent"
 SKILL_NAME = "image-to-articulated-glb"
 

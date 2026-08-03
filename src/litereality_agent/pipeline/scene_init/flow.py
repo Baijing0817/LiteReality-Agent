@@ -27,8 +27,7 @@ import sys
 import time
 from pathlib import Path
 
-from litereality_agent import console
-from litereality_agent.pipeline import tracing
+from litereality_agent import console, telemetry
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest import merge_boxes
 from litereality_agent.pipeline.scene_init.ingest.crop import crop_objects
@@ -78,20 +77,20 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     # object_init work tree so the vendored preprocessing's relative input/ paths
     # land there too, and open a trace for the whole run.
     config.enter_work_root(scan)
-    tracing.start(scan)
-    tracing.event("scan_start", scan=scan, raw=str(raw))
+    telemetry.start(scan)
+    telemetry.event("scan_start", scan=scan, raw=str(raw))
 
     # 1. scene extraction (skip if already present unless forced)
-    tracing.stage("extract_scene", scan, "start")
+    telemetry.stage("extract_scene", scan, "start")
     if args.skip_extract and config.scene_data_complete(scan):
         print("[extract] reusing existing scene_data")
-        tracing.stage("extract_scene", scan, "reused")
+        telemetry.stage("extract_scene", scan, "reused")
     elif config.scene_data_complete(scan) and not args.force_extract:
         print("[extract] scene_data present — reusing (use --force-extract to redo)")
-        tracing.stage("extract_scene", scan, "reused")
+        telemetry.stage("extract_scene", scan, "reused")
     else:
         extract_scene.extract(str(raw), scan)
-        tracing.stage("extract_scene", scan, "done")
+        telemetry.stage("extract_scene", scan, "done")
 
     # 1b. box merge — fuse RoomPlan's interpenetrating counter runs (sink + base cabinet + wall
     # cabinet come back as separate same-yaw boxes) into ONE object. This has to sit HERE, between
@@ -99,30 +98,30 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     # complexity route and the reconstruction all see the merged unit. Run after crop and you get
     # three interpenetrating assets; that was the state before this call existed. $LR_BOX_MERGE=0
     # opts out. See scene_init/object_init/merge_boxes.py.
-    tracing.stage("box_merge", scan, "start")
+    telemetry.stage("box_merge", scan, "start")
     merge_res = merge_boxes.merge_for_scan(scan)
-    tracing.stage("box_merge", scan, "done", merged=len(merge_res.get("merged", {})))
+    telemetry.stage("box_merge", scan, "done", merged=len(merge_res.get("merged", {})))
 
     # 2. per-object crops
-    tracing.stage("crop_objects", scan, "start")
+    telemetry.stage("crop_objects", scan, "start")
     if not args.skip_crop:
         crop_objects.crop(scan, include_walls=args.include_walls)
         cropped = config.parsed_images_dir(scan)
-        tracing.stage("crop_objects", scan, "done",
+        telemetry.stage("crop_objects", scan, "done",
                       n_objects=sum(1 for d in cropped.iterdir() if d.is_dir())
                       if cropped.is_dir() else 0)
     elif not config.parsed_images_dir(scan).exists():
         raise SystemExit(f"--skip-crop but no crops at {config.parsed_images_dir(scan)}")
     else:
-        tracing.stage("crop_objects", scan, "reused")
+        telemetry.stage("crop_objects", scan, "reused")
 
     # 2b. GroundingDINO bbox refinement — tighten each object's projected crop to the
     # real 2D detection (on by default; projected crop is the fallback). See bbox_polish.
     polish_res = None
     if not args.skip_bbox_polish:
-        tracing.stage("bbox_polish", scan, "start")
+        telemetry.stage("bbox_polish", scan, "start")
         polish_res = bbox_polish.polish(scan, force=args.force_bbox_polish)
-        tracing.stage("bbox_polish", scan,
+        telemetry.stage("bbox_polish", scan,
                       "reused" if polish_res.get("reused") else "done",
                       refined=polish_res.get("refined_total", 0))
 
@@ -133,17 +132,17 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     if getattr(args, "crops_only", False):
         op = {"openings": []}
         if not args.skip_openings:
-            tracing.stage("opening_references", scan, "start")
+            telemetry.stage("opening_references", scan, "start")
             op = opening_references.generate_for_scan(
                 scan, config.opening_refs_root(), skip_image_generation=True, crops_only=True, only=only
             )
-            tracing.stage("opening_references", scan, "done", n_openings=len(op["openings"]))
+            telemetry.stage("opening_references", scan, "done", n_openings=len(op["openings"]))
         print(
             "\n  [crops-only] object crops refined + opening crops written — "
             "stopping before references/generation.",
             flush=True,
         )
-        tracing.event("scan_done_crops_only", scan=scan)
+        telemetry.event("scan_done_crops_only", scan=scan)
         return {
             "scan": scan,
             "raw": str(raw),
@@ -153,7 +152,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         }
 
     # 3. object references (non-chair objects)
-    tracing.stage("object_references", scan, "start")
+    telemetry.stage("object_references", scan, "start")
     obj_result = object_references.generate_for_scan(
         scan,
         config.object_refs_root(),
@@ -164,10 +163,10 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         only=only,
         include_openings=args.include_openings,
     )
-    tracing.stage("object_references", scan, "done", n_objects=len(obj_result["objects"]))
+    telemetry.stage("object_references", scan, "done", n_objects=len(obj_result["objects"]))
 
     # 4. chair grouping + per-cluster reference
-    tracing.stage("chair_clusters", scan, "start")
+    telemetry.stage("chair_clusters", scan, "start")
     chair_result = chair_clusters.cluster_and_generate(
         scan,
         config.chair_clusters_root(),
@@ -175,7 +174,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         force_image_generation=args.force_image_generation,
         model=args.image_model,
     )
-    tracing.stage(
+    telemetry.stage(
         "chair_clusters",
         scan,
         "done",
@@ -186,7 +185,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     # 5. door/window references (projected 3D opening boxes → clean hosted references)
     opening_result = {"openings": []}
     if not args.skip_openings:
-        tracing.stage("opening_references", scan, "start")
+        telemetry.stage("opening_references", scan, "start")
         opening_result = opening_references.generate_for_scan(
             scan,
             config.opening_refs_root(),
@@ -194,7 +193,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
             force_image_generation=args.force_image_generation,
             model=args.image_model,
         )
-        tracing.stage(
+        telemetry.stage(
             "opening_references", scan, "done", n_openings=len(opening_result["openings"])
         )
 
@@ -220,10 +219,10 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     full = args.full
     # 6. complexity routing: VLM decides procedural (box geometry) vs trellis (organic) per object
     if args.classify or full:
-        tracing.stage("classify", scan, "start")
+        telemetry.stage("classify", scan, "start")
         route = classify_complexity.classify_for_scan(scan, model=args.classify_model)
         result["routing"] = {"procedural": route["procedural"], "trellis": route["trellis"]}
-        tracing.stage("classify", scan, "done", **result["routing"])
+        telemetry.stage("classify", scan, "done", **result["routing"])
 
     # 7-9. RECONSTRUCTION — every object's geometry, built at once.
     #
@@ -247,7 +246,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         json.dumps(result, indent=2), encoding="utf-8"
     )
     console.capture_stages(None)
-    tracing.event("scan_done", scan=scan)
+    telemetry.event("scan_done", scan=scan)
     return result
 
 
@@ -343,7 +342,7 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
 
     def trellis_branch():
         if args.reconstruct or full:
-            tracing.stage("reconstruct", scan, "start")
+            telemetry.stage("reconstruct", scan, "start")
             try:
                 recon = reconstruct.run_for_scan(
                     scan, python=args.trellis_python, seed=args.seed,
@@ -351,25 +350,25 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
                     dry_run=args.dry_run_reconstruct,
                 )
                 result["reconstruct"] = recon
-                tracing.stage("reconstruct", scan, "done", n_glb=recon.get("generated", 0))
+                telemetry.stage("reconstruct", scan, "done", n_glb=recon.get("generated", 0))
             except Exception as exc:  # TRELLIS is non-fatal: the other branches still land
                 result["reconstruct"] = {"error": str(exc), "generated": 0}
-                tracing.stage("reconstruct", scan, "error", error=str(exc))
+                telemetry.stage("reconstruct", scan, "error", error=str(exc))
         if args.chair_qc or full:  # must follow TRELLIS — it repairs what TRELLIS made
-            tracing.stage("chair_qc", scan, "start")
+            telemetry.stage("chair_qc", scan, "start")
             qc = chair_qc.repair_scan(
                 scan, max_attempts=args.qc_attempts, include_warn=args.qc_include_warn,
                 python=args.trellis_python, model=args.image_model, seed=args.seed,
                 decimation=args.decimation, dry_run=args.dry_run_reconstruct,
             )
             result["chair_qc"] = qc
-            tracing.stage("chair_qc", scan, "done", repaired=qc.get("repaired", 0),
+            telemetry.stage("chair_qc", scan, "done", repaired=qc.get("repaired", 0),
                           still_failing=qc.get("still_failing", 0))
 
     def agent_branch(stage_name: str, openings: bool, enabled_flag: bool, workers: int):
         if not (enabled_flag or full):
             return
-        tracing.stage(stage_name, scan, "start")
+        telemetry.stage(stage_name, scan, "start")
         out = reconstruct.run_procedural_for_scan(
             scan, openings=openings, python=args.procedural_python,
             blender_path=args.blender_path, concurrency=workers,
@@ -377,7 +376,7 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
             skip_existing=not args.force_reconstruct, dry_run=args.dry_run_reconstruct,
         )
         result[stage_name] = out
-        tracing.stage(stage_name, scan, "done", n_glb=out.get("generated", 0))
+        telemetry.stage(stage_name, scan, "done", n_glb=out.get("generated", 0))
 
     per_branch = _expected_by_branch(scan)
     workers = {name: branch_concurrency(len(per_branch.get(name, [])), args.concurrency)
@@ -425,7 +424,7 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
             fn()
             state[name]["result"] = f"{state[name]['done']}/{state[name]['total']} built"
         except Exception as exc:  # noqa: BLE001 — one branch failing must not sink the others
-            tracing.event("branch_error", scan=scan, branch=name, error=str(exc))
+            telemetry.event("branch_error", scan=scan, branch=name, error=str(exc))
             state[name]["result"] = f"FAILED: {exc}"
             print(f"[{name}] BRANCH FAILED: {exc}", flush=True)
         finally:

@@ -1,1 +1,1 @@
-"""Reusable agent runners, prompts, and capability tools."""
+"""Reusable agent runners, tools, session traces, and progress narration."""

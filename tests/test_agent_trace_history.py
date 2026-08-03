@@ -1,6 +1,6 @@
 """A re-run must not destroy the trace of the run before it.
 
-`RunTrace` truncated its file on start, so only the most recent run was ever traced — and
+`AgentTrace` truncated its file on start, so only the most recent run was ever traced — and
 re-running to check something was the act that deleted the record of the run that raised the
 question. Traces are archived under `<traces>/history/` instead, tagged with the same `run_NNN`
 that names the run's scratch directory so the events and the images stay paired.
@@ -14,14 +14,14 @@ from pathlib import Path
 import pytest
 
 from litereality_agent.agent import scratch
-from litereality_agent.pipeline.tracing.history import RunTrace, _run_id_of
+from litereality_agent.agent.trace import AgentTrace, _run_id_of
 
 SCAN = "test-scan-Room"
 
 
 @pytest.fixture
 def traces(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A trace dir the RunTrace path resolution will find, plus a bound scratch root."""
+    """A trace dir the AgentTrace path resolution will find, plus a bound scratch root."""
     out = tmp_path / "run"
     (out / SCAN / "scene_init" / "obj_stage" / "traces").mkdir(parents=True)
     monkeypatch.setenv("LITEREALITY_FINAL", str(out))
@@ -32,10 +32,10 @@ def traces(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return out / SCAN / "scene_init" / "obj_stage" / "traces"
 
 
-def _session(pass_name: str = "author") -> RunTrace:
+def _session(pass_name: str = "author") -> AgentTrace:
     """One full pass: bind scratch (as the stages do), trace a call, end."""
     where = scratch.bind()
-    tr = RunTrace(pass_name, scan=SCAN)
+    tr = AgentTrace(pass_name, scan=SCAN)
     tr.start(model="claude-opus-5", scratch=str(where) if where else None)
     tr.tool("Bash", {"command": "echo hi"}, tool_id="tu_1")
     tr.raw({"msg": "verbatim"})   # before end(): end() closes the handles
@@ -91,8 +91,8 @@ def test_three_runs_leave_two_archives_and_one_live(traces: Path):
 
 def test_an_empty_trace_is_not_archived(traces: Path):
     """A crashed start leaves a zero-byte file; archiving it just clutters history."""
-    RunTrace("author", scan=SCAN)
-    RunTrace("author", scan=SCAN)
+    AgentTrace("author", scan=SCAN)
+    AgentTrace("author", scan=SCAN)
     assert not list((traces / "history").glob("*.jsonl"))
 
 
@@ -131,7 +131,7 @@ def test_a_rotation_underneath_a_live_session_does_not_cross_contaminate(traces:
     """Observed for real: a 37-minute run was still writing when shorter runs rotated the trace
     path underneath it, so its later events landed in THEIR files — one trace holding two
     interleaved sessions, both unreadable. Events must follow the handle, not the name."""
-    live = RunTrace("author", scan=SCAN)
+    live = AgentTrace("author", scan=SCAN)
     live.start(model="long-run")
     live.tool("Read", {"file_path": "a.jpg"}, tool_id="tu_a")
 
@@ -152,7 +152,7 @@ def test_a_rotation_underneath_a_live_session_does_not_cross_contaminate(traces:
 
 def test_events_are_flushed_as_they_happen(traces: Path):
     """A killed run — the common case for a long authoring session — must still leave a trace."""
-    tr = RunTrace("author", scan=SCAN)
+    tr = AgentTrace("author", scan=SCAN)
     tr.start(model="x")
     tr.tool("Bash", {"command": "echo hi"}, tool_id="tu_1")
     assert "echo hi" in tr.path.read_text(), "unflushed events are lost on kill -9"

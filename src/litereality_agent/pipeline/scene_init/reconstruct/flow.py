@@ -26,12 +26,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from litereality_agent import PACKAGE_ROOT
-from litereality_agent.pipeline import tracing
+from litereality_agent import PACKAGE_ROOT, telemetry
 from litereality_agent.pipeline.scene_init import paths as config
 
 LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "inference.py"
-PROC_MODULE = "litereality_agent.models.procedural.generate"
+PROC_MODULE = "litereality_agent.agent.object_generation.generate"
 
 
 def resolve_python(explicit: str | None) -> str:
@@ -166,13 +165,13 @@ def run_procedural_for_scan(
 
     label = "openings" if openings else "procedural"
     plan = {"scan": scan, "stage": label, "python": interpreter, "cmd": " ".join(cmd)}
-    tracing.event(f"{label}_launch", scan=scan, python=interpreter, cmd=plan["cmd"])
+    telemetry.event(f"{label}_launch", scan=scan, python=interpreter, cmd=plan["cmd"])
     print(f"[{label}] {scan}\n  $ {plan['cmd']}", flush=True)
     proc = _run(cmd, cwd=str(config.REPO_ROOT), env=_blender_env(blender_path))
     plan["status"] = "ok" if proc.returncode == 0 else f"exit_{proc.returncode}"
     glbs = sorted(p.name for p in config.reconstruct_dir(scan).glob("*/*.glb"))
     plan["generated"] = len(glbs)
-    tracing.event(f"{label}_done", scan=scan, status=plan["status"], generated=len(glbs))
+    telemetry.event(f"{label}_done", scan=scan, status=plan["status"], generated=len(glbs))
     return plan
 
 
@@ -285,7 +284,7 @@ def run_for_scan(
         plan["backend"] = "runpod-gen3d"
         plan["python"] = None
         plan["launcher"] = None
-        tracing.event("reconstruct_launch", scan=scan, n_assets=len(refs), backend="runpod-gen3d")
+        telemetry.event("reconstruct_launch", scan=scan, n_assets=len(refs), backend="runpod-gen3d")
         print(
             f"[reconstruct] {len(refs)} asset(s) -> {recon_dir}  (gen3d tool: RunPod TRELLIS)",
             flush=True,
@@ -310,7 +309,7 @@ def run_for_scan(
             if _g("total_exec_s") is not None:
                 plan["exec_s"] = round(_g("total_exec_s"), 1)
             plan["cost_usd"] = _g("total_cost_usd")
-        tracing.event(
+        telemetry.event(
             "reconstruct_done",
             scan=scan,
             status=plan["status"],
@@ -351,7 +350,7 @@ def run_for_scan(
         cmd.append("--skip-existing")
 
     plan["cmd"] = " ".join(cmd)
-    tracing.event(
+    telemetry.event(
         "reconstruct_launch", scan=scan, n_assets=len(refs), python=interpreter, cmd=plan["cmd"]
     )
     print(f"[reconstruct] {len(refs)} asset(s) -> {recon_dir}\n  $ {plan['cmd']}", flush=True)
@@ -365,5 +364,5 @@ def run_for_scan(
     plan["status"] = "ok" if proc.returncode == 0 else f"launcher_exit_{proc.returncode}"
     plan["generated"] = len(generated)
     plan["glb"] = generated
-    tracing.event("reconstruct_done", scan=scan, status=plan["status"], generated=len(generated))
+    telemetry.event("reconstruct_done", scan=scan, status=plan["status"], generated=len(generated))
     return plan

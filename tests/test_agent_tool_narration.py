@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.pipeline.tracing.narrate import ToolNarrator, hint_for, tool_label
+from litereality_agent.agent.tool_narration import ToolNarrator, hint_for, tool_label
 
 sdk_types = pytest.importorskip("claude_agent_sdk.types")
 ToolUseBlock = sdk_types.ToolUseBlock

@@ -10,8 +10,8 @@ so a downstream viewer can reconstruct the whole timeline. Per-call payloads
 
 The tracer is a process-global keyed to the *current scan*. Call :func:`start`
 (``run.py`` does this per scan) to point it at that scan's ``traces/`` dir; if it
-was never started, every hook is a cheap no-op, so instrumented code (e.g.
-model code never has to care whether tracing is active.
+was never started, every hook is a cheap no-op, so instrumented code never has to care whether
+telemetry is active.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def active_dir() -> Path | None:
 
 
 def event(kind: str, **data) -> None:
-    """Append one event to ``trace.jsonl`` (no-op if tracing was never started)."""
+    """Append one event to ``trace.jsonl`` (no-op if telemetry was never started)."""
     d = _state["dir"]
     if d is None:
         return

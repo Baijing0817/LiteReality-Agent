@@ -20,7 +20,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from litereality_agent.pipeline import tracing
+from litereality_agent import telemetry
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest.references import chair_clusters
 from litereality_agent.pipeline.scene_init.reconstruct import flow as reconstruct
@@ -95,7 +95,7 @@ def repair_scan(
 ) -> dict:
     """QC every chair of ``scan``; repair the failing ones via image-regen + TRELLIS."""
     config.set_scan(scan)
-    tracing.start(scan)
+    telemetry.start(scan)
     recon = config.reconstruct_dir(scan)
     clusters = _clusters(scan)
     chair_root = config.chair_clusters_root()
@@ -115,7 +115,7 @@ def repair_scan(
             "attempts": [],
         }
         print(f"  {cid}: {qa['status']} {qa['flags']}", flush=True)
-        tracing.event("chair_qc", cluster=cid, status=qa["status"], flags=qa["flags"])
+        telemetry.event("chair_qc", cluster=cid, status=qa["status"], flags=qa["flags"])
         if not bad:
             rec["final"] = qa["status"]
             results.append(rec)
@@ -149,7 +149,7 @@ def repair_scan(
                 {"attempt": attempt, "status": qa2["status"], "flags": qa2["flags"]}
             )
             print(f"    attempt {attempt}: {qa2['status']} {qa2['flags']}", flush=True)
-            tracing.event(
+            telemetry.event(
                 "chair_qc_retry",
                 cluster=cid,
                 attempt=attempt,

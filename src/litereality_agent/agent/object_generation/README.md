@@ -1,6 +1,7 @@
-# procedural — category-aware procedural asset generation
+# Object generation
 
-For objects the complexity router ([`object_init/classify_complexity.py`](../object_init/classify_complexity.py))
+For objects the complexity router
+([`classify_complexity.py`](../../pipeline/scene_init/reconstruct/classify/classify_complexity.py))
 sends to the **procedural** path (simple/regular geometry — tables, storage,
 appliances, TVs, sinks), build them in Blender from primitives + PBR via the
 `image-to-articulated-glb` agent — and make them **articulate correctly**.
@@ -26,16 +27,16 @@ Code creds if `ANTHROPIC_API_KEY` is unset). From the repo root:
 export PATH="$LITEREALITY_BLENDER:$PATH"   # your Blender install dir
 
 # preview the composed prompts (free, no agent calls)
-uv run python -m litereality_agent.models.procedural.generate --only storage --dry-run
+uv run python -m litereality_agent.agent.object_generation.generate --only storage --dry-run
 
 # the articulated categories (highest value — correct motion)
-uv run python -m litereality_agent.models.procedural.generate --only storage dishwasher
+uv run python -m litereality_agent.agent.object_generation.generate --only storage dishwasher
 
 # everything on the procedural route
-uv run python -m litereality_agent.models.procedural.generate
+uv run python -m litereality_agent.agent.object_generation.generate
 
 # one scan
-uv run python -m litereality_agent.models.procedural.generate --scan tea_room
+uv run python -m litereality_agent.agent.object_generation.generate --scan tea_room
 ```
 
 Flags: `--scan`, `--only <categories>`, `--concurrency` (default 2),
@@ -60,7 +61,7 @@ straight by a simulator.
 ## Files
 
 ```
-procedural/
+object_generation/
   category_specs.py        ★ per-RoomPlan-category geometry + articulation specs (the domain knowledge)
   generate.py              category-aware launcher (routing -> composed prompt -> agent -> sorted GLBs)
   README.md
@@ -76,4 +77,4 @@ The agent engine + Blender helper scripts live in
 `object_init` makes clean references → `classify_complexity` routes each object
 (chairs/sofas/abstract → TRELLIS; regular box/appliance geometry → procedural,
 per the user policy) → **procedural ones come here**, TRELLIS ones go to
-[`trellis/`](../trellis/).
+[`models/trellis/`](../../models/trellis/).

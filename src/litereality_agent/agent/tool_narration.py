@@ -13,7 +13,7 @@ watches for `Read(<surface>_stitched.jpg)` to prove the model opened its head-on
 never observed a single read, so it warned that every surface had been authored blind. That
 warning was an artifact of reading the wrong block, not a quality signal.
 
-The trace file was correct throughout, because `RunTrace.tool()` was already called at use
+The trace file was correct throughout, because `AgentTrace.tool()` was already called at use
 time. That asymmetry is the tell: same run, right names on disk, `?` on screen.
 
 So: narrate at USE time, keep the id, and let the result attribute back to it.

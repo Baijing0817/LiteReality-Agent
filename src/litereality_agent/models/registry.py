@@ -19,14 +19,6 @@ def gen3d_from_settings(settings: LiteRealitySettings | None = None):
     return LocalTrellisService(python=str(settings.trellis_python) if settings.trellis_python else None)
 
 
-def gen3d_for_route(route: str, settings: LiteRealitySettings | None = None):
-    if route.strip().lower() == "procedural":
-        from litereality_agent.models.procedural.service import ProceduralService
-
-        return ProceduralService()
-    return gen3d_from_settings(settings)
-
-
 def detection_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
     if settings.runpod_dino_endpoint:

@@ -26,16 +26,12 @@ import sys
 import time
 from pathlib import Path
 
+from litereality_agent import telemetry  # noqa: E402
 from litereality_agent.agent.author import (  # noqa: E402
     CAPABILITY_TOOLS,
     build_capability_server,
     surfaces_for,
 )
-
-try:
-    from litereality_agent.pipeline import tracing  # noqa: E402
-except Exception:  # noqa: BLE001
-    tracing = None
 
 PROMPT = """\
 Role: you are doing a MATERIALS pass on an already-authored Room.py. Geometry is FINISHED — do not
@@ -193,19 +189,18 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
         max_turns=max_turns,
         model=model,
     )
-    if tracing:
-        try:
-            tracing.start(scan.name)
-            tracing.event("materials_pass", scan=scan.name, status="start", n_flat=n_flat)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        telemetry.start(scan.name)
+        telemetry.event("materials_pass", scan=scan.name, status="start", n_flat=n_flat)
+    except Exception:  # noqa: BLE001 — telemetry must not fail an authoring pass
+        pass
 
     from litereality_agent.agent import scratch
-    from litereality_agent.pipeline.tracing.narrate import ToolNarrator
+    from litereality_agent.agent.tool_narration import ToolNarrator
     scratch_at = scratch.bind(near=room)   # this pass's own run_NNN dir
     nar = ToolNarrator()
-    from litereality_agent.pipeline.tracing.history import RunTrace
-    tr = RunTrace('materials', room=room, scan=scan.name)
+    from litereality_agent.agent.trace import AgentTrace
+    tr = AgentTrace('materials', room=room, scan=scan.name)
     tr.start(model=model, room=str(room), scratch=str(scratch_at) if scratch_at else None)
     t0 = time.time()
     summary = ""
@@ -232,11 +227,10 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
     print(f"== materials_pass done {dt:.0f}s  fixture keys: {n_todo} flat at start -> {todo_after} now")
     if summary:
         print(summary)
-    if tracing:
-        try:
-            tracing.event("materials_pass", scan=scan.name, status="ok", seconds=round(dt, 1))
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        telemetry.event("materials_pass", scan=scan.name, status="ok", seconds=round(dt, 1))
+    except Exception:  # noqa: BLE001 — telemetry must not fail an authoring pass
+        pass
     return 0
 
 

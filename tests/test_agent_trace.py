@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.tracing.history import RunTrace
+from litereality_agent.agent.trace import AgentTrace
 
 
 def _events(path: Path) -> list[dict]:
@@ -22,11 +22,11 @@ def _events(path: Path) -> list[dict]:
 def test_each_pass_writes_its_own_file(tmp_path):
     """THE REGRESSION (fixed in 30a1778): every pass truncates its file on start, so a shared path
     meant the materials pass destroyed the authoring pass's trace mid-run."""
-    author = RunTrace("author", room=tmp_path)
+    author = AgentTrace("author", room=tmp_path)
     author.start(model="m")
     author.tool("Read", {"file_path": "/x/Wall0_stitched.jpg"})
 
-    materials = RunTrace("materials", room=tmp_path)
+    materials = AgentTrace("materials", room=tmp_path)
     materials.start(model="m")
 
     assert author.path != materials.path
@@ -34,7 +34,7 @@ def test_each_pass_writes_its_own_file(tmp_path):
 
 
 def test_edit_events_name_the_file_and_the_size_of_the_change(tmp_path):
-    tr = RunTrace("author", room=tmp_path)
+    tr = AgentTrace("author", room=tmp_path)
     tr.tool("Edit", {"file_path": "/room/Room.py", "old_string": "a\nb", "new_string": "a\nb\nc\nd"})
 
     (event,) = [e for e in _events(tr.path) if e["kind"] == "tool"]
@@ -45,7 +45,7 @@ def test_edit_events_name_the_file_and_the_size_of_the_change(tmp_path):
 def test_mcp_prefixes_are_stripped_so_tools_count_under_one_name(tmp_path):
     """The model calls `mcp__cap__render`; the report is about `render`. Without stripping, the same
     tool is counted twice under two names."""
-    tr = RunTrace("author", room=tmp_path)
+    tr = AgentTrace("author", room=tmp_path)
     tr.tool("mcp__cap__render", {"target": "Wall0"})
     tr.tool("render", {"target": "Wall1"})
 
@@ -55,7 +55,7 @@ def test_mcp_prefixes_are_stripped_so_tools_count_under_one_name(tmp_path):
 
 
 def test_end_records_the_totals(tmp_path):
-    tr = RunTrace("author", room=tmp_path)
+    tr = AgentTrace("author", room=tmp_path)
     tr.tool("Read", {"file_path": "/x.jpg"})
     tr.end(calls=1, cost_usd=1.5, summary="done")
 
@@ -65,7 +65,7 @@ def test_end_records_the_totals(tmp_path):
 
 def test_a_broken_trace_never_breaks_the_run(tmp_path):
     """A trace is telemetry. If its directory is unwritable the pass must continue regardless."""
-    tr = RunTrace("author", room=tmp_path)
+    tr = AgentTrace("author", room=tmp_path)
     tr.path.parent.chmod(0o500)
     try:
         tr.tool("Read", {"file_path": "/x.jpg"})  # must not raise

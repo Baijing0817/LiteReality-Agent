@@ -21,7 +21,7 @@ src/litereality_agent/
 │   └── realism_authoring/
 │       ├── author/      evidence and optional realism passes
 │       └── publish/     final compilation and viewer
-├── agent/               extensible agent runners, prompts, tools, and scratch evidence
+├── agent/               agent runners, tools, traces, and procedural object generation
 ├── scene/               scene data, geometry, rendering, export, and QC
 ├── models/              canonical inference and model-specific service adapters
 │   └── llm/             provider integrations (`openai/` and `claude/`)
@@ -44,16 +44,15 @@ separate public pipeline stages. The Claude session and its capability-tool fram
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text
-runtimes → models    scene
-             \      /  ↑
-              pipeline │ agent
-                   \    /
-                    cli.py
+cli.py → pipeline → agent → scene
+                ↘ models → runtimes
+                ↘ scene
 ```
 
-Models and scene code never import pipeline code. Agent entry points may consume pipeline context
-helpers, while pipeline stages launch agents through their public module entry points. Runtime
-selection happens in `models/registry.py`; the pipeline consumes that small composition boundary.
+Arrows point from caller to dependency. Models, scene code, and reusable agents never import
+pipeline code; the pipeline owns the CLI adapters that bind scene-package arguments before calling
+an agent. Runtime selection happens in `models/registry.py`; the pipeline consumes that small
+composition boundary.
 
 ## Configuration and runtimes
 

@@ -8,19 +8,18 @@ normal, LAB-recoloured to the measured colour) and `render` / `critic` / `select
 optional self-check it may call to compare its render against the capture photos and correct
 colour and placement.
 
-    uv run python -m litereality_agent.agent.author --scene <scene dir>
+    uv run python -m litereality_agent.pipeline.realism_authoring.author.entrypoint --scene <scene dir>
 
 `--scene` is the scene package the seed stage wrote (the folder holding `scene.json`); it supplies the
 room, the surface references and the capture. Omit it entirely when $LR_SCENE is set or the
 current directory is inside a package. The explicit spelling still works and still wins:
 
-    ... -m litereality_agent.agent.author --room <room dir> --surface-ref <dir> --scan <scan dir>
+    ... -m litereality_agent.pipeline.realism_authoring.author.entrypoint \
+        --room <room dir> --surface-ref <dir> --scan <scan dir>
 """
 
 from __future__ import annotations
 
-import argparse
-import asyncio
 import json
 import os
 import time
@@ -342,7 +341,7 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     from litereality_agent.agent import scratch
     scratch_at = scratch.bind(near=room)
     prompt += scratch.prompt_line()
-    from litereality_agent.pipeline.tracing.narrate import describe_tools_line
+    from litereality_agent.agent.tool_narration import describe_tools_line
     prompt += describe_tools_line()
 
     server, cap_allowed = build_capability_server(room, CAPABILITY_TOOLS)
@@ -391,13 +390,13 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     t0 = time.monotonic()
     result_text, cost = "", None
     # Names and inputs live on ToolUseBlock only; the narrator holds the id→call map so a
-    # ToolResultBlock can be attributed back. See narrate.py for what reading them off the
+    # ToolResultBlock can be attributed back. See tool_narration.py for what reading them off the
     # result block cost us.
-    from litereality_agent.pipeline.tracing.narrate import ToolNarrator
+    from litereality_agent.agent.tool_narration import ToolNarrator
     nar = ToolNarrator()
     # Structured record of the loop, so a one-shot run is documented the way staged runs were.
-    from litereality_agent.pipeline.tracing.history import RunTrace
-    tr = RunTrace("author", room=room, scan=os.environ.get("LITEREALITY_SCAN"))
+    from litereality_agent.agent.trace import AgentTrace
+    tr = AgentTrace("author", room=room, scan=os.environ.get("LITEREALITY_SCAN"))
     # The prompt is the other half of "what happened": a tool choice only makes sense
     # against what the session was actually asked to do, and profiles change that.
     tr.start(model=model, room=str(room), profile=profile, stitches=len(present),
@@ -505,36 +504,3 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
         print(f"  ✗ Room.py does not compile and no checkpoint could be restored: {broken}",
               flush=True)
     return 1 if broken else 0
-
-
-def main():
-    from litereality_agent.pipeline.realism_authoring import arguments as stage_args
-
-    ap = argparse.ArgumentParser(description=__doc__)
-    stage_args.add_scene_arg(ap)
-    # Not required any more: a scene package supplies all three. Passing them still wins.
-    ap.add_argument("--room", default=None, help="room dir to edit (default: the package's work room)")
-    ap.add_argument("--surface-ref", default=None)
-    ap.add_argument("--scan", default=None, help="the capture dir (default: the package's capture)")
-    ap.add_argument("--model", default=os.environ.get("HARNESS_MODEL", "claude-opus-5"))
-    ap.add_argument("--max-turns", type=int, default=140,
-                    help="hard SDK backstop (assistant turns); the step budget lands the run before this")
-    ap.add_argument("--step-budget", type=int, default=int(os.environ.get("AUTHOR_STEPS", "100")),
-                    help="tool-call budget: graceful wind-down + stop at this many calls (0 disables)")
-    ap.add_argument("--step-reserve", type=int, default=int(os.environ.get("AUTHOR_STEP_RESERVE", "15")),
-                    help="steps before the budget at which self-check tools switch off for final edits")
-    ap.add_argument("--profile", default="base", choices=list(PROFILES))
-    a = stage_args.bind(ap.parse_args(), need=("room", "surface_ref", "scan"))
-    from litereality_agent.agent import scratch
-    try:
-        rc = asyncio.run(run(Path(a.room), Path(a.surface_ref), Path(a.scan), a.model, a.max_turns,
-                             a.profile, step_budget=a.step_budget, step_reserve=a.step_reserve))
-        raise SystemExit(rc or 0)
-    finally:
-        # A turn cap, a budget stop and an SDK error all leave through here. Claim whatever the
-        # session wrote to the scratch ROOT, and drop the run dir if it produced nothing.
-        scratch.finish()
-
-
-if __name__ == "__main__":
-    main()

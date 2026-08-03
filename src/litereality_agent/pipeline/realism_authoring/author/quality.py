@@ -24,19 +24,16 @@ import os
 import time
 from pathlib import Path
 
+# Append QC events to the application timeline. The detailed agent transcript is recorded
+# separately by AgentTrace below.
+from litereality_agent import telemetry  # noqa: E402
+
 # reuse the authoring capability server (fetch_material / render / critic / select_views), scene-bound
 from litereality_agent.agent.author import (  # noqa: E402
     CAPABILITY_TOOLS,
     build_capability_server,
     surfaces_for,
 )
-
-# always-on provenance trace: append QC events to the SAME run/<scan>/traces/trace.jsonl the
-# object_init pipeline writes, so the timeline includes the QC pass. Optional — QC runs without it.
-try:
-    from litereality_agent.pipeline import tracing  # noqa: E402
-except Exception:  # noqa: BLE001
-    tracing = None
 
 PROMPT = """\
 Role: You are doing a QC pass on an already-authored Room.py, not a rebuild. Read Room.md + Room.py in
@@ -230,21 +227,26 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
     print(f"== QC pass ==\n  model={model} room={room}\n"
           f"  tools=Read,Edit,Write,Glob + {list(CAPABILITY_TOOLS)}\n"
           f"  stitches={n_stitch} · object refs={n_obj}\n", flush=True)
-    if tracing is not None:
-        try:
-            tracing.start(scan.name)
-            tracing.event("qc_start", scan=scan.name, model=model, room=str(room),
-                          stitches=n_stitch, object_refs=n_obj)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        telemetry.start(scan.name)
+        telemetry.event(
+            "qc_start",
+            scan=scan.name,
+            model=model,
+            room=str(room),
+            stitches=n_stitch,
+            object_refs=n_obj,
+        )
+    except Exception:  # noqa: BLE001 — telemetry must not fail an authoring pass
+        pass
     t0 = time.monotonic()
     result_text, cost = "", None
     from litereality_agent.agent import scratch
-    from litereality_agent.pipeline.tracing.narrate import ToolNarrator, hint_for
+    from litereality_agent.agent.tool_narration import ToolNarrator, hint_for
     scratch_at = scratch.bind(near=room)   # this pass's own run_NNN dir
     nar = ToolNarrator()
-    from litereality_agent.pipeline.tracing.history import RunTrace
-    tr = RunTrace("qc", room=room, scan=scan.name)
+    from litereality_agent.agent.trace import AgentTrace
+    tr = AgentTrace("qc", room=room, scan=scan.name)
     tr.start(model=model, room=str(room),
              scratch=str(scratch_at) if scratch_at else None)
     async for m in query(prompt=prompt, options=options):
@@ -254,16 +256,20 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
             if b == "TextBlock" and getattr(block, "text", "").strip():
                 print(f"  …{block.text.strip()[:150]}", flush=True)
                 tr.think(block.text)
-                if tracing is not None:
-                    tracing.event("qc_note", text=block.text.strip()[:400])
+                try:
+                    telemetry.event("qc_note", text=block.text.strip()[:400])
+                except Exception:  # noqa: BLE001 — telemetry is best-effort
+                    pass
             elif b == "ToolUseBlock":
                 # Narrate at USE time — ToolResultBlock has no name/input to narrate from.
                 print(nar.use(block), flush=True)
                 name = (getattr(block, "name", "?") or "?").split("__")[-1]
                 inp = getattr(block, "input", {}) or {}
                 tr.tool(getattr(block, "name", "?"), inp, tool_id=getattr(block, "id", "") or "")
-                if tracing is not None:
-                    tracing.event("qc_tool", i=nar.calls, tool=name, hint=hint_for(name, inp, 160))
+                try:
+                    telemetry.event("qc_tool", i=nar.calls, tool=name, hint=hint_for(name, inp, 160))
+                except Exception:  # noqa: BLE001 — telemetry is best-effort
+                    pass
             elif b == "ToolResultBlock":
                 tr.result(block)
                 name, used = nar.result(block)
@@ -277,12 +283,17 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
             cost = getattr(m, "total_cost_usd", None)
     dt = round(time.monotonic() - t0, 1)
     calls, counts = nar.calls, nar.counts
-    if tracing is not None:
-        try:
-            tracing.event("qc_done", calls=calls, counts=counts, cost=cost,
-                          seconds=dt, summary=result_text[:1200])
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        telemetry.event(
+            "qc_done",
+            calls=calls,
+            counts=counts,
+            cost=cost,
+            seconds=dt,
+            summary=result_text[:1200],
+        )
+    except Exception:  # noqa: BLE001 — telemetry must not fail an authoring pass
+        pass
     print(f"\n== QC done {int(dt // 60)}m{int(dt % 60):02d}s | calls={calls} {counts} | cost=${cost} ==\n",
           flush=True)
     print("SUMMARY:\n" + result_text[:3000], flush=True)

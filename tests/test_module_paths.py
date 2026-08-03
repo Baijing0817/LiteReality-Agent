@@ -1,7 +1,7 @@
 """Every module named as a STRING must resolve.
 
 A cross-package call that goes through a subprocess names its target in a string — `-m
-litereality_agent.models.procedural.generate` — and a string is invisible to every import
+litereality_agent.agent.object_generation.generate` — and a string is invisible to every import
 check, every linter and every rename. This has already failed twice in exactly the same way: a
 package moved, the imports were rewritten, and the `-m` strings quietly kept pointing at the old
 name. The symptom is never an ImportError in the parent; it is a stage that "completes" with a
@@ -95,12 +95,13 @@ def test_no_retired_top_level_spelling():
 
 
 @pytest.mark.parametrize("dotted", [
-    "litereality_agent.models.procedural.generate",  # subprocess target used by the pipeline
+    "litereality_agent.agent.object_generation.generate",  # subprocess target used by the pipeline
     "litereality_agent.scene.compile.build_from_room",
     "litereality_agent.scene.manifest",
     "litereality_agent.pipeline.scene_init.flow",
     "litereality_agent.models.grounding_dino.worker",
     "litereality_agent.pipeline.realism_authoring.author.evidence",
+    "litereality_agent.pipeline.realism_authoring.author.entrypoint",
     "litereality_agent.pipeline.realism_authoring.author.refine_objects",
     "litereality_agent.pipeline.realism_authoring.author.materials",
     "litereality_agent.pipeline.realism_authoring.author.quality",
@@ -120,7 +121,6 @@ def test_executable_helpers_survived_the_layout_move():
         config.RENDER_TOOL,
         config.SELECT_TOOL,
         config.STITCH_TOOL,
-        config.FETCH_POLYHAVEN,
         PKG / "scene" / "rendering" / "object_turntable.py",
     )
     assert all(path.is_file() for path in paths), "missing helper(s): " + ", ".join(

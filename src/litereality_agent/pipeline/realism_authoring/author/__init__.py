@@ -41,7 +41,12 @@ def run(context: RunContext, options: dict) -> StageResult:
         "--max-turns", options.get("max_turns", 140),
         "--step-budget", options.get("step_budget", 100),
     ]
-    rc, log = run_module(context, "litereality_agent.agent.author", args, log_name="author")
+    rc, log = run_module(
+        context,
+        "litereality_agent.pipeline.realism_authoring.author.entrypoint",
+        args,
+        log_name="author",
+    )
     result = command_result(
         "author", rc, artifacts={"room": context.authored_room}, log=log,
     )

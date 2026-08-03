@@ -176,7 +176,7 @@ def test_prompt_line_names_the_directory_and_forbids_tmp(bound: Path):
 def test_relative_image_names_resolve_against_the_stage_roots(tmp_path, monkeypatch):
     """`_save_image` checked `Path('conf_00000.png').is_file()` against the process CWD, so every
     relative name failed: 1 of 7 image events in a real trace saved anything."""
-    from litereality_agent.pipeline.tracing.history import RunTrace
+    from litereality_agent.agent.trace import AgentTrace
 
     surface_ref = tmp_path / "surface_ref"
     surface_ref.mkdir()
@@ -184,7 +184,7 @@ def test_relative_image_names_resolve_against_the_stage_roots(tmp_path, monkeypa
     monkeypatch.setenv("LR_SURFACE_REF", str(surface_ref))
     monkeypatch.chdir(tmp_path / "..")
 
-    tr = RunTrace("author", room=tmp_path / "room", scan="test-scan-Room")
+    tr = AgentTrace("author", room=tmp_path / "room", scan="test-scan-Room")
     assert tr._locate("Wall0_stitched.jpg") == surface_ref / "Wall0_stitched.jpg"
     assert tr._locate("no_such_image.png") is None
 

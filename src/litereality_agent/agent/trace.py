@@ -1,9 +1,6 @@
-"""run_trace.py — record what the one-shot agentic passes actually did, as structured events.
+"""Record what an agent pass did as structured events and a raw transcript.
 
-The staged harness used to leave a `stage_<N>/iteration_<M>/verify.json` tree behind, which
-`authoring/scene/report_html.py` renders. The one-shot path (author / materials / qc) never writes
-that layout, so those reports come out empty. Rather than resurrect the staged tree, each pass
-appends its own events here while it runs:
+Each authoring agent records its own events here while it runs:
 
     <traces>/authoring_trace.<pass>.jsonl   one JSON object per line, oldest first
 
@@ -165,7 +162,7 @@ def _archive(path: Path, tag: str = "") -> Path | None:
         return None
 
 
-class RunTrace:
+class AgentTrace:
     """Append-only recorder. Never raises into the caller — a broken trace must not fail a run."""
 
     def __init__(self, pass_name: str, room: Path | None = None, scan: str | None = None):

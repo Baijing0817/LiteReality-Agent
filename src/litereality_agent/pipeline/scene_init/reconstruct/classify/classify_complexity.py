@@ -148,7 +148,7 @@ def classify_for_scan(scan: str, *, model: str | None = None, include_chairs: bo
     per-scan work tree, and writes ``routing/routing.json`` and a single-scan
     ``routing/routing_manifest.json`` (the format trellis/procedural stages read).
     """
-    from litereality_agent.pipeline import tracing
+    from litereality_agent import telemetry
 
     config.set_scan(scan)
     model = model or classification.DEFAULT_CLASSIFY_MODEL
@@ -201,7 +201,7 @@ def classify_for_scan(scan: str, *, model: str | None = None, include_chairs: bo
         f"[classify] {scan}: {n_proc} procedural, {n_trellis} trellis "
         f"-> {routing_root / 'routing_manifest.json'}"
     )
-    tracing.event("classify", scan=scan, procedural=n_proc, trellis=n_trellis, total=len(recs))
+    telemetry.event("classify", scan=scan, procedural=n_proc, trellis=n_trellis, total=len(recs))
     return {
         "scan": scan,
         "records": recs,
