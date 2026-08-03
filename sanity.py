@@ -345,12 +345,12 @@ def main() -> int:
 
     if "gen3d" in wanted:
         print("── gen3d (TRELLIS) ──")
-        if os.environ.get("RUNPOD_TRELLIS_ENDPOINT"):
-            ok("RunPod TRELLIS endpoint set (cloud gen3d)")
+        if os.environ.get("MODAL_TRELLIS_APP"):
+            ok("Modal TRELLIS app set (cloud gen3d)")
         else:
-            warn("no RUNPOD_TRELLIS_ENDPOINT — reconstruction has no cloud gen3d and needs a local GPU env.",
-                 env=("RUNPOD_TRELLIS_ENDPOINT", "https://api.runpod.ai/v2/<endpoint-id>/runsync",
-                      "create a TRELLIS serverless endpoint at runpod.io; or run TRELLIS on a local GPU"))
+            warn("no MODAL_TRELLIS_APP — reconstruction has no cloud gen3d and needs a local GPU env.",
+                 env=("MODAL_TRELLIS_APP", "litereality-trellis",
+                      "deploy deploy/modal/trellis from the shared workspace; or use a local GPU"))
 
     if scan:
         print(f"── scan: {scan} ──")

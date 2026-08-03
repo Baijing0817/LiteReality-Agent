@@ -264,55 +264,6 @@ def test_thread_tee_isolates_each_branch():
     assert tee.isatty() is True  # main thread, unbound
 
 
-# --- RunPod batch reporting -------------------------------------------------- #
-def test_runpod_report_separates_waiting_from_computing():
-    """`wall - exec` was left for the reader to infer. A serverless endpoint that scaled to zero
-    spends most of a run booting, and that is a console setting to change, not code — so the
-    split has to be visible."""
-    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
-
-    r = BatchReport(wall_s=278.5, assets=[
-        AssetReport("ChairCluster0", True, 256.8, 23.1, None, "", delay_s=233.1),
-        AssetReport("ChairCluster1", True, 278.5, 22.1, None, "", delay_s=255.9),
-    ])
-    out = r.render()
-    assert "queue+coldstart=255.9s" in out and "92% of wall" in out
-    assert "queued=233.1s" in out and "exec=23.1s" in out
-
-
-def test_runpod_delay_is_maxed_not_summed():
-    """Assets are submitted in parallel and wait concurrently — summing their delays would
-    triple-count a single shared cold start and report more wait than the batch took."""
-    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
-
-    r = BatchReport(wall_s=280.0, assets=[
-        AssetReport("a", True, 250.0, 20.0, None, "", delay_s=230.0),
-        AssetReport("b", True, 280.0, 20.0, None, "", delay_s=255.0),
-    ])
-    assert r.max_delay_s == 255.0
-    assert r.max_delay_s <= r.wall_s
-
-
-def test_asset_report_positional_fields_did_not_shift():
-    """Both call sites build this positionally, so a field added anywhere but the end silently
-    re-points glb_path and error."""
-    from litereality_agent.models.trellis.runpod import AssetReport
-
-    ok = AssetReport("id", True, 1.0, 2.0, 0.5, "/tmp/a.glb")
-    assert ok.glb_path == "/tmp/a.glb" and ok.error == "" and ok.delay_s is None
-    bad = AssetReport("id", False, 1.0, None, None, error="boom")
-    assert bad.error == "boom" and bad.glb_path == ""
-
-
-def test_report_without_delay_still_renders():
-    """A RunPod response that omits delayTime must not add an empty clause or crash."""
-    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
-
-    out = BatchReport(wall_s=10.0, assets=[
-        AssetReport("a", True, 9.0, 5.0, None, "")]).render()
-    assert "queue+coldstart" not in out and "queued=" not in out and "1/1 ok" in out
-
-
 # --- one Blender resolver ----------------------------------------------------- #
 def test_only_one_module_resolves_blender():
     """There were seven of these and they disagreed: only the authoring copy knew that a stock

@@ -1,4 +1,4 @@
-"""Bind model capabilities to local-process or RunPod execution runtimes."""
+"""Bind model capabilities to local-process or hosted execution runtimes."""
 
 from __future__ import annotations
 
@@ -7,12 +7,13 @@ from litereality_agent.settings import LiteRealitySettings, load_settings
 
 def gen3d_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
-    if settings.runpod_trellis_endpoint:
-        from litereality_agent.models.trellis.runpod import RunPodTrellisService
+    if settings.modal_trellis_app:
+        from litereality_agent.models.trellis.modal import ModalTrellisService
 
-        return RunPodTrellisService(
-            api_key=settings.runpod_api_key.get_secret_value() if settings.runpod_api_key else None,
-            endpoint_id=settings.runpod_trellis_endpoint,
+        return ModalTrellisService(
+            app_name=settings.modal_trellis_app,
+            function_name=settings.modal_trellis_function,
+            environment_name=settings.modal_environment,
         )
     from litereality_agent.models.trellis.service import LocalTrellisService
 

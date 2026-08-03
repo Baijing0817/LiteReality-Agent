@@ -87,9 +87,11 @@ class LiteRealitySettings(BaseSettings):
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     runpod_api_key: SecretStr | None = Field(default=None, validation_alias="RUNPOD_API_KEY")
-    runpod_trellis_endpoint: str | None = Field(
-        default=None, validation_alias="RUNPOD_TRELLIS_ENDPOINT"
+    modal_trellis_app: str | None = Field(default=None, validation_alias="MODAL_TRELLIS_APP")
+    modal_trellis_function: str = Field(
+        default="generate", validation_alias="MODAL_TRELLIS_FUNCTION"
     )
+    modal_environment: str = Field(default="main", validation_alias="MODAL_ENVIRONMENT")
     runpod_dino_endpoint: str | None = Field(
         default=None, validation_alias="RUNPOD_DINO_ENDPOINT"
     )
@@ -175,7 +177,9 @@ class LiteRealitySettings(BaseSettings):
             "LR_OPENAI_IMAGE_MODEL": self.image_model,
             "LR_DINO_MODEL": self.dino_model,
             "LR_DINO_EMBED_MODEL": self.dino_embed_model,
-            "RUNPOD_TRELLIS_ENDPOINT": self.runpod_trellis_endpoint,
+            "MODAL_TRELLIS_APP": self.modal_trellis_app,
+            "MODAL_TRELLIS_FUNCTION": self.modal_trellis_function,
+            "MODAL_ENVIRONMENT": self.modal_environment,
             "RUNPOD_DINO_ENDPOINT": self.runpod_dino_endpoint,
         }
         secrets = {

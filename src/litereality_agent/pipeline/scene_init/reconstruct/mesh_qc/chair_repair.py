@@ -53,7 +53,7 @@ def _trellis_one(
     from litereality_agent.settings import load_settings
 
     settings = load_settings()
-    if settings.runpod_trellis_endpoint:
+    if settings.modal_trellis_app:
         from litereality_agent.models.registry import gen3d_from_settings
 
         service = gen3d_from_settings(settings)

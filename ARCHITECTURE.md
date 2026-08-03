@@ -26,10 +26,11 @@ src/litereality_agent/
 ├── room_format/         Room.py manifest, compilation, rendering, export, and validation
 ├── models/              canonical inference and model-specific service adapters
 │   └── llm/             provider integrations (`openai/` and `claude/`)
-└── runtimes/            execution transports such as RunPod
+└── runtimes/            execution transports such as Modal and RunPod
 
 scripts/                  standalone capture and publishing utilities
-deploy/runpod/            container packaging; never imported by application code
+deploy/modal/             hosted model wrappers; never imported by application code
+deploy/runpod/            remaining DINO container packaging
 ```
 
 There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layers. The directory
@@ -84,8 +85,9 @@ process environment > .env > models.env > typed defaults
 
 Heavy inference is isolated from the main environment. A model package owns one inference path
 regardless of where it executes. A local adapter can run it in a separately configured process;
-a RunPod adapter sends its request contract through `runtimes/runpod.py`. Container-only files
-live under `deploy/runpod`, outside application source. The CLI and unit tests do not start DINO,
+a hosted adapter sends its request contract through `runtimes/`. Modal wraps canonical TRELLIS
+inference under `deploy/modal`; RunPod remains only for optional DINO execution. Deployment files
+stay outside application source. The CLI and unit tests do not start DINO,
 TRELLIS, Blender, or paid model calls.
 
 ## Output compatibility

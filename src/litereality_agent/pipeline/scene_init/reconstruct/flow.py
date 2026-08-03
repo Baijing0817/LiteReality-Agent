@@ -253,13 +253,12 @@ def run_for_scan(
         print(f"[reconstruct] no references found for {scan}", flush=True)
         return plan
 
-    # Route to the gen3d TOOL (RunPod TRELLIS, on-demand cloud, parallel) when installed —
-    # else fall through to the local launcher below.
+    # Route to the configured hosted gen3d tool when installed, else fall through to the local
+    # launcher below.
     from litereality_agent.pipeline.scene_init.reconstruct import service as reconstructor
 
     if not reconstructor.using_service():
-        # auto-install the configured gen3d backend so TRELLIS uses the RunPod API whenever its
-        # endpoint is set, regardless of entry point (cli.main installs it; `run.py --full` didn't).
+        # Auto-install the configured backend regardless of entry point.
         try:
             from litereality_agent.models.registry import gen3d_from_settings
 
@@ -273,6 +272,9 @@ def run_for_scan(
         except Exception as exc:
             print(f"[reconstruct] gen3d auto-install skipped: {exc}", flush=True)
     if reconstructor.using_service():
+        service_name = getattr(
+            reconstructor.service(), "name", reconstructor.service().__class__.__name__
+        )
         refs_dir = recon_dir / "_refs"
         refs_dir.mkdir(parents=True, exist_ok=True)
         staged: list[tuple[str, Path]] = []
@@ -281,12 +283,12 @@ def run_for_scan(
             if not dst.exists() or dst.stat().st_mtime < ref.stat().st_mtime:
                 shutil.copy(ref, dst)
             staged.append((asset_id, dst))
-        plan["backend"] = "runpod-gen3d"
+        plan["backend"] = service_name
         plan["python"] = None
         plan["launcher"] = None
-        telemetry.event("reconstruct_launch", scan=scan, n_assets=len(refs), backend="runpod-gen3d")
+        telemetry.event("reconstruct_launch", scan=scan, n_assets=len(refs), backend=service_name)
         print(
-            f"[reconstruct] {len(refs)} asset(s) -> {recon_dir}  (gen3d tool: RunPod TRELLIS)",
+            f"[reconstruct] {len(refs)} asset(s) -> {recon_dir}  (gen3d tool: {service_name})",
             flush=True,
         )
         if dry_run:
@@ -314,7 +316,7 @@ def run_for_scan(
             scan=scan,
             status=plan["status"],
             generated=len(generated),
-            backend="runpod-gen3d",
+            backend=service_name,
             cost_usd=plan.get("cost_usd"),
             wall_s=plan.get("wall_s"),
         )

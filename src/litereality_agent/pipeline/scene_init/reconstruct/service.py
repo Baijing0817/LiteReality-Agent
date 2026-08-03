@@ -1,6 +1,6 @@
 """Single reconstruction entry for the init stage — call THIS, not the launcher directly.
 
-Routes to the `gen3d` tool (RunPod TRELLIS, runs on-demand in the cloud) when installed via
+Routes to the configured hosted `gen3d` tool when installed via
 `set_service`, else returns None so the caller falls back to the local TRELLIS launcher. Same
 pattern as `detector.py` for DINO. Installing this module imports no torch.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-_SERVICE: Any = None  # a Generation3DService (RunPodTrellisService); None → local launcher
+_SERVICE: Any = None  # a Generation3DService; None → local launcher
 
 
 def set_service(service: Any) -> None:
