@@ -225,21 +225,19 @@ def polish(scan: str, *, force: bool = False) -> dict:
             return previous
         except (OSError, ValueError):
             pass  # unreadable marker: fall through and redo it properly
-    # GPU DINO: if $LR_DINO_PYTHON (loaded from .env too) points at an isolated torch env whose CUDA
-    # matches the driver, run detection there via the persistent worker instead of in-process CPU.
-    # The main venv's torch may be built for a newer CUDA than the driver -> CPU-only -> ~15x slower.
+    # Resolve DINO once through the model registry. Hosted RunPod wins when configured; an isolated
+    # local interpreter remains available for Linux workstations. The light pipeline process never
+    # needs to import torch in either case.
     if not detector.using_service():
-        import os
-
+        from litereality_agent.models.registry import detection_from_settings
         from litereality_agent.settings import load_settings
 
-        load_settings().apply_environment()
-        _dino_py = os.environ.get("LR_DINO_PYTHON")
-        if _dino_py:
-            from litereality_agent.models.grounding_dino.local.service import DinoSubprocessService
-
-            detector.set_service(DinoSubprocessService(python=_dino_py))
-            print(f"  [bbox_polish] GPU DINO worker via {_dino_py}", flush=True)
+        settings = load_settings()
+        settings.apply_environment()
+        service = detection_from_settings(settings)
+        if service is not None:
+            detector.set_service(service)
+            print(f"  [bbox_polish] DINO backend: {service.name}", flush=True)
 
     if not detector.available():
         print(

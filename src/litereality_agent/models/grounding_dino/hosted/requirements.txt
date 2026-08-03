@@ -1,0 +1,6 @@
+runpod~=1.7.0
+transformers>=4.51,<6
+torchvision==0.20.1
+pillow>=10
+numpy<2
+

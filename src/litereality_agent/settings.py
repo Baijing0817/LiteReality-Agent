@@ -76,6 +76,9 @@ class LiteRealitySettings(BaseSettings):
     runpod_trellis_endpoint: str | None = Field(
         default=None, validation_alias="RUNPOD_TRELLIS_ENDPOINT"
     )
+    runpod_dino_endpoint: str | None = Field(
+        default=None, validation_alias="RUNPOD_DINO_ENDPOINT"
+    )
 
     @model_validator(mode="after")
     def resolve_dependent_defaults(self) -> "LiteRealitySettings":
@@ -120,6 +123,7 @@ class LiteRealitySettings(BaseSettings):
             "LR_DINO_MODEL": self.dino_model,
             "LR_DINO_EMBED_MODEL": self.dino_embed_model,
             "RUNPOD_TRELLIS_ENDPOINT": self.runpod_trellis_endpoint,
+            "RUNPOD_DINO_ENDPOINT": self.runpod_dino_endpoint,
         }
         secrets = {
             "OPENAI_API_KEY": self.openai_api_key,
