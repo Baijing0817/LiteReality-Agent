@@ -38,7 +38,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from . import config
+from litereality_agent.room_format.rendering import config
 
 # --- tunable triage thresholds (env-overridable) --------------------------- #
 # A real stitch is contaminated by wall-mounted fixtures (whiteboards, shelves) and

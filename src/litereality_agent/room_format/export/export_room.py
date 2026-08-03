@@ -31,7 +31,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .. import config
+from .. import paths as config
 from ..compile import pack_assets
 
 HERE = Path(__file__).resolve().parent

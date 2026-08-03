@@ -27,7 +27,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .. import config
+from .. import paths as config
 
 _PREFIX_CAT = [
     ("Wall", "wall"),

@@ -115,10 +115,11 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     else:
         telemetry.stage("crop_objects", scan, "reused")
 
-    # 2b. GroundingDINO bbox refinement — tighten each object's projected crop to the
-    # real 2D detection (on by default; projected crop is the fallback). See bbox_polish.
+    # 2b. Optional GroundingDINO bbox refinement. RoomPlan's projected crop is the
+    # default path; DINO is an explicit enhancement for environments that provide it.
     polish_res = None
-    if not args.skip_bbox_polish:
+    use_dino = args.use_dino and not args.skip_bbox_polish
+    if use_dino:
         telemetry.stage("bbox_polish", scan, "start")
         polish_res = bbox_polish.polish(scan, force=args.force_bbox_polish)
         telemetry.stage("bbox_polish", scan,
@@ -134,7 +135,12 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         if not args.skip_openings:
             telemetry.stage("opening_references", scan, "start")
             op = opening_references.generate_for_scan(
-                scan, config.opening_refs_root(), skip_image_generation=True, crops_only=True, only=only
+                scan,
+                config.opening_refs_root(),
+                skip_image_generation=True,
+                crops_only=True,
+                only=only,
+                refine_dino=use_dino,
             )
             telemetry.stage("opening_references", scan, "done", n_openings=len(op["openings"]))
         print(
@@ -173,6 +179,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         skip_image_generation=args.skip_image_generation,
         force_image_generation=args.force_image_generation,
         model=args.image_model,
+        use_dino=use_dino,
     )
     telemetry.stage(
         "chair_clusters",
@@ -192,6 +199,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
             skip_image_generation=args.skip_image_generation,
             force_image_generation=args.force_image_generation,
             model=args.image_model,
+            refine_dino=use_dino,
         )
         telemetry.stage(
             "opening_references", scan, "done", n_openings=len(opening_result["openings"])
@@ -525,14 +533,19 @@ def main(argv: list[str] | None = None) -> int:
         "--skip-crop", action="store_true", help="Reuse existing crops, never crop."
     )
     parser.add_argument(
+        "--use-dino",
+        action="store_true",
+        help="Opt in to GroundingDINO crop refinement and DINOv2 chair embeddings.",
+    )
+    parser.add_argument(
         "--skip-bbox-polish",
         action="store_true",
-        help="Skip the GroundingDINO crop refinement (on by default; needs torch+transformers).",
+        help="Deprecated compatibility flag; DINO refinement is skipped by default.",
     )
     parser.add_argument(
         "--crops-only",
         action="store_true",
-        help="Stop after cropping + GroundingDINO bbox refinement (object + opening crops). "
+        help="Stop after cropping (plus DINO refinement when --use-dino is set). "
         "No nano references, no object generation.",
     )
     parser.add_argument(

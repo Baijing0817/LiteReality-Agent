@@ -31,7 +31,7 @@ from pathlib import Path
 
 from litereality_agent import console
 
-from .. import config
+from .. import paths as config
 
 HERE = Path(__file__).resolve().parent
 

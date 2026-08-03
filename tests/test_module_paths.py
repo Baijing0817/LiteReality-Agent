@@ -128,6 +128,13 @@ def test_executable_helpers_survived_the_layout_move():
     )
 
 
+def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
+    from litereality_agent.pipeline.scene_init.reconstruct import flow
+
+    monkeypatch.delenv("LITEREALITY_TRELLIS_PYTHON", raising=False)
+    assert Path(flow.resolve_python(None)) == REPO / ".venv" / "bin" / "python"
+
+
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

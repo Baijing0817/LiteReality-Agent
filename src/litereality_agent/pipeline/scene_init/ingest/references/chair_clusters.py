@@ -365,7 +365,9 @@ def make_sheet(
 
 
 # ── per-scan clustering ──────────────────────────────────────────────────────
-def build_chair_records(scan: str, output_root: Path) -> list[ChairRecord]:
+def build_chair_records(
+    scan: str, output_root: Path, *, use_dino: bool = False
+) -> list[ChairRecord]:
     objects = load_scene_objects(scan)
     scan_dir = config.parsed_images_dir(scan)
     # First pass: gather each chair's crops + metadata (no per-chair model calls yet).
@@ -383,11 +385,12 @@ def build_chair_records(scan: str, output_root: Path) -> list[ChairRecord]:
         )
         metas.append((obj_dir, images, bbox, position))
 
-    # Visual features: one batched DINOv2 embed for all chairs (viewpoint-robust "same design"),
-    # falling back to the pose-sensitive CV descriptor only if no torch backend is available.
-    features = dino_features([images for _, images, _, _ in metas])
+    # The lightweight CV descriptor is sufficient for the normal path. DINOv2 is an
+    # explicit enhancement so ingest never loads a large model unexpectedly.
+    features = dino_features([images for _, images, _, _ in metas]) if use_dino else None
     if features is None:
-        print("  [chair-cluster] DINOv2 unavailable — using fallback CV features", flush=True)
+        label = "DINOv2 unavailable" if use_dino else "using lightweight CV features"
+        print(f"  [chair-cluster] {label}", flush=True)
         features = [image_feature(images) for _, images, _, _ in metas]
     else:
         print(f"  [chair-cluster] DINOv2 embeddings for {len(metas)} chairs", flush=True)
@@ -430,8 +433,8 @@ def choose_representative(cluster: list[str], records_by_name: dict[str, ChairRe
     return max(cluster, key=score)
 
 
-def cluster_scan(scan: str, output_root: Path) -> dict:
-    records = build_chair_records(scan, output_root)
+def cluster_scan(scan: str, output_root: Path, *, use_dino: bool = False) -> dict:
+    records = build_chair_records(scan, output_root, use_dino=use_dino)
     names = [r.name for r in records]
     by_name = {r.name: r for r in records}
     pair_lookup = {}
@@ -598,9 +601,10 @@ def cluster_and_generate(
     skip_image_generation: bool = False,
     force_image_generation: bool = False,
     model: str = config.DEFAULT_IMAGE_MODEL,
+    use_dino: bool = False,
 ) -> dict:
     output_root = Path(output_root)
-    result = cluster_scan(scan, output_root)
+    result = cluster_scan(scan, output_root, use_dino=use_dino)
     print(
         f"  grouped {result['chair_count']} chairs -> {len(result['clusters'])} clusters",
         flush=True,

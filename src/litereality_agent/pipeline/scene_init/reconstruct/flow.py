@@ -26,7 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from litereality_agent import PACKAGE_ROOT, telemetry
+from litereality_agent import PACKAGE_ROOT, REPO_ROOT, telemetry
 from litereality_agent.pipeline.scene_init import paths as config
 
 LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "inference.py"
@@ -38,7 +38,7 @@ def resolve_python(explicit: str | None) -> str:
     for cand in (explicit, os.environ.get("LITEREALITY_TRELLIS_PYTHON")):
         if cand and Path(cand).exists():
             return str(cand)
-    venv = config.REPO_ROOT / ".venv" / "bin" / "python"
+    venv = REPO_ROOT / ".venv" / "bin" / "python"
     if venv.exists():
         return str(venv)
     return sys.executable
@@ -167,7 +167,7 @@ def run_procedural_for_scan(
     plan = {"scan": scan, "stage": label, "python": interpreter, "cmd": " ".join(cmd)}
     telemetry.event(f"{label}_launch", scan=scan, python=interpreter, cmd=plan["cmd"])
     print(f"[{label}] {scan}\n  $ {plan['cmd']}", flush=True)
-    proc = _run(cmd, cwd=str(config.REPO_ROOT), env=_blender_env(blender_path))
+    proc = _run(cmd, cwd=str(REPO_ROOT), env=_blender_env(blender_path))
     plan["status"] = "ok" if proc.returncode == 0 else f"exit_{proc.returncode}"
     glbs = sorted(p.name for p in config.reconstruct_dir(scan).glob("*/*.glb"))
     plan["generated"] = len(glbs)
@@ -359,7 +359,7 @@ def run_for_scan(
         plan["status"] = "dry_run"
         return plan
 
-    proc = _run(cmd, cwd=str(config.REPO_ROOT))
+    proc = _run(cmd, cwd=str(REPO_ROOT))
     generated = sorted(p.name for p in recon_dir.glob("*.glb"))
     plan["status"] = "ok" if proc.returncode == 0 else f"launcher_exit_{proc.returncode}"
     plan["generated"] = len(generated)

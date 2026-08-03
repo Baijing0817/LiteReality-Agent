@@ -15,8 +15,11 @@ def run(context: RunContext, options: dict) -> StageResult:
         "--scan", context.capture_dir, "--name", context.scan,
         "--output-root", context.output_root,
         "--skip-extract", "--skip-crop", "--classify", "--reconstruct",
-        "--procedural", "--build-openings", "--chair-qc",
+        "--procedural", "--build-openings",
+        "--agent-model", context.settings.procedural_model,
     ]
+    if options.get("chair_qc"):
+        args.append("--chair-qc")
     if options.get("force"):
         args.append("--force-reconstruct")
     if options.get("concurrency"):
