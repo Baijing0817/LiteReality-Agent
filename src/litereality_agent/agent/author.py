@@ -20,7 +20,6 @@ current directory is inside a package. The explicit spelling still works and sti
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from pathlib import Path
@@ -234,103 +233,15 @@ def checkpoint(room: Path, where: Path) -> bool:
         return False
 
 
-def build_capability_server(scene_path: Path, tool_names):
-    """In-process MCP server exposing a SUBSET of the closed registry, scene-bound. Mirrors
-    agent/harness/agent.py:_build_closed_server but for a chosen tool list (capabilities only)."""
-    from claude_agent_sdk import create_sdk_mcp_server
-    from claude_agent_sdk import tool as sdk_tool
-
-    from litereality_agent.agent.tools import build_default_registry
-
-    registry = build_default_registry()
-
-    def _make_handler(name: str):
-        async def _handler(args):
-            inv = await registry.build_invocation(name, args or {})
-            if inv is None:
-                return {"content": [{"type": "text", "text": f"unknown tool {name}"}], "is_error": True}
-            if hasattr(inv, "bind"):
-                inv.bind(str(scene_path), None)
-            try:
-                res = await inv.execute()
-            except Exception as exc:  # noqa: BLE001
-                return {"content": [{"type": "text", "text": f"{type(exc).__name__}: {exc}"}], "is_error": True}
-            return {"content": [{"type": "text", "text": json.dumps(res.to_dict(), default=str)}],
-                    "is_error": not res.is_success()}
-        return _handler
-
-    sdk_tools = []
-    for name in tool_names:
-        decl = registry.get_tool(name)
-        fn = decl.schema["function"]
-        sdk_tools.append(sdk_tool(name, fn["description"], fn["parameters"])(_make_handler(name)))
-    server = create_sdk_mcp_server(name="cap", version="1.0.0", tools=sdk_tools)
-    allowed = [f"mcp__cap__{n}" for n in tool_names]
-    return server, allowed
-
-
-# The self-check / exploration tools are the capability MCP tools (mcp__cap__render|critic|
-# select_views|grid|fetch_material). In wind-down they're switched off so the remaining budget goes
-# to FINAL Room.py edits; Read/Edit/Write/Glob stay on so the model can still land its work.
-_EXPLORE_PREFIX = "mcp__cap__"
-
-
-def _make_step_budget_hook(state: dict, budget: int, reserve: int, log):
-    """PreToolUse hook that turns a `budget` of tool-calls into a graceful landing.
-
-    The only pre-existing control was `--max-turns`, a hard SDK cap that just throws and abandons
-    the loop (whatever compiling Room.py was last checkpointed is kept). This instead COUNTS every
-    tool call and steers the ending:
-      • last `reserve` steps  → DENY the self-check tools so the model spends what's left making its
-        final Room.py edits, with a message telling it to wind down;
-      • at `budget`           → end the session cleanly (Room.py is already edited in place).
-    `state` carries the live count back out for the run summary.
-    """
-    finalize_at = max(1, budget - max(0, reserve))
-
-    async def hook(input_data, tool_use_id, context):
-        state["calls"] += 1
-        n = state["calls"]
-        tool = input_data.get("tool_name", "") if isinstance(input_data, dict) \
-            else getattr(input_data, "tool_name", "") or ""
-
-        if n >= budget:
-            if not state.get("hard_logged"):
-                state["hard_logged"] = True
-                state["stopped"] = f"step budget {budget} reached"
-                log(f"\n  ⛔ step budget {budget} reached (call {n}) — ending the authoring session.")
-            msg = (f"STEP BUDGET EXHAUSTED ({n}/{budget}). Stop now — do not call any more tools; "
-                   f"Room.py is saved as-is.")
-            return {"continue_": False, "stopReason": msg,
-                    "systemMessage": f"authoring: step budget {budget} reached — ending run"}
-
-        if n >= finalize_at:
-            fin = (f"STEP BUDGET: step {n}/{budget}. WIND DOWN NOW — stop rendering / critiquing / "
-                   f"fetching. Use your remaining {max(0, budget - n)} step(s) to make ONLY your final "
-                   f"Room.py edits (the most important remaining fixes), then finish with your per-wall "
-                   f"summary. The self-check tools are disabled for the rest of the run.")
-            if tool.startswith(_EXPLORE_PREFIX):
-                if not state.get("winddown_logged"):
-                    state["winddown_logged"] = True
-                    log(f"\n  ⏳ step {n}/{budget} — wind-down: self-check tools disabled, "
-                        f"{max(0, budget - n)} step(s) left for final edits.")
-                return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                               "permissionDecision": "deny",
-                                               "permissionDecisionReason": fin}}
-            # An allowed edit/read during wind-down: nudge once so the model knows it's landing.
-            if not state.get("winddown_ctx_sent"):
-                state["winddown_ctx_sent"] = True
-                return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                               "permissionDecision": "allow",
-                                               "additionalContext": fin}}
-        return {}
-
-    return hook
+# The in-process capability server and the step-budget hook are Claude Code machinery, so they
+# live with that harness now (`agent/providers/claude.py`). Re-exported because this module has
+# been their import site since before there was a second harness.
+from litereality_agent.agent.providers.claude import build_capability_server  # noqa: E402,F401
 
 
 async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: int, profile: str = "base",
-              step_budget: int = 100, step_reserve: int = 15):
-    from claude_agent_sdk import ClaudeAgentOptions, HookMatcher, ResultMessage, query
+              step_budget: int = 100, step_reserve: int = 15, provider: str | None = None):
+    from litereality_agent.agent import providers
 
     surfaces = surfaces_for(room)
     stitches = [surface_ref / f"{s}_stitched.jpg" for s in surfaces]
@@ -344,7 +255,6 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     from litereality_agent.agent.tool_narration import describe_tools_line
     prompt += describe_tools_line()
 
-    server, cap_allowed = build_capability_server(room, CAPABILITY_TOOLS)
     # readable roots: the room, the stitches, the scan, and the resolved output tree (render PNGs +
     # fetched textures land under the realpath of the output symlink) + the repo root.
     from litereality_agent import REPO_ROOT as repo_root
@@ -352,25 +262,20 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
             str(os.path.realpath(surface_ref))}
     if scratch_at is not None:
         dirs.add(str(scratch_at))
-    # Step budget: a graceful landing at `step_budget` tool-calls (wind-down then stop), enforced by
-    # a PreToolUse hook. `--max-turns` stays as the SDK-level backstop below it. budget<=0 disables.
-    budget_state = {"calls": 0}
-    hooks = None
-    if step_budget and step_budget > 0:
-        hooks = {"PreToolUse": [HookMatcher(
-            hooks=[_make_step_budget_hook(budget_state, step_budget, step_reserve,
-                                          lambda s: print(s, flush=True))])]}
-    options = ClaudeAgentOptions(
-        cwd=str(room),
-        add_dirs=sorted(dirs),
-        system_prompt={"type": "preset", "preset": "claude_code"},
-        setting_sources=["project", "user"],
-        allowed_tools=["Read", "Edit", "Write", "Glob"] + cap_allowed,
-        mcp_servers={"cap": server},
-        permission_mode="bypassPermissions",
-        max_turns=max_turns,
+    # Step budget: a graceful landing at `step_budget` tool-calls (wind-down then stop). The Claude
+    # Code harness enforces it with a PreToolUse hook; Codex has no such hook and degrades to a hard
+    # stop (`providers.describe` says which you got). `--max-turns` is the backstop below it.
+    harness = providers.resolve("author", provider)
+    spec = providers.SessionSpec(
+        prompt=prompt,
+        cwd=room,
+        read_roots=tuple(Path(d) for d in dirs),
+        capability_tools=CAPABILITY_TOOLS,
         model=model,
-        hooks=hooks,
+        max_turns=max_turns,
+        step_budget=step_budget or 0,
+        step_reserve=step_reserve,
+        log=lambda s: print(s, flush=True),
     )
 
     # verify-reads guardrail: the stitches are the DECISIVE reference but are handed over by path,
@@ -381,11 +286,10 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     stitch_names = {p.name: s for s, p in present.items()}  # basename → surface (symlink-proof match)
     read_surfaces: set[str] = set()
 
-    budget_line = (f"step budget={step_budget} (wind-down at {max(1, step_budget - max(0, step_reserve))})"
-                   if step_budget and step_budget > 0 else "step budget=off")
-    print(f"== one-shot authoring + capability tools [profile={profile}] ==\n  model={model} room={room}\n"
+    print(f"== one-shot authoring + capability tools [profile={profile}] ==\n  room={room}\n"
           f"  tools=Read,Edit,Write,Glob + {list(CAPABILITY_TOOLS)}\n"
-          f"  surfaces={len(surfaces)} stitches={len(present)}/{len(surfaces)}  |  {budget_line}, max-turns={max_turns}\n",
+          f"  surfaces={len(surfaces)} stitches={len(present)}/{len(surfaces)}\n"
+          f"  {providers.describe(harness, spec)}, max-turns={max_turns}\n",
           flush=True)
     t0 = time.monotonic()
     result_text, cost = "", None
@@ -406,9 +310,11 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     last_good = room.parent / ".room_checkpoint.py"
     checkpoint(room, last_good)  # the seed is valid by construction — start from it
     ended_early = ""
+    stopped = ""
     try:
-      async for m in query(prompt=prompt, options=options):
-        tr.raw(m)
+      async for m in harness.run(spec):
+        # The raw sidecar wants the HARNESS's own object, not our normalised view of it.
+        tr.raw(getattr(m, "raw", None) if getattr(m, "raw", None) is not None else m)
         for block in getattr(m, "content", []) or []:
             b = type(block).__name__
             if b == "TextBlock" and getattr(block, "text", "").strip():
@@ -440,9 +346,10 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
                 # makes an interrupted session cost one edit instead of the whole run.
                 elif name in ("Edit", "Write", "Bash"):
                     checkpoint(room, last_good)
-        if isinstance(m, ResultMessage):
+        if isinstance(m, providers.SessionResult):
             result_text = m.result or ""
-            cost = getattr(m, "total_cost_usd", None)
+            cost = m.total_cost_usd
+            stopped = m.stopped
     except BaseException as exc:  # noqa: BLE001 — including the SDK's turn-cap Exception
         # Running out of turns is not a failed run. `Room.py` is edited IN PLACE, so by this
         # point the session's work is already on disk; raising here threw it away, because
@@ -453,12 +360,12 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
         ended_early = f"{type(exc).__name__}: {exc}"
         print(f"\n  ⚠ session ended early — {ended_early}", flush=True)
         tr.think(f"[session ended early] {ended_early}")
-    # A budget stop is a deliberate, graceful end (continue=False from the hook), not a crash —
-    # record it the same way as a turn-cap so the summary and exit logic treat it as "time's up".
-    if budget_state.get("stopped") and not ended_early:
-        ended_early = budget_state["stopped"]
+    # A budget stop is a deliberate, graceful end, not a crash — record it the same way as a
+    # turn-cap so the summary and exit logic treat it as "time's up".
+    if stopped and not ended_early:
+        ended_early = stopped
         print(f"\n  ⏹ authoring stopped on {ended_early} "
-              f"({budget_state['calls']} tool-calls) — Room.py kept as-is.", flush=True)
+              f"({nar.calls} tool-calls) — Room.py kept as-is.", flush=True)
         tr.think(f"[step budget] {ended_early}")
     dt = round(time.monotonic() - t0, 1)
     calls, counts = nar.calls, nar.counts
@@ -479,19 +386,30 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
 
     # per-surface stitch coverage — over EVERY surface in the room, not just the stitched ones, so a
     # surface stage 2 failed to stitch shows up as a gap instead of vanishing from the denominator.
-    skipped = [s for s in present if s not in read_surfaces]
-    print("STITCH COVERAGE (head-on references the model actually opened):", flush=True)
-    for s in surfaces:
-        mark = "✓" if s in read_surfaces else ("✗ NO STITCH" if s in missing else "✗ NEVER OPENED")
-        print(f"  {mark} {s}", flush=True)
-    if missing:
-        print(f"  ⚠ {len(missing)}/{len(surfaces)} surface(s) have NO stitch: {', '.join(missing)} — "
-              f"stage 2 (surface stitches) did not produce one.", flush=True)
-    if skipped:
-        print(f"  ⚠ {len(skipped)}/{len(present)} stitch(es) never read: {', '.join(skipped)} — "
-              f"those surfaces were authored WITHOUT looking at their head-on reference.", flush=True)
-    elif not missing:
-        print(f"  all {len(present)} stitch(es) read ✓", flush=True)
+    # Only meaningful where file reads are observable tool calls. Codex reads internally, so an
+    # absent Read event says nothing about whether the reference was seen — reporting it as
+    # "NEVER OPENED" would be a fabricated quality warning on every run.
+    if "read_events" not in harness.supports:
+        print(f"STITCH COVERAGE: not observable on the {harness.name} harness "
+              f"(file reads are not reported as tool calls) — "
+              f"{len(present)}/{len(surfaces)} surface(s) had a stitch available.", flush=True)
+        if missing:
+            print(f"  ⚠ {len(missing)}/{len(surfaces)} surface(s) have NO stitch: {', '.join(missing)} — "
+                  f"stage 2 (surface stitches) did not produce one.", flush=True)
+    else:
+        skipped = [s for s in present if s not in read_surfaces]
+        print("STITCH COVERAGE (head-on references the model actually opened):", flush=True)
+        for s in surfaces:
+            mark = "✓" if s in read_surfaces else ("✗ NO STITCH" if s in missing else "✗ NEVER OPENED")
+            print(f"  {mark} {s}", flush=True)
+        if missing:
+            print(f"  ⚠ {len(missing)}/{len(surfaces)} surface(s) have NO stitch: {', '.join(missing)} — "
+                  f"stage 2 (surface stitches) did not produce one.", flush=True)
+        if skipped:
+            print(f"  ⚠ {len(skipped)}/{len(present)} stitch(es) never read: {', '.join(skipped)} — "
+                  f"those surfaces were authored WITHOUT looking at their head-on reference.", flush=True)
+        elif not missing:
+            print(f"  all {len(present)} stitch(es) read ✓", flush=True)
 
     print("\nSUMMARY:\n" + result_text[:2500], flush=True)
 
