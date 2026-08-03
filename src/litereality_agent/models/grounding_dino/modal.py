@@ -20,7 +20,7 @@ class ModalDinoService:
         app_name: str,
         function_name: str = "infer",
         environment_name: str = "main",
-        profile: str = "huangzhening",
+        profile: str | None = None,
         model_id: str | None = None,
         embed_model_id: str | None = None,
         client: Any = None,

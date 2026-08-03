@@ -8,6 +8,8 @@ from litereality_agent.settings import LiteRealitySettings, load_settings
 def gen3d_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
     if settings.modal_trellis_app:
+        if not settings.modal_profile:
+            raise RuntimeError("MODAL_PROFILE must be set when using hosted TRELLIS.")
         from litereality_agent.models.trellis.modal import ModalTrellisService
 
         return ModalTrellisService(
@@ -29,6 +31,8 @@ def gen3d_from_settings(settings: LiteRealitySettings | None = None):
 def detection_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
     if settings.modal_dino_app:
+        if not settings.modal_profile:
+            raise RuntimeError("MODAL_PROFILE must be set when using hosted DINO.")
         from litereality_agent.models.grounding_dino.modal import ModalDinoService
 
         return ModalDinoService(

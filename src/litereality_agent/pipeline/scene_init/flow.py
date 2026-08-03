@@ -673,7 +673,16 @@ def main(argv: list[str] | None = None) -> int:
 
     summarize(results)
     print(f"\nelapsed {time.time() - started:.1f}s")
-    return 0
+    successful_reconstruction_statuses = {"ok", "no_references", "dry_run"}
+    reconstruction_failed = any(
+        "reconstruct" in result
+        and (
+            result["reconstruct"].get("error")
+            or result["reconstruct"].get("status") not in successful_reconstruction_statuses
+        )
+        for result in results
+    )
+    return int(reconstruction_failed)
 
 
 if __name__ == "__main__":

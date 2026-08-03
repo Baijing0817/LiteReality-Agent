@@ -53,7 +53,7 @@ def _trellis_one(
     from litereality_agent.settings import load_settings
 
     settings = load_settings()
-    if settings.modal_trellis_app:
+    if settings.modal_trellis_app or settings.trellis_python:
         from litereality_agent.models.registry import gen3d_from_settings
 
         service = gen3d_from_settings(settings)
@@ -66,6 +66,10 @@ def _trellis_one(
         )
         return 0 if generated and Path(generated).is_file() else 1
 
+    if python is None:
+        raise RuntimeError(
+            "Chair repair requires MODAL_TRELLIS_APP or an explicit TRELLIS_PYTHON."
+        )
     interp = reconstruct.resolve_python(python)
     cmd = [
         interp,

@@ -53,7 +53,7 @@ class ModalTrellisService:
         app_name: str,
         function_name: str = "generate",
         environment_name: str = "main",
-        profile: str = "huangzhening",
+        profile: str | None = None,
         client: Any = None,
     ) -> None:
         self.client = client or ModalClient(

@@ -20,10 +20,14 @@ class ModalClient:
         function_name: str,
         *,
         environment_name: str = "main",
-        profile: str = "huangzhening",
+        profile: str | None = None,
         function: Any = None,
     ) -> None:
         if function is None:
+            if not profile:
+                raise RuntimeError(
+                    "Modal calls require an explicit MODAL_PROFILE; no workspace default is used."
+                )
             # Pin both lookup and billing to the explicitly configured shared profile.
             # Modal otherwise silently uses whichever local profile happens to be active.
             os.environ["MODAL_PROFILE"] = profile
