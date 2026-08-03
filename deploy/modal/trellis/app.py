@@ -24,8 +24,8 @@ image = (
         context_dir=deployment_root,
     )
     .run_commands(
-        "cd /root/TRELLIS.2 && "
-        ". ./setup.sh --cumesh --o-voxel --flexgemm --nvdiffrast --nvdiffrec",
+        "bash -lc 'cd /root/TRELLIS.2 && "
+        ". ./setup.sh --cumesh --o-voxel --flexgemm --nvdiffrast --nvdiffrec'",
         # Upstream checks nvidia-smi before installing its native extensions. Scope the
         # billable builder GPU to this cached layer instead of the complete Docker build.
         gpu="H100",
