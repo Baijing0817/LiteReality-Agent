@@ -20,10 +20,6 @@ Configure `OPENAI_API_KEY`, the scan/output paths, Blender, and a TRELLIS runtim
 recommended TRELLIS runtime on macOS; local model environments are isolated and explicitly
 selected. See [ARCHITECTURE.md](ARCHITECTURE.md) for the package and runtime boundaries.
 
-For a full remote run that does not install Blender or load models on a contributor laptop, use the
-[RunPod pipeline image](docker/pipeline/README.md). GitHub Actions builds the image remotely; a
-temporary RunPod Pod runs Blender, DINO, and authoring while calling TRELLIS Serverless.
-
 ## Run
 
 The installed CLI is the only supported pipeline entry point:
