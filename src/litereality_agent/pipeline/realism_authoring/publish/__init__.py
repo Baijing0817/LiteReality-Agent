@@ -17,7 +17,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     warnings: list[str] = []
     collision_rc, collision_log = run_module(
         context,
-        "litereality_agent.scene.quality.correct",
+        "litereality_agent.room_format.validation.correct",
         ["--room", context.authored_room, "--apply"],
         log_name="publish_collision",
     )
@@ -25,14 +25,14 @@ def run(context: RunContext, options: dict) -> StageResult:
         warnings.append(f"collision correction exited {collision_rc}; see {collision_log}")
     quality_rc, quality_log = run_module(
         context,
-        "litereality_agent.scene.quality.room",
+        "litereality_agent.room_format.validation.room",
         ["--room", context.authored_room],
         log_name="publish_quality",
     )
     if quality_rc:
         warnings.append(f"scene quality checks reported violations; see {quality_log}")
     rc, log = run_module(
-        context, "litereality_agent.scene.compile.build_from_room",
+        context, "litereality_agent.room_format.compile.build_from_room",
         ["--room", context.authored_room, "--out", context.preview_dir, "--regenerate"],
         log_name="publish_compile",
     )

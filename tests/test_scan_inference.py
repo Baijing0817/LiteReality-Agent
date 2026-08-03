@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.scene.rendering.engine.compose import _scan_from_room
+from litereality_agent.room_format.rendering.engine.compose import _scan_from_room
 
 
 def test_scan_from_physical_deliverables_path(stage_tree):

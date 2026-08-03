@@ -22,7 +22,7 @@ src/litereality_agent/
 │       ├── author/      evidence and optional realism passes
 │       └── publish/     final compilation and viewer
 ├── agent/               agent runners, tools, traces, and procedural object generation
-├── scene/               scene data, geometry, rendering, export, and QC
+├── room_format/         Room.py manifest, compilation, rendering, export, and validation
 ├── models/              canonical inference and model-specific service adapters
 │   └── llm/             provider integrations (`openai/` and `claude/`)
 └── runtimes/            execution transports such as RunPod
@@ -33,8 +33,8 @@ deploy/runpod/            container packaging; never imported by application cod
 
 There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layers. The directory
 name answers the ownership question: phase decisions belong in `pipeline`, reusable model-driven
-capabilities belong in `agent`, reusable scene behavior belongs in `scene`, models own inference,
-and runtimes own execution location.
+capabilities belong in `agent`, the portable room representation belongs in `room_format`, models
+own inference, and runtimes own execution location.
 
 `pipeline/realism_authoring/author` owns the optional post-authoring passes (`refine_objects`,
 `materials`, and model-driven `quality`). They remain part of the authoring phase rather than
@@ -44,12 +44,12 @@ separate public pipeline stages. The Claude session and its capability-tool fram
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text
-cli.py → pipeline → agent → scene
+cli.py → pipeline → agent → room_format
                 ↘ models → runtimes
-                ↘ scene
+                ↘ room_format
 ```
 
-Arrows point from caller to dependency. Models, scene code, and reusable agents never import
+Arrows point from caller to dependency. Models, room-format code, and reusable agents never import
 pipeline code; the pipeline owns the CLI adapters that bind scene-package arguments before calling
 an agent. Runtime selection happens in `models/registry.py`; the pipeline consumes that small
 composition boundary.

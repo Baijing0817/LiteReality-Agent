@@ -5,7 +5,7 @@ downstream has to be told where anything is. It is the last thing `init_scene` d
 reason `uv run litereality run <dir> --from evidence` can start authoring with no
 scan name, no `$LR_SCANS_DIR`, and no per-stage path flags.
 
-What it writes is described by :mod:`litereality_agent.scene.manifest` (layer 0, stdlib only); everything
+What it writes is described by :mod:`litereality_agent.room_format.manifest` (layer 0, stdlib only); everything
 scan-specific — which output root, which final root, where the capture actually is — is resolved
 HERE, where the pipeline and scene path contracts meet.
 """
@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from litereality_agent.scene import manifest
+from litereality_agent.room_format import manifest
 
 # Stage 1 writes everything under this one folder, named for the package that produces it.
 STAGE_ROOT = "scene_init"
@@ -79,7 +79,7 @@ def _capture_source(scan: str) -> Path:
     candidate = oi_config.SCANS_ROOT / scan
     if candidate.is_dir():
         return candidate
-    from litereality_agent.scene import paths as scene_paths
+    from litereality_agent.room_format import paths as scene_paths
 
     return scene_paths.resolve_scan_dir(scan)
 
@@ -106,7 +106,7 @@ def finalize(
     absolute source path and embed nothing).
     """
     from litereality_agent.pipeline.scene_init import paths as oi_config
-    from litereality_agent.scene import paths as scene_paths
+    from litereality_agent.room_format import paths as scene_paths
 
     root = ensure_stage_links(scan)
 

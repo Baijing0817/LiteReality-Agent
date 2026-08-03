@@ -50,7 +50,7 @@ class GridInvocation(BaseToolInvocation):
         from PIL import Image, ImageDraw
 
         from litereality_agent.fonts import font as _font
-        from litereality_agent.scene.rendering import config
+        from litereality_agent.room_format.rendering import config
 
         p = self.params
         if p.major_m <= 0 or p.minor_m <= 0:

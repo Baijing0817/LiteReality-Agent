@@ -68,7 +68,7 @@ def collect_qc(room_dir: Path | None) -> dict:
         return {}
     out: dict = {}
     try:
-        from litereality_agent.scene.quality.room import qc
+        from litereality_agent.room_format.validation.room import qc
 
         r = qc(str(room_dir))
         out = {
@@ -597,7 +597,7 @@ def _trace_html(events: list[dict]) -> str:
 def _pairs_html(pairs: list) -> str:
     if not pairs:
         return ('<p class="muted">No comparison pairs. Build them with<br>'
-                '<code>uv run python -m litereality_agent.scene.rendering.room_render.render_vs_capture '
+                '<code>uv run python -m litereality_agent.room_format.rendering.room_render.render_vs_capture '
                 '--scan &lt;scan dir&gt; --room &lt;room dir&gt; --out &lt;out&gt;/compare --frames 6</code><br>'
                 'or run <code>uv run litereality stage publish &lt;scene&gt;</code> — publish builds them by default '
                 '(COMPARE_FRAMES=0 to skip).</p>')

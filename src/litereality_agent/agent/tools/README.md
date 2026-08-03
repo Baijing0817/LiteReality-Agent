@@ -8,10 +8,10 @@ Shared plumbing: `base.py` (declarative tool + strict pydantic params), `registr
 tool, OpenAI-format schemas), `code_region.py`, `_scene.py`, `_vlm.py` (self-contained VLM call).
 
 **Where the heavy backing code lives.** The render/annotate ENGINE is at [`render/engine/`](render/engine/)
-(CLI: `python -m litereality_agent.scene.rendering.engine <mode> ...`). Two backings stay
+(CLI: `python -m litereality_agent.room_format.rendering.engine <mode> ...`). Two backings stay
 outside on purpose — shared library code the deterministic init also uses:
 `authoring/views/room_render/select_for.py` (+`select_views.py`) which the `select_views` tool wraps,
-and `integration.compile_room` which `render` recompiles through.
+and `room_format.compile_room` which `render` recompiles through.
 
 ## Capability tools
 

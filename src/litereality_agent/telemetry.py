@@ -9,7 +9,7 @@ so a downstream viewer can reconstruct the whole timeline. Per-call payloads
 ``traces/agent/``.
 
 The tracer is a process-global keyed to the *current scan*. Call :func:`start`
-(``run.py`` does this per scan) to point it at that scan's ``traces/`` dir; if it
+(the scene-initialization flow does this per scan) to point it at that scan's ``traces/`` dir; if it
 was never started, every hook is a cheap no-op, so instrumented code never has to care whether
 telemetry is active.
 """

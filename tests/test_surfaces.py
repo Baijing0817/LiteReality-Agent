@@ -7,7 +7,7 @@ rest of the room was never referenced.
 
 from __future__ import annotations
 
-from litereality_agent.scene.surfaces import SLIVER_WALL_M, surface_ids
+from litereality_agent.room_format.surfaces import SLIVER_WALL_M, surface_ids
 
 
 def test_discovers_the_rooms_real_surfaces(stage_tree):

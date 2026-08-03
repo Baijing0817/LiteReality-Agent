@@ -96,8 +96,8 @@ def test_no_retired_top_level_spelling():
 
 @pytest.mark.parametrize("dotted", [
     "litereality_agent.agent.object_generation.generate",  # subprocess target used by the pipeline
-    "litereality_agent.scene.compile.build_from_room",
-    "litereality_agent.scene.manifest",
+    "litereality_agent.room_format.compile.build_from_room",
+    "litereality_agent.room_format.manifest",
     "litereality_agent.pipeline.scene_init.flow",
     "litereality_agent.models.grounding_dino.worker",
     "litereality_agent.pipeline.realism_authoring.author.evidence",
@@ -114,14 +114,14 @@ def test_known_subprocess_targets(dotted: str):
 
 def test_executable_helpers_survived_the_layout_move():
     from litereality_agent.pipeline.scene_init.reconstruct import flow
-    from litereality_agent.scene.rendering import config
+    from litereality_agent.room_format.rendering import config
 
     paths = (
         flow.LAUNCHER,
         config.RENDER_TOOL,
         config.SELECT_TOOL,
         config.STITCH_TOOL,
-        PKG / "scene" / "rendering" / "object_turntable.py",
+        PKG / "room_format" / "rendering" / "object_turntable.py",
     )
     assert all(path.is_file() for path in paths), "missing helper(s): " + ", ".join(
         str(path) for path in paths if not path.is_file()

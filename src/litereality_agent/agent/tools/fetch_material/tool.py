@@ -11,7 +11,7 @@ closed tool:
      (the definition stays reproducible — binaries can always be re-materialized from the recipe)
 
 Returns the three file paths + a ready-to-wire Room.py snippet. Backed by the existing
-integration/compile/{fetch_textures,recolor}.py — no new download machinery.
+room_format/compile/{fetch_textures,recolor}.py — no new download machinery.
 """
 
 from __future__ import annotations
@@ -108,7 +108,7 @@ class FetchMaterialInvocation(SceneToolInvocation):
         return f"fetch_material: {self.params.query[:50]}"
 
     async def execute(self) -> ToolResult:
-        from litereality_agent.scene.compile.fetch_textures import materialize
+        from litereality_agent.room_format.compile.fetch_textures import materialize
 
         p = self.params
         try:

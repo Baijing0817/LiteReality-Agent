@@ -38,7 +38,7 @@ def _sync_stale_objects(room_dir) -> list[str]:
     if not proc.is_dir():
         return []
     try:
-        from litereality_agent.scene.rendering.engine.compose import (
+        from litereality_agent.room_format.rendering.engine.compose import (
             _config_for,
             _scan_from_room,
         )
@@ -59,7 +59,7 @@ def _sync_stale_objects(room_dir) -> list[str]:
         tj = od / "textures.json"
         if tj.is_file():
             try:
-                from litereality_agent.scene.compile.fetch_textures import materialize
+                from litereality_agent.room_format.compile.fetch_textures import materialize
 
                 materialize(json.loads(tj.read_text()), od / "textures")
             except Exception:  # noqa: BLE001
@@ -146,7 +146,7 @@ async def render_target(scene_path, target: str, frames: list[int] | None, n: in
             # No ortho render for this surface yet (e.g. Ceiling0 before its mesh is created —
             # RoomPlan has no ceiling) → attach the raw REAL stitch so the reference is never missing.
             try:
-                from litereality_agent.scene.rendering.engine.compose import (
+                from litereality_agent.room_format.rendering.engine.compose import (
                     _config_for,
                     _scan_from_room,
                 )

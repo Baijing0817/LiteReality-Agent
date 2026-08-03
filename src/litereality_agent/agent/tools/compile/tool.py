@@ -1,6 +1,6 @@
 """compile — PRIMITIVE. Build the active Room.py → Room.glb; surface build errors to fix.
 
-Thin wrapper over `integration.compile_room` (the existing scene build). The INTERCEPTED tool:
+Thin wrapper over `room_format.compile_room` (the existing scene build). The INTERCEPTED tool:
 the harness can watch it to update build freshness / write revisions. Lazy import (needs Blender).
 """
 
@@ -47,7 +47,7 @@ class CompileInvocation(SceneToolInvocation):
         return "Compile Room.py → Room.glb"
 
     async def execute(self) -> ToolResult:
-        from litereality_agent.scene import compile_room  # lazy: Blender subprocess
+        from litereality_agent.room_format import compile_room  # lazy: Blender subprocess
 
         try:
             room_dir = room_dir_from(self.scene_path)

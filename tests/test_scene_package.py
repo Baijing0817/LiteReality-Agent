@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.scene import manifest
+from litereality_agent.room_format import manifest
 
 SCAN = "test-scan-Room"
 
@@ -177,7 +177,7 @@ def test_stage_links_exist_before_anything_writes(tmp_path: Path, monkeypatch):
     returns None, throwing the whole stage away at the last step."""
     from litereality_agent.pipeline.scene_init import paths as oi_config
     from litereality_agent.pipeline.scene_init.artifacts import ensure_stage_links
-    from litereality_agent.scene import paths as sb_config
+    from litereality_agent.room_format import paths as sb_config
 
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "run"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "run"))

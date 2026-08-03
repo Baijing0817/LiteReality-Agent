@@ -28,8 +28,8 @@ from litereality_agent.agent.tools.base import (
 
 def _wall_scores(room_dir: Path) -> dict[int, dict[str, float]]:
     """{frame -> {wall_name -> on-screen coverage 0..1}} via wall-plane projection (no Blender)."""
-    from litereality_agent.scene.rendering.engine import _overlay
-    from litereality_agent.scene.rendering.engine.compose import (
+    from litereality_agent.room_format.rendering.engine import _overlay
+    from litereality_agent.room_format.rendering.engine.compose import (
         _config_for,
         _scan_from_room,
     )
@@ -135,7 +135,7 @@ def _select_object(room_dir: Path, obj: str, n: int) -> list[dict] | str:
     mf = _find_manifest(room_dir)
     if mf is None:
         return "no render manifest with object visibility yet — call render(target='room') once first"
-    from litereality_agent.scene.rendering.room_render.select_for import views_for
+    from litereality_agent.room_format.rendering.room_render.select_for import views_for
 
     manifest = json.loads(mf.read_text())
     rows = views_for(manifest, obj, n=n, min_quality=0.0)

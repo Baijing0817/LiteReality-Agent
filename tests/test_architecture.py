@@ -6,13 +6,13 @@ import ast
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "litereality_agent"
-LAYERS = {"agent", "models", "runtimes", "scene", "pipeline"}
+LAYERS = {"agent", "models", "pipeline", "room_format", "runtimes"}
 ALLOWED = {
-    "agent": {"scene"},
+    "agent": {"room_format"},
     "models": {"runtimes"},
+    "pipeline": {"agent", "models", "room_format"},
+    "room_format": set(),
     "runtimes": set(),
-    "scene": set(),
-    "pipeline": {"agent", "models", "scene"},
 }
 
 
