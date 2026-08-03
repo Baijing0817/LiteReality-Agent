@@ -10,9 +10,9 @@ cabinet door swings on its outer edge).
 
 Run (from repo root, with Blender 4.x/5.x on PATH):
     PATH=/path/to/blender_dir:$PATH \
-      python -m litereality_agent.agent.object_generation.generate
-      python -m litereality_agent.agent.object_generation.generate --only storage dishwasher
-      python -m litereality_agent.agent.object_generation.generate --scan tea_room --dry-run
+      python -m litereality_agent.models.object_generation.generate
+      python -m litereality_agent.models.object_generation.generate --only storage dishwasher
+      python -m litereality_agent.models.object_generation.generate --scan tea_room --dry-run
 
 Needs claude_agent_sdk (uses logged-in Claude Code creds if no ANTHROPIC_API_KEY).
 Outputs: procedural/glb/<scan>/<name>/<name>.glb (+ object.py/md, previews, textures).

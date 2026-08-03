@@ -27,16 +27,16 @@ Code creds if `ANTHROPIC_API_KEY` is unset). From the repo root:
 export PATH="$LITEREALITY_BLENDER:$PATH"   # your Blender install dir
 
 # preview the composed prompts (free, no agent calls)
-uv run python -m litereality_agent.agent.object_generation.generate --only storage --dry-run
+uv run python -m litereality_agent.models.object_generation.generate --only storage --dry-run
 
 # the articulated categories (highest value — correct motion)
-uv run python -m litereality_agent.agent.object_generation.generate --only storage dishwasher
+uv run python -m litereality_agent.models.object_generation.generate --only storage dishwasher
 
 # everything on the procedural route
-uv run python -m litereality_agent.agent.object_generation.generate
+uv run python -m litereality_agent.models.object_generation.generate
 
 # one scan
-uv run python -m litereality_agent.agent.object_generation.generate --scan tea_room
+uv run python -m litereality_agent.models.object_generation.generate --scan tea_room
 ```
 
 Flags: `--scan`, `--only <categories>`, `--concurrency` (default 2),
