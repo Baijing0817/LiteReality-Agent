@@ -22,6 +22,7 @@ src/litereality_agent/
 │       ├── author/      evidence and optional realism passes
 │       └── publish/     final compilation and viewer
 ├── agent/               agent runners, tools, traces, and procedural object generation
+│   └── providers/       which coding agent drives a session (`claude/` and `codex/`)
 ├── room_format/         Room.py manifest, compilation, rendering, export, and validation
 ├── models/              canonical inference and model-specific service adapters
 │   └── llm/             provider integrations (`openai/` and `claude/`)
@@ -38,8 +39,27 @@ own inference, and runtimes own execution location.
 
 `pipeline/realism_authoring/author` owns the optional post-authoring passes (`refine_objects`,
 `materials`, and model-driven `quality`). They remain part of the authoring phase rather than
-separate public pipeline stages. The Claude session and its capability-tool framework live in
+separate public pipeline stages. The agent session and its capability-tool framework live in
 `agent/`, so adding another agent workflow does not expand a pipeline-stage package.
+
+## Agent harnesses
+
+The *harness* is the agent loop (file tools, capability tools, hooks, event stream); the *model*
+is the brain inside it. They are independent knobs. `agent/providers/` is the seam for the first:
+a `SessionSpec` goes in, a normalised event stream comes out, and `resolve(role)` picks the
+harness from `LR_<ROLE>_PROVIDER > LR_AGENT_PROVIDER > claude`.
+
+Harnesses are not feature-equivalent, so each declares a `supports` set and call sites branch on
+it rather than assuming. Claude Code hosts capability tools in-process, can steer a session's
+ending with a `PreToolUse` hook, reports cost, honours a tool allowlist, and surfaces file reads
+as observable `Read` calls. Codex runs out-of-process: capability tools are bridged through
+`agent/tools/mcp_server.py` over stdio MCP, the step budget degrades to a hard stop, shell access
+cannot be withheld, and no cost is reported. `providers.describe()` prints those gaps into the
+stage header so a degraded run never looks like a normal one.
+
+Object refinement is the one pass that is Claude-only: its `render_object` tool is built per
+object around live session state, so there is no registry entry for the stdio bridge to rebuild.
+It fails with an explicit message rather than running without its only self-check tool.
 
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
