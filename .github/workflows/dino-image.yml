@@ -45,6 +45,6 @@ jobs:
           context: .
           file: src/litereality_agent/models/grounding_dino/hosted/Dockerfile
           push: true
-          tags: ttl.sh/litereality-dino-76e91ecc-8706-4f6a-9fbe-39996fec85ce:24h
+          tags: ttl.sh/litereality-dino-6cf03126-d280-4e48-9572-b8e00d393f86:24h
           cache-from: type=gha,scope=dino-worker
           cache-to: type=gha,mode=min,scope=dino-worker

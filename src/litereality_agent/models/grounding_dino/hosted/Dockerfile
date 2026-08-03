@@ -13,8 +13,4 @@ RUN pip install --no-cache-dir --no-deps torchvision==0.20.1 \
 
 COPY src /app/src
 
-# Bake public weights into the image so scale-to-zero workers do not download them per cold start.
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('IDEA-Research/grounding-dino-tiny'); snapshot_download('facebook/dinov2-small')"
-
 CMD ["python", "-u", "-m", "litereality_agent.models.grounding_dino.hosted.worker_runpod"]
-
