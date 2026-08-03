@@ -78,7 +78,13 @@ def test_every_caller_uses_this_helper():
     """Guard against a tool growing its own copy of the inference: one choke point is why a
     one-line fix restored render, select_views and survey together.
     """
-    root = Path(__file__).resolve().parents[1] / "src" / "litereality_agent" / "realism_authoring"
+    root = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "litereality_agent"
+        / "scene"
+        / "rendering"
+    )
     offenders = [
         str(p.relative_to(root.parent))
         for p in root.rglob("*.py")

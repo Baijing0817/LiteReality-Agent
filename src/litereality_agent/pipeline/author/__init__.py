@@ -1,4 +1,4 @@
-"""Run the primary agentic Room.py authoring pass."""
+"""Run Room.py authoring and its optional polish passes."""
 
 import shutil
 
@@ -42,6 +42,68 @@ def run(context: RunContext, options: dict) -> StageResult:
         "--step-budget", options.get("step_budget", 100),
     ]
     rc, log = run_module(context, "litereality_agent.pipeline.author.agent", args, log_name="author")
-    return command_result(
+    result = command_result(
         "author", rc, artifacts={"room": context.authored_room}, log=log,
     )
+    if rc:
+        return result
+
+    passes: list[tuple[str, str, list[object]]] = []
+    if options.get("refine_objects"):
+        refine_args: list[object] = [
+            "--scene", context.scene_dir,
+            "--room", context.authored_room,
+            "--refroot", context.object_root / "object_init",
+            "--scan", context.capture_dir,
+            "--results", context.authoring_root / "obj_refine",
+            "--concurrency", options.get("refine_concurrency", 2),
+            "--budget", options.get("refine_budget", 8),
+        ]
+        if options.get("objects"):
+            refine_args.extend(("--objects", options["objects"]))
+        passes.append(
+            (
+                "object refinement",
+                "litereality_agent.pipeline.author.refine_objects",
+                refine_args,
+            )
+        )
+    if options.get("materials"):
+        passes.append(
+            (
+                "materials",
+                "litereality_agent.pipeline.author.materials",
+                [
+                    "--scene", context.scene_dir,
+                    "--room", context.authored_room,
+                    "--surface-ref", context.authoring_root / "surface_ref",
+                    "--scan", context.capture_dir,
+                    "--refroot", context.object_root / "object_init",
+                ],
+            )
+        )
+    if options.get("quality_pass"):
+        passes.append(
+            (
+                "model quality",
+                "litereality_agent.pipeline.author.quality",
+                [
+                    "--scene", context.scene_dir,
+                    "--room", context.authored_room,
+                    "--surface-ref", context.authoring_root / "surface_ref",
+                    "--scan", context.capture_dir,
+                    "--refroot", context.object_root / "object_init",
+                ],
+            )
+        )
+
+    for name, module, pass_args in passes:
+        pass_rc, pass_log = run_module(
+            context, module, pass_args, log_name=name.replace(" ", "_")
+        )
+        if pass_rc:
+            result.warnings.append(f"{name} exited {pass_rc}; see {pass_log}")
+    refinement = context.authoring_root / "obj_refine"
+    if refinement.is_dir():
+        result.artifacts["object_refinement"] = str(refinement)
+    return result

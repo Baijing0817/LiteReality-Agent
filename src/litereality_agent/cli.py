@@ -58,6 +58,26 @@ def _context(args) -> RunContext:
     return RunContext.resolve(args.target, output_root=getattr(args, "output_root", None))
 
 
+def _author_options(args) -> dict:
+    polish = getattr(args, "polish", False)
+    return {
+        "refine_objects": polish or getattr(args, "refine_objects", False),
+        "materials": polish or getattr(args, "materials", False),
+        "quality_pass": polish or getattr(args, "quality_pass", False),
+    }
+
+
+def _add_author_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--polish",
+        action="store_true",
+        help="run object refinement, materials, and model-driven QC after authoring",
+    )
+    parser.add_argument("--refine-objects", action="store_true")
+    parser.add_argument("--materials", action="store_true")
+    parser.add_argument("--quality-pass", action="store_true")
+
+
 def _run(args) -> int:
     results = PipelineRunner().run(
         _context(args),
@@ -65,6 +85,7 @@ def _run(args) -> int:
         through=args.through,
         force=set(args.force or ()),
         strict=args.strict,
+        options={"author": _author_options(args)},
     )
     return _print_results(results)
 
@@ -75,7 +96,10 @@ def _stage(args) -> int:
         args.stage,
         force=args.force,
         strict=args.strict,
-        options={"skip_image_generation": args.skip_image_generation},
+        options={
+            "skip_image_generation": args.skip_image_generation,
+            **_author_options(args),
+        },
     )
     return _print_results([result])
 
@@ -118,6 +142,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--force", action="append", choices=stages)
     run.add_argument("--strict", action="store_true")
     run.add_argument("--output-root")
+    _add_author_options(run)
     run.set_defaults(handler=_run)
 
     stage = commands.add_parser("stage", help="run exactly one pipeline stage")
@@ -127,6 +152,7 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--strict", action="store_true")
     stage.add_argument("--skip-image-generation", action="store_true")
     stage.add_argument("--output-root")
+    _add_author_options(stage)
     stage.set_defaults(handler=_stage)
 
     scene = commands.add_parser("scene", help="inspect a generated scene package")

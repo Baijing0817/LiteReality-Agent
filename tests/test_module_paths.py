@@ -101,8 +101,28 @@ def test_no_retired_top_level_spelling():
     "litereality_agent.pipeline.object_flow",
     "litereality_agent.models.grounding_dino.local.worker",
     "litereality_agent.pipeline.author.evidence",
+    "litereality_agent.pipeline.author.refine_objects",
+    "litereality_agent.pipeline.author.materials",
+    "litereality_agent.pipeline.author.quality",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename
     that misses one fails here rather than mid-run."""
     assert module_file(dotted) is not None, f"{dotted} is launched by name but does not exist"
+
+
+def test_executable_helpers_survived_the_layout_move():
+    from litereality_agent.pipeline.reconstruct import flow
+    from litereality_agent.scene.rendering import config
+
+    paths = (
+        flow.LAUNCHER,
+        config.RENDER_TOOL,
+        config.SELECT_TOOL,
+        config.STITCH_TOOL,
+        config.FETCH_POLYHAVEN,
+        PKG / "scene" / "rendering" / "object_turntable.py",
+    )
+    assert all(path.is_file() for path in paths), "missing helper(s): " + ", ".join(
+        str(path) for path in paths if not path.is_file()
+    )

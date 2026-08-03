@@ -33,6 +33,10 @@ There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layer
 name answers the ownership question: workflow decisions belong in `pipeline`, reusable scene
 behavior belongs in `scene`, and inference runtimes belong under their named model.
 
+`pipeline/author` also owns the optional post-authoring passes (`refine_objects`, `materials`, and
+model-driven `quality`). They remain part of the authoring feature rather than separate public
+pipeline stages.
+
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text

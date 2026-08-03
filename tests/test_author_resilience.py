@@ -83,3 +83,44 @@ def test_the_checkpoint_lives_outside_the_room(room: Path):
     assert ckpt.is_file()
     assert ckpt.parent != room
     assert not list(room.glob("*checkpoint*"))
+
+
+def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
+    from litereality_agent.pipeline import author
+    from litereality_agent.pipeline.context import RunContext
+    from litereality_agent.settings import LiteRealitySettings
+
+    settings = LiteRealitySettings(repo_root=tmp_path, output_root=tmp_path / "run")
+    context = RunContext(
+        "scan",
+        tmp_path / "capture" / "scan",
+        tmp_path / "run" / "scan",
+        tmp_path / "run",
+        repo_root=tmp_path,
+        settings=settings,
+    )
+    context.seed_room.mkdir(parents=True)
+    (context.seed_room / "Room.py").write_text(GOOD, encoding="utf-8")
+    evidence = context.authoring_root / "surface_ref" / "surface_ref_manifest.json"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text("{}", encoding="utf-8")
+
+    calls = []
+
+    def fake_run_module(_context, module, args, *, log_name=None):
+        calls.append((module, list(args), log_name))
+        return 0, None
+
+    monkeypatch.setattr(author, "run_module", fake_run_module)
+    result = author.run(
+        context,
+        {"refine_objects": True, "materials": True, "quality_pass": True},
+    )
+
+    assert result.ok
+    assert [module for module, _, _ in calls] == [
+        "litereality_agent.pipeline.author.agent",
+        "litereality_agent.pipeline.author.refine_objects",
+        "litereality_agent.pipeline.author.materials",
+        "litereality_agent.pipeline.author.quality",
+    ]

@@ -30,7 +30,7 @@ from litereality_agent import PACKAGE_ROOT
 from litereality_agent.pipeline import paths as config
 from litereality_agent.pipeline import tracing
 
-LAUNCHER = PACKAGE_ROOT / "adapters" / "trellis" / "local" / "trellis_launcher.py"
+LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "local" / "trellis_launcher.py"
 PROC_MODULE = "litereality_agent.models.procedural.local.generate_procedural"
 
 

@@ -92,7 +92,7 @@ You have TOOLS beyond editing — use them:
   a flat colour whenever the photo shows a pattern; keep flat colour+roughness only for PLAIN paint.
   For the categories Poly Haven covers poorly — CARPET / RUG / FABRIC / PLASTER and patterned
   TILE / BRICK / WOOD floors — you can instead use the code-native procedural materials:
-  `from integration.procedural_materials import make` then `make("carpet"|"fabric"|"plaster"|
+  `from litereality_agent.scene.procedural_materials import make` then `make("carpet"|"fabric"|"plaster"|
   "tile"|"brick"|"wood_planks", color=(r,g,b))` returns a Blender material to assign directly in
   `Room.py` (parametric, tileable, no download). Use whichever matches the photo better.
 - `render(target)` — render `Room.py` for 'room' or a wall, paired with the real photo; it returns

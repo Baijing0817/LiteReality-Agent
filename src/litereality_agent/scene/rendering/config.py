@@ -41,8 +41,8 @@ AGENT_DIR = SETTINGS.repo_root
 ROOT = SETTINGS.repo_root
 # stage prompt templates live with the rest of the agent prompts (authoring/prompts/stages/),
 # alongside authoring/prompts/sections/. Keep STAGES_DIR as the name run_harness uses.
-STAGES_DIR = PACKAGE_ROOT / "pipeline" / "stages" / "author" / "prompts" / "stages"
-SDK = PACKAGE_ROOT / "services" / "rendering"
+STAGES_DIR = PACKAGE_ROOT / "pipeline" / "author" / "prompts"
+SDK = PACKAGE_ROOT / "scene" / "rendering"
 
 # --- where the scan context comes from -------------------------------------- #
 # Historically this had exactly one source: the caller exported $LITEREALITY_SCAN (plus
@@ -164,7 +164,7 @@ SURFACE_REF_MANIFEST = SURFACE_REF / "surface_ref_manifest.json"
 STITCH_PPM = int(os.environ.get("HARNESS_STITCH_PPM", "160"))  # ortho resolution (px/m)
 
 # the object-building + PBR-fetch skill (referenced by path in the prompts)
-GLB_AGENT = PACKAGE_ROOT / "adapters" / "procedural" / "articulated-glb-agent"
+GLB_AGENT = PACKAGE_ROOT / "models" / "procedural" / "local" / "articulated-glb-agent"
 PBR_SCRIPTS = GLB_AGENT / ".claude" / "skills" / "image-to-articulated-glb" / "scripts"
 FETCH_POLYHAVEN = PBR_SCRIPTS / "fetch_polyhaven.py"
 BLENDER_LIB = PBR_SCRIPTS / "blender_lib.py"

@@ -28,12 +28,17 @@ The installed CLI is the only supported pipeline entry point:
 uv run litereality run /path/to/capture
 uv run litereality run /path/to/capture --through seed
 uv run litereality stage author run/my-room
+uv run litereality stage author run/my-room --force --polish
 uv run litereality scene inspect run/my-room
 ```
 
 The five stages are resumable. Their state is stored in
 `run/<scene>/.litereality/pipeline.json`; `--force <stage>` invalidates that stage and its
 dependents.
+
+The author stage retains three optional quality passes: procedural-object refinement, PBR material
+polish, and model-driven final QC. `--polish` runs all three; the individual flags are
+`--refine-objects`, `--materials`, and `--quality-pass`.
 
 Output lives under `run/<scene>/`:
 
