@@ -253,11 +253,11 @@ def run_for_scan(
         print(f"[reconstruct] no references found for {scan}", flush=True)
         return plan
 
-    # Route to the configured hosted gen3d tool when installed, else fall through to the local
-    # launcher below.
+    # Route to a configured backend. Never infer that the pipeline Python should run TRELLIS:
+    # local execution is allowed only when the caller supplied an explicit interpreter.
     from litereality_agent.pipeline.scene_init.reconstruct import service as reconstructor
 
-    if not reconstructor.using_service():
+    if not reconstructor.using_service() and python is None:
         # Auto-install the configured backend regardless of entry point.
         try:
             from litereality_agent.models.registry import gen3d_from_settings
@@ -270,7 +270,10 @@ def run_for_scan(
                     flush=True,
                 )
         except Exception as exc:
-            print(f"[reconstruct] gen3d auto-install skipped: {exc}", flush=True)
+            plan["status"] = "backend_unconfigured"
+            plan["error"] = str(exc)
+            print(f"[reconstruct] {exc}", flush=True)
+            return plan
     if reconstructor.using_service():
         service_name = getattr(
             reconstructor.service(), "name", reconstructor.service().__class__.__name__
@@ -294,9 +297,21 @@ def run_for_scan(
         if dry_run:
             plan["status"] = "dry_run"
             return plan
-        reconstructor.reconstruct_refs(staged, recon_dir, seed=seed)  # simplify ratio default
-        generated = sorted(p.name for p in recon_dir.glob("*.glb"))
-        plan["status"] = "ok"
+        results = reconstructor.reconstruct_refs(
+            staged, recon_dir, seed=seed
+        )  # simplify ratio default
+        results = results or {}
+        failed = [
+            asset_id
+            for asset_id, _ in staged
+            if not results.get(asset_id) or not Path(results[asset_id]).is_file()
+        ]
+        generated = sorted(
+            Path(path).name for path in results.values() if path and Path(path).is_file()
+        )
+        plan["status"] = "ok" if not failed else "failed"
+        if failed:
+            plan["failed_assets"] = failed
         plan["generated"] = len(generated)
         plan["glb"] = generated
         rep = getattr(reconstructor.service(), "last_report", None)

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import base64
+import os
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+
+import pytest
 
 
 class FakeClient:
@@ -155,6 +158,7 @@ def test_registry_selects_modal_trellis(monkeypatch):
         modal_trellis_app="litereality-trellis",
         modal_trellis_function="generate",
         modal_environment="main",
+        modal_profile="huangzhening",
     )
 
     assert isinstance(registry.gen3d_from_settings(settings), Service)
@@ -162,7 +166,17 @@ def test_registry_selects_modal_trellis(monkeypatch):
         "app_name": "litereality-trellis",
         "function_name": "generate",
         "environment_name": "main",
+        "profile": "huangzhening",
     }
+
+
+def test_registry_never_implicitly_runs_trellis_locally():
+    from litereality_agent.models import registry
+
+    settings = SimpleNamespace(modal_trellis_app=None, trellis_python=None)
+
+    with pytest.raises(RuntimeError, match="TRELLIS is not configured"):
+        registry.gen3d_from_settings(settings)
 
 
 def test_modal_client_uses_named_function_map():
@@ -175,3 +189,33 @@ def test_modal_client_uses_named_function_map():
 
     client = ModalClient("unused", "unused", function=Function())
     assert client.map([{"value": 2}, {"value": 3}]) == [{"value": 4}, {"value": 6}]
+
+
+def test_modal_client_pins_the_configured_profile(monkeypatch):
+    from litereality_agent.runtimes.modal import ModalClient
+
+    captured = {}
+    modal = ModuleType("modal")
+
+    class Function:
+        @staticmethod
+        def from_name(app_name, function_name, *, environment_name):
+            captured.update(
+                app_name=app_name,
+                function_name=function_name,
+                environment_name=environment_name,
+            )
+            return object()
+
+    modal.Function = Function
+    monkeypatch.setitem(sys.modules, "modal", modal)
+    monkeypatch.delenv("MODAL_PROFILE", raising=False)
+
+    ModalClient("app", "function", environment_name="main", profile="huangzhening")
+
+    assert captured == {
+        "app_name": "app",
+        "function_name": "function",
+        "environment_name": "main",
+    }
+    assert os.environ["MODAL_PROFILE"] == "huangzhening"

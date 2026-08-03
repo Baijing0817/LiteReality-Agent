@@ -14,10 +14,16 @@ def gen3d_from_settings(settings: LiteRealitySettings | None = None):
             app_name=settings.modal_trellis_app,
             function_name=settings.modal_trellis_function,
             environment_name=settings.modal_environment,
+            profile=settings.modal_profile,
         )
-    from litereality_agent.models.trellis.service import LocalTrellisService
+    if settings.trellis_python:
+        from litereality_agent.models.trellis.service import LocalTrellisService
 
-    return LocalTrellisService(python=str(settings.trellis_python) if settings.trellis_python else None)
+        return LocalTrellisService(python=str(settings.trellis_python))
+    raise RuntimeError(
+        "TRELLIS is not configured: set MODAL_TRELLIS_APP for hosted execution or "
+        "TRELLIS_PYTHON for an explicit local GPU runtime."
+    )
 
 
 def detection_from_settings(settings: LiteRealitySettings | None = None):
@@ -29,6 +35,7 @@ def detection_from_settings(settings: LiteRealitySettings | None = None):
             app_name=settings.modal_dino_app,
             function_name=settings.modal_dino_function,
             environment_name=settings.modal_environment,
+            profile=settings.modal_profile,
             model_id=settings.dino_model,
             embed_model_id=settings.dino_embed_model,
         )

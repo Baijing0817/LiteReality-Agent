@@ -20,6 +20,7 @@ class ModalDinoService:
         app_name: str,
         function_name: str = "infer",
         environment_name: str = "main",
+        profile: str = "huangzhening",
         model_id: str | None = None,
         embed_model_id: str | None = None,
         client: Any = None,
@@ -30,6 +31,7 @@ class ModalDinoService:
             app_name,
             function_name,
             environment_name=environment_name,
+            profile=profile,
         )
 
     def _run(self, payload: dict) -> dict:

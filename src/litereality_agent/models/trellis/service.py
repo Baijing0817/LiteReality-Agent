@@ -12,7 +12,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -27,11 +26,12 @@ def _resolve_python(explicit: str | None) -> str:
     for c in (
         explicit,
         os.environ.get("LITEREALITY_TRELLIS_PYTHON"),
-        sys.executable,
     ):
         if c and Path(c).exists():
             return str(c)
-    return sys.executable
+    raise RuntimeError(
+        "Local TRELLIS requires an explicit TRELLIS_PYTHON/LITEREALITY_TRELLIS_PYTHON."
+    )
 
 
 class LocalTrellisService:

@@ -72,8 +72,11 @@ def _load_pipeline():
     volumes={str(WEIGHTS_ROOT): weights},
     secrets=[huggingface],
     timeout=20 * 60,
-    scaledown_window=60,
-    max_containers=8,
+    retries=0,
+    scaledown_window=10,
+    # Serialize cold starts so workers cannot race while populating the shared model Volume.
+    # Raise this deliberately only after the cache has been pre-populated and costs reviewed.
+    max_containers=1,
 )
 def generate(request: dict) -> dict:
     """Convert the transport payload into one GLB using model-owned inference code."""

@@ -19,13 +19,19 @@ cannot be selected by app source code. Do not deploy from a personal-workspace p
 Then create/deploy into its `main` environment:
 
 ```bash
+modal secret create huggingface HF_TOKEN=<token-with-facebook-dinov3-access>
 modal deploy --env main deploy/modal/trellis/app.py
 ```
+
+The `huggingface` secret is required because TRELLIS.2 uses the gated
+`facebook/dinov3-vitl16-pretrain-lvd1689m` image encoder. Store it only as a Modal secret; never
+put the token in the image or repository.
 
 The base CUDA image, OS packages, PyTorch, and Python dependencies build on CPU. Modal attaches an
 H100 only to the separately cached native-extension layer required by the upstream TRELLIS
 installer; the deployed inference function also uses an H100. Source-only application changes do
-not rebuild the extension layer.
+not rebuild the extension layer. The function is intentionally limited to one container, performs
+zero application retries, and scales that container down after ten idle seconds to bound spend.
 
 The weights are hosted on Hugging Face, but the model is not currently served by a Hugging Face
 Inference Provider. The first invocation downloads `microsoft/TRELLIS.2-4B` into the
@@ -35,6 +41,7 @@ Inference Provider. The first invocation downloads `microsoft/TRELLIS.2-4B` into
 MODAL_TRELLIS_APP=litereality-trellis
 MODAL_TRELLIS_FUNCTION=generate
 MODAL_ENVIRONMENT=main
+MODAL_PROFILE=huangzhening
 ```
 
 Install client support with `uv sync --extra modal`. The first deployment builds one native

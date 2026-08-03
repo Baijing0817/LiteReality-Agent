@@ -94,6 +94,7 @@ class LiteRealitySettings(BaseSettings):
     modal_dino_app: str | None = Field(default=None, validation_alias="MODAL_DINO_APP")
     modal_dino_function: str = Field(default="infer", validation_alias="MODAL_DINO_FUNCTION")
     modal_environment: str = Field(default="main", validation_alias="MODAL_ENVIRONMENT")
+    modal_profile: str = Field(default="huangzhening", validation_alias="MODAL_PROFILE")
     runpod_dino_endpoint: str | None = Field(
         default=None, validation_alias="RUNPOD_DINO_ENDPOINT"
     )

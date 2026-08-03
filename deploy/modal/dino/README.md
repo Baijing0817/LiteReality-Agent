@@ -16,4 +16,5 @@ Configure the pipeline with:
 MODAL_DINO_APP=litereality-dino
 MODAL_DINO_FUNCTION=infer
 MODAL_ENVIRONMENT=main
+MODAL_PROFILE=huangzhening
 ```

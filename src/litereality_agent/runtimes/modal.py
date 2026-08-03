@@ -6,6 +6,7 @@ serialization stays beside the model implementation.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from typing import Any
 
@@ -19,9 +20,13 @@ class ModalClient:
         function_name: str,
         *,
         environment_name: str = "main",
+        profile: str = "huangzhening",
         function: Any = None,
     ) -> None:
         if function is None:
+            # Pin both lookup and billing to the explicitly configured shared profile.
+            # Modal otherwise silently uses whichever local profile happens to be active.
+            os.environ["MODAL_PROFILE"] = profile
             try:
                 import modal
             except ImportError as exc:  # pragma: no cover - depends on optional install
