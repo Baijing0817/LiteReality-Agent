@@ -141,6 +141,14 @@ def test_agent_render_tool_uses_the_moved_room_format_engine():
     assert "from litereality_agent.agent.tools.render import engine" not in source
 
 
+def test_blender_render_worker_finds_the_moved_camera_renderer():
+    worker = PKG / "room_format" / "rendering" / "engine" / "_blender_frames.py"
+    camera_renderer = worker.parent.parent / "room_render" / "render_room_cameras.py"
+    assert camera_renderer.is_file()
+    source = worker.read_text(encoding="utf-8")
+    assert 'os.path.join(_HERE, "..", "room_render")' in source
+
+
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

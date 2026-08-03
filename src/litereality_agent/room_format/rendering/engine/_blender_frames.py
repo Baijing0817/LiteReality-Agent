@@ -12,10 +12,10 @@ import sys
 _argv = sys.argv[sys.argv.index("--") + 1 :]
 repo, room_py, scan_dir, assets, out_dir, frames_spec = _argv[:6]
 
-# render_room_cameras is package CODE two directories up, NOT under the caller-supplied
-# <repo> (which is the DATA root). Deriving it from __file__ is what survives the split.
+# render_room_cameras is package code in the sibling ``room_render`` package, not under the
+# caller-supplied <repo> (which is the data root). Deriving it from __file__ survives moves.
 _HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_HERE, "..", "..", "..", "views", "room_render"))
+sys.path.insert(0, os.path.join(_HERE, "..", "room_render"))
 import render_room_cameras as R  # noqa: E402
 
 os.environ["SB_ROOM_PY"] = room_py
