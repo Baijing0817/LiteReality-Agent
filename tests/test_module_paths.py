@@ -98,12 +98,12 @@ def test_no_retired_top_level_spelling():
     "litereality_agent.models.procedural.generate",  # subprocess target used by the pipeline
     "litereality_agent.scene.compile.build_from_room",
     "litereality_agent.scene.manifest",
-    "litereality_agent.pipeline.object_flow",
+    "litereality_agent.pipeline.scene_init.flow",
     "litereality_agent.models.grounding_dino.worker",
-    "litereality_agent.pipeline.author.evidence",
-    "litereality_agent.pipeline.author.refine_objects",
-    "litereality_agent.pipeline.author.materials",
-    "litereality_agent.pipeline.author.quality",
+    "litereality_agent.pipeline.realism_authoring.author.evidence",
+    "litereality_agent.pipeline.realism_authoring.author.refine_objects",
+    "litereality_agent.pipeline.realism_authoring.author.materials",
+    "litereality_agent.pipeline.realism_authoring.author.quality",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename
@@ -112,7 +112,7 @@ def test_known_subprocess_targets(dotted: str):
 
 
 def test_executable_helpers_survived_the_layout_move():
-    from litereality_agent.pipeline.reconstruct import flow
+    from litereality_agent.pipeline.scene_init.reconstruct import flow
     from litereality_agent.scene.rendering import config
 
     paths = (
@@ -131,7 +131,7 @@ def test_executable_helpers_survived_the_layout_move():
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from litereality_agent.pipeline.reconstruct.qc import chair_qc
+    from litereality_agent.pipeline.scene_init.reconstruct.qc import chair_qc
 
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")

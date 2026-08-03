@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.author import scratch
+from litereality_agent.agent import scratch
 from litereality_agent.pipeline.tracing.history import RunTrace, _run_id_of
 
 SCAN = "test-scan-Room"

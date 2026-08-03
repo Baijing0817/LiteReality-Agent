@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.author import scratch
+from litereality_agent.agent import scratch
 
 
 @pytest.fixture

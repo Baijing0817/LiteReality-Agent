@@ -2,7 +2,7 @@
 
 Deliberately dependency-free (`re` + `math`, no pydantic, no tool registry) so the prompt-building
 passes — author / materials / qc / eval — can ask "what surfaces am I authoring?" without importing
-the whole tool stack. `litereality_agent.pipeline.author.tools.survey` re-exports `surface_ids` for its own callers.
+the whole tool stack. `litereality_agent.agent.tools.survey` re-exports `surface_ids` for its own callers.
 
 The count is DISCOVERED, never assumed. A hardcoded `Wall0..WallN` silently drops every wall past
 the cap from the prompt and from the coverage checks, so a run reports full coverage while most of

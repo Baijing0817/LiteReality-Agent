@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from litereality_agent.pipeline.author.tools.check_collisions.tool import (
+from litereality_agent.agent.tools.check_collisions.tool import (
     CheckCollisionsInvocation,
     CheckCollisionsParams,
 )

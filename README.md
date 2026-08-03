@@ -4,7 +4,8 @@ LiteReality-Agent turns a RoomPlan capture into an editable `Room.py`, a compile
 self-contained viewer.
 
 ```text
-capture → ingest → reconstruct → seed → author → publish
+capture → scene_init (ingest → reconstruct → seed)
+        → realism_authoring (author → publish)
 ```
 
 ## Setup
@@ -55,7 +56,8 @@ Model packages contain one inference implementation and its application-facing a
 models/grounding_dino/{inference,service,runpod,worker}.py
 models/dinov2/inference.py
 models/trellis/{inference,service,runpod}.py
-models/{openai,claude,procedural}/
+models/llm/{openai,claude}/
+models/procedural/
 runtimes/runpod.py
 deploy/runpod/<model>/
 ```

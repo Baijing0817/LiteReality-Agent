@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.author.agent import checkpoint, room_compiles
+from litereality_agent.agent.author import checkpoint, room_compiles
 
 GOOD = "SHELL = {'walls': {}}\n\n\ndef build():\n    return SHELL\n"
 BROKEN = "SHELL = {'walls': {\n\ndef build(:\n"
@@ -86,8 +86,8 @@ def test_the_checkpoint_lives_outside_the_room(room: Path):
 
 
 def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
-    from litereality_agent.pipeline import author
     from litereality_agent.pipeline.context import RunContext
+    from litereality_agent.pipeline.realism_authoring import author
     from litereality_agent.settings import LiteRealitySettings
 
     settings = LiteRealitySettings(repo_root=tmp_path, output_root=tmp_path / "run")
@@ -119,8 +119,8 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
 
     assert result.ok
     assert [module for module, _, _ in calls] == [
-        "litereality_agent.pipeline.author.agent",
-        "litereality_agent.pipeline.author.refine_objects",
-        "litereality_agent.pipeline.author.materials",
-        "litereality_agent.pipeline.author.quality",
+        "litereality_agent.agent.author",
+        "litereality_agent.pipeline.realism_authoring.author.refine_objects",
+        "litereality_agent.pipeline.realism_authoring.author.materials",
+        "litereality_agent.pipeline.realism_authoring.author.quality",
     ]

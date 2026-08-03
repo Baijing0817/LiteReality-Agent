@@ -20,7 +20,7 @@ import json
 import pickle
 from pathlib import Path
 
-from litereality_agent.pipeline.ingest import merge_boxes
+from litereality_agent.pipeline.scene_init.ingest import merge_boxes
 
 
 def box(name: str, pos: tuple[float, float, float], size: tuple[float, float, float],
@@ -255,7 +255,14 @@ def test_merge_runs_before_crop_in_the_pipeline():
     subprocess stages — there is no seam to unit-test, and the ordering *is* the contract: run the
     merge after `crop_objects` and you have already cropped three separate boxes.
     """
-    src = (Path(__file__).resolve().parents[1] / "src" / "litereality_agent" / "pipeline" / "object_flow.py").read_text()
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "litereality_agent"
+        / "pipeline"
+        / "scene_init"
+        / "flow.py"
+    ).read_text()
     assert "merge_boxes.merge_for_scan(" in src, "the merge is not wired into init at all"
     i_extract = src.index("extract_scene.extract(")
     i_merge = src.index("merge_boxes.merge_for_scan(")

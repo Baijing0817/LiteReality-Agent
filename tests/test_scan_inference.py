@@ -38,7 +38,7 @@ def test_scan_from_output_symlink_path(stage_tree):
 def test_scan_from_room_py_file_path(stage_tree):
     """Tools bind either the room dir or its Room.py; `room_dir_from` normalizes, but callers in
     the wild pass both, so both spellings must land on the same scan."""
-    from litereality_agent.pipeline.author.tools._scene import room_dir_from
+    from litereality_agent.agent.tools._scene import room_dir_from
 
     assert _scan_from_room(room_dir_from(str(stage_tree.symlinked_room / "Room.py"))) == stage_tree.scan
 

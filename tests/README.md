@@ -41,7 +41,7 @@ still writes a `Room.py`.
 ## Known-failing, on purpose
 
 `test_run_trace.py::test_stitch_coverage_is_tracked_where_the_tool_name_exists` is `xfail(strict=True)`:
-`authoring/author.py:289-298` counts tools and tracks stitch coverage inside the `ToolResultBlock`
+`agent/author.py` counts tools and tracks stitch coverage inside the `ToolResultBlock`
 branch, but that block carries no `name` and no `input` (pinned by the test above it), so a real run
 reports `calls=88 {'?': 88}` and marks every stitch `NEVER OPENED`. When those four statements move
 back under `elif b == "ToolUseBlock"`, this test XPASSes — remove the marker then.
