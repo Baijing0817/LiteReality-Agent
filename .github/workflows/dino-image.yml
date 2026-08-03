@@ -64,3 +64,10 @@ jobs:
           cache-from: type=gha,scope=dino-worker
           cache-to: type=gha,mode=min,scope=dino-worker
 
+      - name: Make the open-source worker publicly pullable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method PATCH \
+            "/orgs/${{ github.repository_owner }}/packages/container/litereality-dino/visibility" \
+            -f visibility=public
