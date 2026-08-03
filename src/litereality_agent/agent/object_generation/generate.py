@@ -385,52 +385,46 @@ async def run_one(job: Job, args, feedback: str = "") -> None:
     ``feedback`` (non-empty on retries) carries the previous attempt's QC-probe violations so the
     agent knows exactly what to fix instead of blindly regenerating.
     """
+    from litereality_agent.agent import providers
+
     job.glb.parent.mkdir(parents=True, exist_ok=True)
-    provider = (
-        getattr(args, "provider", None) or os.environ.get("LR_PROCEDURAL_PROVIDER") or "claude"
-    ).lower()
-    if provider == "codex":
-        await _run_codex(job, args, feedback)
-    else:
-        await _run_claude(job, args, feedback)
+    harness = providers.resolve("procedural", getattr(args, "provider", None))
 
+    # Both harnesses run the SAME bundled playbook; only the delivery differs. Claude Code loads
+    # `image-to-articulated-glb` natively as a skill; Codex has no skill system, so SKILL.md is
+    # injected as prompt text. Keeping one playbook is the point — do not fork it per harness.
+    prompt = build_prompt(job) + feedback
+    if "skills" not in harness.supports:
+        scripts = AGENT_PKG / ".claude" / "skills" / SKILL_NAME / "scripts"
+        prompt = (
+            "Run this SKILL end-to-end, fully autonomously, without asking for confirmation.\n\n"
+            f"===== SKILL: {SKILL_NAME} =====\n{_skill_instructions()}\n===== END SKILL =====\n\n"
+            f"{build_prompt(job)}\n\n"
+            f"Reference image: {job.image}\nOutput GLB: {job.glb}\n"
+            f"Skill helper scripts live in: {scripts}\n"
+            f"{feedback}"
+        )
 
-async def _run_claude(job: Job, args, feedback: str = "") -> None:
-    from claude_agent_sdk import (  # lazy: codex needs no SDK
-        ClaudeAgentOptions,
-        ResultMessage,
-        query,
-    )
-
-    options = ClaudeAgentOptions(
-        cwd=str(AGENT_PKG),
-        add_dirs=[str(job.image.parent), str(job.glb.parent)],
-        system_prompt={"type": "preset", "preset": "claude_code"},
-        setting_sources=["project"],
-        skills=[SKILL_NAME],
-        allowed_tools=[
-            "Bash",
-            "Read",
-            "Write",
-            "Edit",
-            "Glob",
-            "Grep",
-            "Skill",
-            "TodoWrite",
-            "WebFetch",
-        ],
-        permission_mode="bypassPermissions",
-        max_turns=args.max_turns,
+    spec = providers.SessionSpec(
+        prompt=prompt,
+        cwd=AGENT_PKG,
+        read_roots=(job.image.parent, job.glb.parent),
+        file_tools=("Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill", "TodoWrite", "WebFetch"),
+        skills=(SKILL_NAME,),
+        setting_sources=("project",),
         model=args.model or DEFAULT_PROCEDURAL_MODEL,
+        max_turns=args.max_turns,
         # A dollar cap only means something on metered API access. The default path
         # is the logged-in `claude` CLI (subscription), where the SDK's cost figure is
         # an API-list-price equivalent and capping on it truncates a build for no real
         # saving -- the door job finished at $4.53 against the old $5.00 default.
         # `max_turns` is the runaway guard; pass --max-budget-usd to opt back in.
-        **({"max_budget_usd": args.max_budget_usd} if args.max_budget_usd else {}),
+        budget_usd=args.max_budget_usd or None,
     )
-    async for message in query(prompt=build_prompt(job) + feedback, options=options):
-        if isinstance(message, ResultMessage):
+
+    t0 = time.time()
+    async for message in harness.run(spec):
+        if isinstance(message, providers.SessionResult):
             job.cost_usd += message.total_cost_usd or 0.0
             entry = {
                 "attempt": job.attempts,
@@ -438,6 +432,8 @@ async def _run_claude(job: Job, args, feedback: str = "") -> None:
                 "num_turns": message.num_turns,
                 "cost_usd": message.total_cost_usd,
                 "result_tail": (message.result or "")[-200:],
+                "seconds": round(time.time() - t0, 1),
+                "provider": harness.name,
             }
             job.log.append(entry)
             if message.is_error:
@@ -466,77 +462,12 @@ async def _run_claude(job: Job, args, feedback: str = "") -> None:
 
 
 def _skill_instructions() -> str:
-    """The skill playbook (SKILL.md), injected into the Codex prompt (no native skill system)."""
+    """The skill playbook (SKILL.md), injected into the prompt for harnesses without skills."""
     sk = AGENT_PKG / ".claude" / "skills" / SKILL_NAME / "SKILL.md"
     try:
         return sk.read_text(encoding="utf-8")
     except OSError:
         return ""
-
-
-async def _run_codex(job: Job, args, feedback: str = "") -> None:
-    """Codex CLI backend: `codex exec` non-interactively in the skill package, SKILL.md injected
-    as instructions, full file/Bash access so it builds the GLB (blender) autonomously."""
-    scripts = AGENT_PKG / ".claude" / "skills" / SKILL_NAME / "scripts"
-    prompt = (
-        "Run this SKILL end-to-end, fully autonomously, without asking for confirmation.\n\n"
-        f"===== SKILL: {SKILL_NAME} =====\n{_skill_instructions()}\n===== END SKILL =====\n\n"
-        f"{build_prompt(job)}\n\n"
-        f"Reference image: {job.image}\nOutput GLB: {job.glb}\n"
-        f"Skill helper scripts live in: {scripts}\n"
-        f"{feedback}"
-    )
-    cmd = [
-        "codex",
-        "exec",
-        "--cd",
-        str(AGENT_PKG),
-        "--dangerously-bypass-approvals-and-sandbox",
-        # higher reasoning effort = noticeably better geometry/material quality
-        "-c",
-        f'model_reasoning_effort="{os.environ.get("LR_CODEX_EFFORT", "high")}"',
-    ]
-    model = args.model or os.environ.get("LR_CODEX_MODEL")
-    if model:
-        cmd += ["-m", model]
-    cmd.append(prompt)
-    t0 = time.time()
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-    )
-    out, _ = await proc.communicate()
-    tail = (out or b"").decode(errors="replace")[-200:]
-    entry = {
-        "attempt": job.attempts,
-        "is_error": proc.returncode != 0,
-        "num_turns": None,
-        "cost_usd": None,
-        "result_tail": tail,
-        "seconds": round(time.time() - t0, 1),
-    }
-    job.log.append(entry)
-    if proc.returncode != 0:
-        job.error = f"codex exit {proc.returncode}: {tail}"
-    telemetry.agent_step(
-        "image-to-articulated-glb",
-        f"{job.name}:attempt{job.attempts}",
-        payload={
-            "job": {
-                "scan": job.scan,
-                "name": job.name,
-                "category": job.category,
-                "dims": job.dims,
-                "image": str(job.image),
-                "glb": str(job.glb),
-            },
-            "result": entry,
-        },
-        name=job.name,
-        category=job.category,
-        is_error=proc.returncode != 0,
-        num_turns=None,
-        cost_usd=None,
-    )
 
 
 async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
