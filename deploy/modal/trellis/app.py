@@ -23,6 +23,7 @@ image = (
         deployment_root / "Dockerfile",
         context_dir=deployment_root,
     )
+    .run_commands("python3.10 -m pip install --no-cache-dir 'setuptools>=64' wheel")
     .run_commands(
         "bash -lc 'cd /root/TRELLIS.2 && "
         ". ./setup.sh --cumesh --o-voxel --flexgemm --nvdiffrast --nvdiffrec'",
