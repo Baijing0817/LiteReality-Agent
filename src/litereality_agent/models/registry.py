@@ -22,6 +22,16 @@ def gen3d_from_settings(settings: LiteRealitySettings | None = None):
 
 def detection_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
+    if settings.modal_dino_app:
+        from litereality_agent.models.grounding_dino.modal import ModalDinoService
+
+        return ModalDinoService(
+            app_name=settings.modal_dino_app,
+            function_name=settings.modal_dino_function,
+            environment_name=settings.modal_environment,
+            model_id=settings.dino_model,
+            embed_model_id=settings.dino_embed_model,
+        )
     if settings.runpod_dino_endpoint:
         from litereality_agent.models.grounding_dino.runpod import RunPodDinoService
 

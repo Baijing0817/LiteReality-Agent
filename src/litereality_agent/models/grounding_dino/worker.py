@@ -83,8 +83,8 @@ def main() -> int:
     return 0
 
 
-def runpod_handler(job: dict) -> dict:
-    """Adapt RunPod's job envelope to the canonical DINO inference functions."""
+def hosted_handler(request: dict) -> dict:
+    """Run one JSON-safe hosted request through the canonical inference functions."""
     import base64
     import io
     import tempfile
@@ -93,7 +93,6 @@ def runpod_handler(job: dict) -> dict:
 
     from PIL import Image
 
-    request = job.get("input") or {}
     try:
         operation = request.get("op", "detect")
         if operation == "detect":
@@ -136,6 +135,11 @@ def runpod_handler(job: dict) -> dict:
             "error": f"{type(exc).__name__}: {exc}",
             "trace": traceback.format_exc()[-2000:],
         }
+
+
+def runpod_handler(job: dict) -> dict:
+    """Adapt RunPod's job envelope to the provider-neutral hosted handler."""
+    return hosted_handler(job.get("input") or {})
 
 
 def runpod_main() -> None:

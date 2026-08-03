@@ -47,6 +47,7 @@ def test_registry_prefers_hosted_dino(monkeypatch):
     from litereality_agent.models import registry
 
     settings = SimpleNamespace(
+        modal_dino_app=None,
         runpod_dino_endpoint="dino-endpoint",
         runpod_api_key=SimpleNamespace(get_secret_value=lambda: "secret"),
         dino_model="detector",
