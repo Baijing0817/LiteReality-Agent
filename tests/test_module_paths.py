@@ -126,3 +126,28 @@ def test_executable_helpers_survived_the_layout_move():
     assert all(path.is_file() for path in paths), "missing helper(s): " + ", ".join(
         str(path) for path in paths if not path.is_file()
     )
+
+
+def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from litereality_agent.pipeline.reconstruct.qc import chair_qc
+
+    ref = tmp_path / "chair.png"
+    ref.write_bytes(b"image")
+    out = tmp_path / "Chair0.glb"
+    settings = SimpleNamespace(runpod_trellis_endpoint="endpoint")
+    monkeypatch.setattr("litereality_agent.settings.load_settings", lambda: settings)
+
+    class Hosted:
+        def reconstruct(self, images, *, out_dir, asset_id, **options):
+            assert images == [ref]
+            assert asset_id == "Chair0"
+            path = Path(out_dir) / f"{asset_id}.glb"
+            path.write_bytes(b"glb")
+            return str(path)
+
+    monkeypatch.setattr(
+        "litereality_agent.models.registry.gen3d_from_settings", lambda configured: Hosted()
+    )
+    assert chair_qc._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0

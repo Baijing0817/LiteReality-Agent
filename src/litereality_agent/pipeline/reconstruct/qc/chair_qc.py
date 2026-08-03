@@ -50,6 +50,22 @@ def _trellis_one(
     scan: str, ref_png: Path, out_glb: Path, *, python: str | None, seed: int, decimation: int
 ) -> int:
     """Re-run TRELLIS on a single (new) reference image -> out_glb."""
+    from litereality_agent.settings import load_settings
+
+    settings = load_settings()
+    if settings.runpod_trellis_endpoint:
+        from litereality_agent.models.registry import gen3d_from_settings
+
+        service = gen3d_from_settings(settings)
+        generated = service.reconstruct(
+            [ref_png],
+            out_dir=str(out_glb.parent),
+            asset_id=out_glb.stem,
+            seed=seed,
+            simplify=0.95,
+        )
+        return 0 if generated and Path(generated).is_file() else 1
+
     interp = reconstruct.resolve_python(python)
     cmd = [
         interp,
