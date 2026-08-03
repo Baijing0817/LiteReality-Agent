@@ -61,6 +61,11 @@ run on a separately configured compute machine; it does not mean the main pipeli
 that model in-process. TRELLIS can instead use `models/trellis/hosted` with RunPod. The CLI and unit
 tests do not start DINO, TRELLIS, Blender, or paid model calls.
 
+The remote deployment is intentionally hybrid: `docker/pipeline` packages the stateful pipeline,
+DINO, Blender, and Claude Agent SDK for an ephemeral RunPod Pod, while TRELLIS remains a separately
+scaling Serverless endpoint. `/workspace` is the only persistent boundary for scans, outputs,
+model caches, and remote credentials; secrets are injected by RunPod and never baked into images.
+
 ## Output compatibility
 
 Generated paths remain stable so previous work can be resumed:
