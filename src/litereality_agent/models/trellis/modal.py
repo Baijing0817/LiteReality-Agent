@@ -76,6 +76,7 @@ class ModalTrellisService:
         seed: int = 42,
         simplify: float = 0.95,
         texture_size: int = 1024,
+        pipeline_type: str | None = None,
     ) -> dict[str, str]:
         out = Path(out_dir)
         out.mkdir(parents=True, exist_ok=True)
@@ -86,6 +87,7 @@ class ModalTrellisService:
                 "seed": seed,
                 "simplify": simplify,
                 "texture_size": texture_size,
+                "pipeline_type": pipeline_type,
             }
             for asset_id in asset_ids
         ]

@@ -46,6 +46,52 @@ def test_pipeline_installs_background_bypass_before_model_construction(monkeypat
     assert calls == [("bypass", None), ("load", "model"), ("cuda", None)]
 
 
+def test_generate_exports_portable_glb_without_webp_extension(monkeypatch, tmp_path):
+    from PIL import Image
+
+    from litereality_agent.models.trellis import inference
+
+    calls = {}
+
+    class Mesh:
+        vertices = faces = attrs = coords = layout = voxel_size = object()
+
+        def simplify(self, target):
+            calls["simplify"] = target
+
+    class Pipeline:
+        def run(self, image, **options):
+            calls["pipeline"] = options
+            return [Mesh()]
+
+    class GLB:
+        def export(self, path, **options):
+            calls["export"] = (path, options)
+
+    torch = ModuleType("torch")
+    torch.manual_seed = lambda seed: calls.setdefault("seed", seed)
+    o_voxel = ModuleType("o_voxel")
+    o_voxel.postprocess = SimpleNamespace(to_glb=lambda **options: GLB())
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "o_voxel", o_voxel)
+    image = tmp_path / "input.png"
+    output = tmp_path / "output.glb"
+    Image.new("RGBA", (2, 2)).save(image)
+
+    inference.generate(
+        Pipeline(),
+        image,
+        output,
+        seed=7,
+        decimation_target=20_000,
+        texture_size=512,
+        pipeline_type="512",
+    )
+
+    assert calls["pipeline"] == {"seed": 7, "pipeline_type": "512"}
+    assert calls["export"] == (str(output), {"extension_webp": False})
+
+
 def test_modal_trellis_maps_model_payloads_and_writes_outputs(tmp_path):
     from litereality_agent.models.trellis.modal import ModalTrellisService
 
@@ -67,6 +113,7 @@ def test_modal_trellis_maps_model_payloads_and_writes_outputs(tmp_path):
         seed=7,
         simplify=0.9,
         texture_size=512,
+        pipeline_type="512",
     )
 
     assert base64.b64decode(client.inputs[0]["image_b64"]) == b"first-image"
@@ -75,6 +122,7 @@ def test_modal_trellis_maps_model_payloads_and_writes_outputs(tmp_path):
         "seed": 7,
         "simplify": 0.9,
         "texture_size": 512,
+        "pipeline_type": "512",
     }
     assert Path(results["Chair0"]).read_bytes() == b"first-glb"
     assert Path(results["Chair1"]).read_bytes() == b"second-glb"
