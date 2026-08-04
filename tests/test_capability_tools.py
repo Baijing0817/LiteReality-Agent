@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.realism_authoring.author import CAPABILITY_TOOLS, build_capability_server
-from litereality_agent.realism_authoring.tools import build_default_registry
+from litereality_agent.agent.author import CAPABILITY_TOOLS, build_capability_server
+from litereality_agent.agent.tools import build_default_registry
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +57,7 @@ def test_capability_server_exposes_prefixed_names(tmp_path):
 def test_render_params_accept_the_targets_the_prompt_asks_for(target):
     """The prompt tells the model to call `render(target='room')` and `render(target='Wall<N>')`;
     validation must not reject either, and `frames` must stay optional (auto-select)."""
-    from litereality_agent.realism_authoring.tools.render.tool import RenderParams
+    from litereality_agent.agent.tools.render.tool import RenderParams
 
     p = RenderParams(target=target)
     assert p.target == target and p.frames is None
@@ -74,7 +74,7 @@ def test_select_views_reaches_its_data_layer(stage_tree):
     """
     import asyncio
 
-    from litereality_agent.realism_authoring.tools.select_views.tool import (
+    from litereality_agent.agent.tools.select_views.tool import (
         SelectViewsInvocation,
         SelectViewsParams,
     )
@@ -112,7 +112,7 @@ def test_select_views_picks_frames_on_real_scan_data(target):
     if not (scans / scan / "roomplan" / "room.usdz").is_file() or not room.is_dir():
         pytest.skip(f"no capture data for {scan} under {scans}")
 
-    from litereality_agent.realism_authoring.tools.select_views.tool import (
+    from litereality_agent.agent.tools.select_views.tool import (
         SelectViewsInvocation,
         SelectViewsParams,
     )

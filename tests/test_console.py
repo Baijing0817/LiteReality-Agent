@@ -154,7 +154,7 @@ def _run_module():
     import types
 
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
-    from litereality_agent.scene_init.object_init import run
+    from litereality_agent.pipeline.scene_init import flow as run
 
     return run
 
@@ -167,7 +167,7 @@ def test_expected_assets_covers_both_routes_and_openings(tmp_path, monkeypatch):
     run = _run_module()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "final"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
-    from litereality_agent.scene_init.object_init import config
+    from litereality_agent.pipeline.scene_init import paths as config
 
     config.set_scan("Sim")
     routing = config.work_root() / "routing"
@@ -187,7 +187,7 @@ def test_built_count_recognises_both_glb_layouts(tmp_path, monkeypatch):
     run = _run_module()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "final"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
-    from litereality_agent.scene_init.object_init import config
+    from litereality_agent.pipeline.scene_init import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -269,7 +269,7 @@ def test_runpod_report_separates_waiting_from_computing():
     """`wall - exec` was left for the reader to infer. A serverless endpoint that scaled to zero
     spends most of a run booting, and that is a console setting to change, not code — so the
     split has to be visible."""
-    from litereality_agent.models.runpod_trellis import AssetReport, BatchReport
+    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
 
     r = BatchReport(wall_s=278.5, assets=[
         AssetReport("ChairCluster0", True, 256.8, 23.1, None, "", delay_s=233.1),
@@ -283,7 +283,7 @@ def test_runpod_report_separates_waiting_from_computing():
 def test_runpod_delay_is_maxed_not_summed():
     """Assets are submitted in parallel and wait concurrently — summing their delays would
     triple-count a single shared cold start and report more wait than the batch took."""
-    from litereality_agent.models.runpod_trellis import AssetReport, BatchReport
+    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
 
     r = BatchReport(wall_s=280.0, assets=[
         AssetReport("a", True, 250.0, 20.0, None, "", delay_s=230.0),
@@ -296,7 +296,7 @@ def test_runpod_delay_is_maxed_not_summed():
 def test_asset_report_positional_fields_did_not_shift():
     """Both call sites build this positionally, so a field added anywhere but the end silently
     re-points glb_path and error."""
-    from litereality_agent.models.runpod_trellis import AssetReport
+    from litereality_agent.models.trellis.runpod import AssetReport
 
     ok = AssetReport("id", True, 1.0, 2.0, 0.5, "/tmp/a.glb")
     assert ok.glb_path == "/tmp/a.glb" and ok.error == "" and ok.delay_s is None
@@ -306,7 +306,7 @@ def test_asset_report_positional_fields_did_not_shift():
 
 def test_report_without_delay_still_renders():
     """A RunPod response that omits delayTime must not add an empty clause or crash."""
-    from litereality_agent.models.runpod_trellis import AssetReport, BatchReport
+    from litereality_agent.models.trellis.runpod import AssetReport, BatchReport
 
     out = BatchReport(wall_s=10.0, assets=[
         AssetReport("a", True, 9.0, 5.0, None, "")]).render()
@@ -332,7 +332,7 @@ def test_only_one_module_resolves_blender():
                 implementations.append(str(f.relative_to(pkg)))
             elif "_canonical()" not in m.group(0) and "os.environ" in m.group(0):
                 implementations.append(str(f.relative_to(pkg)))
-    assert implementations == ["integration/config.py"], (
+    assert implementations == ["room_format/paths.py"], (
         f"Blender is resolved in more than one place: {implementations}"
     )
 
@@ -340,7 +340,7 @@ def test_only_one_module_resolves_blender():
 def test_the_resolver_finds_a_macos_app_bundle(monkeypatch, tmp_path):
     """The case that broke a real run: nothing in the environment, nothing on PATH, Blender
     installed as an app bundle."""
-    from litereality_agent.integration import config as ic
+    from litereality_agent.room_format import paths as ic
 
     bundle = tmp_path / "Blender.app" / "Contents" / "MacOS"
     bundle.mkdir(parents=True)
@@ -357,7 +357,7 @@ def test_the_error_says_what_to_set(monkeypatch, tmp_path):
     """`Blender not found` with no next step is what sent this investigation the long way round."""
     import pytest as _pytest
 
-    from litereality_agent.integration import config as ic
+    from litereality_agent.room_format import paths as ic
 
     monkeypatch.delenv("BLENDER", raising=False)
     monkeypatch.delenv("LITEREALITY_BLENDER", raising=False)
@@ -520,7 +520,7 @@ def test_importing_the_harness_config_creates_nothing(tmp_path, monkeypatch):
         f"os.environ.update(LITEREALITY_SCAN='probe', LITEREALITY_OUTPUT={str(tmp_path)!r},"
         " LITEREALITY_BLENDER='/nonexistent');"
         "sys.modules.setdefault('bpy', type(sys)('bpy'));"
-        "import litereality_agent.realism_authoring.scene.config as c;"
+        "import litereality_agent.room_format.rendering.config as c;"
         f"print(sorted(str(p) for p in Path({str(tmp_path)!r}).rglob('*')))"
     )
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
@@ -540,7 +540,7 @@ def test_ensure_dirs_is_what_creates_them(tmp_path, monkeypatch):
         f"os.environ.update(LITEREALITY_SCAN='probe', LITEREALITY_OUTPUT={str(tmp_path)!r},"
         " LITEREALITY_BLENDER='/nonexistent');"
         "sys.modules.setdefault('bpy', type(sys)('bpy'));"
-        "import litereality_agent.realism_authoring.scene.config as c; c.ensure_dirs();"
+        "import litereality_agent.room_format.rendering.config as c; c.ensure_dirs();"
         f"print(sorted(str(p.relative_to({str(tmp_path)!r})) for p in Path({str(tmp_path)!r}).rglob('*')))"
     )
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
@@ -558,7 +558,7 @@ def _run_mod():
     import types
 
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
-    from litereality_agent.scene_init.object_init import run
+    from litereality_agent.pipeline.scene_init import flow as run
 
     return run
 
@@ -585,7 +585,7 @@ def test_branches_own_disjoint_objects(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.scene_init.object_init import config
+    from litereality_agent.pipeline.scene_init import paths as config
 
     config.set_scan("Sim")
     routing = config.work_root() / "routing"
@@ -662,7 +662,7 @@ def test_a_half_written_object_does_not_count_as_built(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.scene_init.object_init import config
+    from litereality_agent.pipeline.scene_init import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -692,7 +692,7 @@ def test_the_counter_matches_what_the_builder_would_skip(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.scene_init.object_init import config
+    from litereality_agent.pipeline.scene_init import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -740,8 +740,8 @@ def test_polish_reuses_a_recorded_run(tmp_path, monkeypatch):
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.scene_init.object_init import config
-    from litereality_agent.scene_init.object_init.detect import bbox_polish
+    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
 
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")
@@ -762,8 +762,8 @@ def test_force_ignores_the_marker(tmp_path, monkeypatch):
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.scene_init.object_init import config
-    from litereality_agent.scene_init.object_init.detect import bbox_polish
+    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
 
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")

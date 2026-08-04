@@ -1,14 +1,13 @@
 """Every module named as a STRING must resolve.
 
 A cross-package call that goes through a subprocess names its target in a string — `-m
-litereality_agent.backends.procedural.generate_procedural` — and a string is invisible to every import
+litereality_agent.agent.object_generation.generate` — and a string is invisible to every import
 check, every linter and every rename. This has already failed twice in exactly the same way: a
 package moved, the imports were rewritten, and the `-m` strings quietly kept pointing at the old
 name. The symptom is never an ImportError in the parent; it is a stage that "completes" with a
 subprocess exit code nobody reads, and a missing GLB fifteen minutes later.
 
-So: find every module path spelled as text — in the Python sources, in `run.sh`, and in the batch
-runners — and check it is a file on disk.
+So: find every module path spelled as text in package and script sources and check it exists.
 """
 
 from __future__ import annotations
@@ -25,8 +24,8 @@ PKG = REPO / "src" / "litereality_agent"
 # third-party module (`json.tool`, `pytest`) and not ours to check.
 OURS = ("litereality_agent",)
 # Spellings that USED to be importable and must never come back — the exact regression above.
-RETIRED = ("authoring", "scene_builder", "scene_package", "init", "cli", "object_init",
-           "backends", "models", "integration", "scene_init", "realism_authoring")
+RETIRED = ("authoring", "scene_builder", "scene_package", "init", "object_init",
+           "backends", "integration", "scene_init", "realism_authoring", "services", "adapters")
 
 # `-m foo.bar` on a command line, and `NAME_MODULE = "foo.bar"` constants.
 DASH_M = re.compile(r"""-m["'\s,\]]+\s*["']?([A-Za-z_][\w.]*\.[\w.]+)""")
@@ -35,7 +34,9 @@ MODULE_CONST = re.compile(r"""^\s*\w*MODULE\w*\s*=\s*["']([A-Za-z_][\w.]*\.[\w.]
 SOURCES = sorted(
     [p for p in PKG.rglob("*.py")]
     + [p for p in PKG.rglob("*.sh")]
-    + [REPO / "run.sh", REPO / "sanity.py"]
+    + [p for p in (REPO / "scripts").rglob("*.py")]
+    + [p for p in (REPO / "scripts").rglob("*.sh")]
+    + [REPO / "sanity.py"]
 )
 
 
@@ -94,14 +95,80 @@ def test_no_retired_top_level_spelling():
 
 
 @pytest.mark.parametrize("dotted", [
-    "litereality_agent.backends.procedural.generate_procedural",  # the one that failed a live run
-    "litereality_agent.integration.compile.build_from_room",
-    "litereality_agent.integration.manifest",
-    "litereality_agent.scene_init.object_init.run",
-    "litereality_agent.scene_init.object_init.detect.dino_worker",
-    "litereality_agent.realism_authoring.scene.surface_reference",
+    "litereality_agent.agent.object_generation.generate",  # subprocess target used by the pipeline
+    "litereality_agent.room_format.compile.build_from_room",
+    "litereality_agent.room_format.manifest",
+    "litereality_agent.pipeline.scene_init.flow",
+    "litereality_agent.models.grounding_dino.worker",
+    "litereality_agent.pipeline.realism_authoring.author.evidence",
+    "litereality_agent.pipeline.realism_authoring.author.entrypoint",
+    "litereality_agent.pipeline.realism_authoring.author.refine_objects",
+    "litereality_agent.pipeline.realism_authoring.author.materials",
+    "litereality_agent.pipeline.realism_authoring.author.quality",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename
     that misses one fails here rather than mid-run."""
     assert module_file(dotted) is not None, f"{dotted} is launched by name but does not exist"
+
+
+def test_executable_helpers_survived_the_layout_move():
+    from litereality_agent.pipeline.scene_init.reconstruct import flow
+    from litereality_agent.room_format.rendering import config
+
+    paths = (
+        flow.LAUNCHER,
+        config.RENDER_TOOL,
+        config.SELECT_TOOL,
+        config.STITCH_TOOL,
+        PKG / "room_format" / "rendering" / "object_turntable.py",
+    )
+    assert all(path.is_file() for path in paths), "missing helper(s): " + ", ".join(
+        str(path) for path in paths if not path.is_file()
+    )
+
+
+def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
+    from litereality_agent.pipeline.scene_init.reconstruct import flow
+
+    monkeypatch.delenv("LITEREALITY_TRELLIS_PYTHON", raising=False)
+    assert Path(flow.resolve_python(None)) == REPO / ".venv" / "bin" / "python"
+
+
+def test_agent_render_tool_uses_the_moved_room_format_engine():
+    source = (PKG / "agent" / "tools" / "render" / "tool.py").read_text(encoding="utf-8")
+    assert "from litereality_agent.room_format.rendering import engine" in source
+    assert "from litereality_agent.agent.tools.render import engine" not in source
+
+
+def test_blender_render_worker_finds_the_moved_camera_renderer():
+    worker = PKG / "room_format" / "rendering" / "engine" / "_blender_frames.py"
+    camera_renderer = worker.parent.parent / "room_render" / "render_room_cameras.py"
+    assert camera_renderer.is_file()
+    source = worker.read_text(encoding="utf-8")
+    assert 'os.path.join(_HERE, "..", "room_render")' in source
+
+
+def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from litereality_agent.pipeline.scene_init.reconstruct.qc import chair_qc
+
+    ref = tmp_path / "chair.png"
+    ref.write_bytes(b"image")
+    out = tmp_path / "Chair0.glb"
+    settings = SimpleNamespace(runpod_trellis_endpoint="endpoint")
+    monkeypatch.setattr("litereality_agent.settings.load_settings", lambda: settings)
+
+    class Hosted:
+        def reconstruct(self, images, *, out_dir, asset_id, **options):
+            assert images == [ref]
+            assert asset_id == "Chair0"
+            path = Path(out_dir) / f"{asset_id}.glb"
+            path.write_bytes(b"glb")
+            return str(path)
+
+    monkeypatch.setattr(
+        "litereality_agent.models.registry.gen3d_from_settings", lambda configured: Hosted()
+    )
+    assert chair_qc._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0

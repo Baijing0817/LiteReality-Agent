@@ -1,23 +1,9 @@
-"""litereality_agent — a room scan becomes an editable, realistic 3D program.
+"""Turn a room scan into an editable, realistic 3D program.
 
-Two halves, joined by a folder: a deterministic **scene_init** seeds `Room.py` from a RoomPlan
-scan, and an agentic **authoring** pass makes it look like the real room. The seam between them
-is the scene package (`integration.manifest`) — a `scene.json` that describes what init produced,
-so stage 2 launches from that folder alone.
-
-Layers, in dependency order. Each depends only on the ones below it; nothing depends upward, and
-every subpackage restates its own contract in its `__init__.py`.
-
-    5  cli                the command line: `uv run -m litereality_agent <command>`  (everything)
-    4  realism_authoring  STAGE 2, the AGENTIC half: author · refine · qc, the harness they run
-                          in, the closed capability-tool set, and the imaging used to see the room
-    3  scene_init         STAGE 1, the DETERMINISTIC half: scan → objects → seed Room.py + .glb
-    2  integration    the Room PROGRAM: export Room.py, compile it to Room.glb, and the
-                      scene-package manifest that ties a run's folder together
-    1  models         one front door per model role: llm · vlm · detect · gen3d
-    0  backends       heavy/external behind launchers: TRELLIS · GroundingDINO · procedural
-
-`scripts/` sits outside the stack — standalone entry points, never imported.
+The package has five feature-oriented areas: ``pipeline`` coordinates the scene-init and realism-
+authoring phases, ``agent`` owns extensible agent behavior, ``room_format`` owns the portable room
+representation, ``models`` owns inference, and ``runtimes`` owns execution transports. The
+supported entrypoint is ``uv run litereality``.
 
 ## The two roots
 
@@ -25,8 +11,8 @@ Code and data live in different places, and conflating them is the classic src-l
 
     PACKAGE_ROOT   src/litereality_agent — where the CODE is. Use for anything shipped in the wheel:
                    a prompt template, a Blender helper script, a tool a subprocess must exec.
-    REPO_ROOT      the checkout — where the DATA is: run/, scans_uploaded/,
-                   .env, .key, run.sh. Override with $LR_REPO_ROOT when the package is installed
+    REPO_ROOT      the checkout — where the DATA is: run/, scans_uploaded/, and .env.
+                   Override with $LR_REPO_ROOT when the package is installed
                    somewhere other than beside its data.
 
 Reach for `REPO_ROOT` when you mean "where this user's scans and results live" and `PACKAGE_ROOT`

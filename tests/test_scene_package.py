@@ -3,8 +3,8 @@
 These guard the two ways this fails silently rather than loudly:
 
   * **path shape.** A package lives in `run/<scan>/` while half the tree is normally
-    addressed through the `run/<scan>/…` symlinks run.sh creates. Discovery and relativization
-    have to work from either spelling, or a package built by run.sh is unreadable from a shell
+    addressed through the `run/<scan>/…` symlinks the CLI creates. Discovery and relativization
+    have to work from either spelling, or a package built by the CLI is unreadable from a shell
     sitting in `output/`, and one built by a bare `uv run -m litereality_agent scene_init` records absolute paths and stops
     being movable.
   * **precedence.** A discovered package must never retarget an environment the caller exported
@@ -19,14 +19,14 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.integration import manifest
+from litereality_agent.room_format import manifest
 
 SCAN = "test-scan-Room"
 
 
 @pytest.fixture
 def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """A package in the shape run.sh produces: real tree under run/<scan>-<tag>, symlinked run/<scan>."""
+    """A package in the shape the CLI produces: real tree under run/<scan>-<tag>, symlinked run/<scan>."""
     final = tmp_path / "deliverables" / "run" / SCAN
     out = tmp_path / "staging" / "run" / SCAN
     scans = tmp_path / "scans_uploaded" / SCAN
@@ -151,7 +151,7 @@ def test_explicit_scene_overrides_the_environment(package: Path, monkeypatch):
 
 
 def test_discovered_package_never_overrides_the_environment(package: Path, monkeypatch):
-    """run.sh exports the scan itself. A package that merely happens to be findable must fill
+    """the CLI exports the scan itself. A package that merely happens to be findable must fill
     gaps only — retargeting here would author a different room than the caller asked for."""
     monkeypatch.chdir(package)
     monkeypatch.setenv("LITEREALITY_SCAN", "some-other-scan")
@@ -172,12 +172,12 @@ def test_bootstrap_does_not_bind_to_an_unnamed_package(package: Path, tmp_path, 
 # --- the two spellings of a stage dir ---------------------------------------- #
 def test_stage_links_exist_before_anything_writes(tmp_path: Path, monkeypatch):
     """The object half WRITES `run/<scan>/scene_init/obj_stage`; the room export READS the same
-    path through the other root. run.sh links them up front, so a run driven from the CLI has to as
+    path through the other root. the CLI links them up front, so a run driven from the CLI has to as
     well — otherwise init reconstructs every object and the export then finds an empty tree and
     returns None, throwing the whole stage away at the last step."""
-    from litereality_agent.integration import config as sb_config
-    from litereality_agent.scene_init.object_init import config as oi_config
-    from litereality_agent.scene_init.package import ensure_stage_links
+    from litereality_agent.pipeline.scene_init import paths as oi_config
+    from litereality_agent.pipeline.scene_init.artifacts import ensure_stage_links
+    from litereality_agent.room_format import paths as sb_config
 
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "run"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "run"))
@@ -198,8 +198,8 @@ def test_stage_links_exist_before_anything_writes(tmp_path: Path, monkeypatch):
 def test_stage_links_adopt_an_existing_staging_tree(tmp_path: Path, monkeypatch):
     """A tree from before the links existed has REAL directories under the staging root. Those must be
     adopted, never shadowed by a fresh empty one — that would strand the previous run's objects."""
-    from litereality_agent.scene_init.object_init import config as oi_config
-    from litereality_agent.scene_init.package import ensure_stage_links
+    from litereality_agent.pipeline.scene_init import paths as oi_config
+    from litereality_agent.pipeline.scene_init.artifacts import ensure_stage_links
 
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "deliverables" / "run"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "staging" / "run"))
@@ -217,7 +217,7 @@ def _stage_parser():
     """The argument surface every stage-2 entry point now shares."""
     import argparse
 
-    from litereality_agent.realism_authoring import stage_args
+    from litereality_agent.pipeline.realism_authoring import arguments as stage_args
 
     ap = argparse.ArgumentParser()
     stage_args.add_scene_arg(ap)
@@ -237,7 +237,7 @@ def _stage_parser():
 )
 def test_every_stage_resolves_from_the_scene_alone(package: Path, stage, need):
     """The promise of the package: `--scene <dir>` replaces the per-stage path flags."""
-    from litereality_agent.realism_authoring import stage_args
+    from litereality_agent.pipeline.realism_authoring import arguments as stage_args
 
     a = stage_args.bind(_stage_parser().parse_args(["--scene", str(package)]), need=need)
     for name in need:
@@ -246,7 +246,7 @@ def test_every_stage_resolves_from_the_scene_alone(package: Path, stage, need):
 
 
 def test_explicit_flags_beat_the_package(package: Path):
-    from litereality_agent.realism_authoring import stage_args
+    from litereality_agent.pipeline.realism_authoring import arguments as stage_args
 
     argv = ["--scene", str(package), "--room", "/explicit/room"]
     a = stage_args.bind(_stage_parser().parse_args(argv), need=("room", "scan"))
@@ -255,8 +255,8 @@ def test_explicit_flags_beat_the_package(package: Path):
 
 
 def test_full_flag_invocation_needs_no_package(monkeypatch, tmp_path):
-    """run.sh passes every flag. That must keep working with no package anywhere on disk."""
-    from litereality_agent.realism_authoring import stage_args
+    """the CLI passes every flag. That must keep working with no package anywhere on disk."""
+    from litereality_agent.pipeline.realism_authoring import arguments as stage_args
 
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "nowhere"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "nowhere2"))
@@ -269,7 +269,7 @@ def test_full_flag_invocation_needs_no_package(monkeypatch, tmp_path):
 def test_work_room_is_seeded_once_and_never_clobbered(package: Path):
     """Authoring edits `_oneshot/room`, not the seed — and re-running must not throw away the
     edits by re-copying over them, which is how a resumed run would silently lose a pass."""
-    from litereality_agent.realism_authoring import stage_args
+    from litereality_agent.pipeline.realism_authoring import arguments as stage_args
 
     pkg = manifest.read(package)
     room = stage_args.work_room(pkg)

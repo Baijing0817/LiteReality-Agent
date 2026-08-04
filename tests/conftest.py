@@ -2,7 +2,7 @@
 
 The bug these tests exist to prevent (`render` dead for a whole authoring run with "could not
 infer scan") was not a logic error inside a tool. It was the *shape of the paths* the tools are
-handed: on a tagged run `run.sh` writes stage data into `run/<scan><RUN_TAG>/` and symlinks
+handed: on a tagged run `the CLI` writes stage data into `run/<scan><RUN_TAG>/` and symlinks
 `run/<scan>/scene_init/{obj_stage,scene_stage}` at it, so every room path has two legitimate spellings and
 `Path.resolve()` silently moves you from one to the other. A fixture that just makes a directory
 called `room` cannot catch that. `stage_tree` reproduces the symlink.
@@ -58,15 +58,15 @@ class StageTree:
 
 @pytest.fixture
 def stage_tree(tmp_path: Path) -> StageTree:
-    """Build two `run/<scan>/...` trees — one physical, one symlinked — as run.sh can produce.
+    """Build two `run/<scan>/...` trees — one physical, one symlinked — as the CLI can produce.
 
     `$LITEREALITY_OUTPUT` and `$LITEREALITY_FINAL` are separate roots that merely DEFAULT to the
-    same `run/`. When they differ, run.sh links the stage dirs across, and one room again has two
+    same `run/`. When they differ, the CLI links the stage dirs across, and one room again has two
     legitimate spellings whose `.resolve()` differ. Both roots are named `run` — that matters:
     the scan name is inferred from the directory under the stage root, so a fixture that renamed
     the scan dir (a RUN_TAG suffix, say) would assert the tag as the scan.
 
-    Mirrors run.sh: `ln -sfn "$FINAL_OUT/<stage>" "$OUT/<stage>"`, per stage directory (not one
+    Mirrors the CLI: `ln -sfn "$FINAL_OUT/<stage>" "$OUT/<stage>"`, per stage directory (not one
     link at the scan level) — the asymmetry is what makes the resolved path differ from the
     caller's while both name the same tree.
     """
@@ -83,7 +83,7 @@ def stage_tree(tmp_path: Path) -> StageTree:
 
     (final / "scene_init" / "obj_stage" / "traces").mkdir(parents=True)
     out.mkdir(parents=True)
-    # Both spellings occur in the wild: run.sh writes ABSOLUTE targets, while trees made by hand
+    # Both spellings occur in the wild: the CLI writes ABSOLUTE targets, while trees made by hand
     # use RELATIVE ones. Cover each, and route the room under test through the relative link,
     # since that is what a live run actually has.
     (out / "scene_init").mkdir(parents=True)
