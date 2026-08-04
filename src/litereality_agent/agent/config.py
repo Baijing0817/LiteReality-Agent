@@ -79,11 +79,9 @@ ASSET_GLB_DIR = ASSETS_DIR / "glb"
 SCANS_ROOT = SETTINGS.resolved_scans_dir()
 SCAN_DIR = SCANS_ROOT / SCAN
 
-# per-scan harness SCRATCH (overlay generated once; view_selection/ranking overwritten
-# each render). NOT per-iteration — the iteration owns its room/ + room_preview/.
+# per-scan harness SCRATCH (view_selection/ranking overwritten each render). NOT
+# per-iteration — the iteration owns its room/ + room_preview/.
 HARNESS_OUT = Path(os.environ.get("LR_HARNESS") or (AUTHORING / "_harness"))
-OVERLAY_DIR = HARNESS_OUT / "overlay"
-OVERLAY_MANIFEST = OVERLAY_DIR / "overlay_manifest.json"
 VIEW_SELECTION = HARNESS_OUT / "view_selection.json"
 OUTPUT = HARNESS_OUT  # where view_selection/ranking land
 # NOT created here. Importing a config module used to mkdir under $LITEREALITY_OUTPUT, so merely
@@ -149,7 +147,6 @@ RENDER_TOOL = SDK / "room_render" / "render_room_cameras.py"
 ANNOTATE_TOOL = SDK / "room_render" / "annotate_views.py"
 SELECT_TOOL = SDK / "room_render" / "select_views.py"  # moved into the SDK
 RANK_TOOL = SDK / "room_render" / "rank_views.py"  # moved into the SDK
-OVERLAY_TOOL = SDK / "walls_floor_overlay" / "overlay_roomplan.py"
 
 # stage 1 — rectified head-on "ortho" reference per surface (the agent's material
 # ground truth). The SDK tool stitches walls; surface_reference.py extends it to the
