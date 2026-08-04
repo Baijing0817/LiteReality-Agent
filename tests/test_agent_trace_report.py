@@ -131,3 +131,84 @@ def test_the_raw_sidecar_is_rendered_and_excluded_from_the_timeline(scene: Path,
 
 def test_a_run_with_no_sidecar_says_so(scene: Path, tmp_path: Path):
     assert "LR_TRACE_RAW=0" in _build(scene, tmp_path)
+
+
+# ── the report is emitted per pass, not only at publish ───────────────────────────────────────
+def _scene_with_room(tmp_path: Path) -> Path:
+    """A scene package shaped like a real run: traces under scene_init, a seed and an authored room."""
+    scene = tmp_path / "run" / "test-scan-Room"
+    traces = scene / "scene_init" / "obj_stage" / "traces"
+    traces.mkdir(parents=True)
+    seed = scene / "scene_init" / "scene_stage" / "room_init" / "room"
+    seed.mkdir(parents=True)
+    (seed / "Room.py").write_text(SEED, encoding="utf-8")
+    final = scene / "realism_authoring" / "room"
+    final.mkdir(parents=True)
+    (final / "Room.py").write_text(AUTHORED, encoding="utf-8")
+    return scene
+
+
+def test_ending_a_pass_writes_the_report(tmp_path, monkeypatch):
+    """A run that DIES never reaches publish, which is exactly when the report is wanted — so it
+    is rendered at the end of every pass rather than once at the end of the pipeline."""
+    from litereality_agent.agent.trace import AgentTrace
+
+    scene = _scene_with_room(tmp_path)
+    monkeypatch.setenv("LITEREALITY_OUTPUT", str(scene.parent))
+
+    tr = AgentTrace("author", room=scene / "realism_authoring" / "room", scan=scene.name)
+    tr.start(model="m")
+    tr.tool("Edit", {"file_path": "Room.py", "old_string": "a", "new_string": "b"})
+    tr.end(calls=1, summary="done")
+
+    assert tr.path.parent.name == "traces", f"trace did not land in the scene: {tr.path}"
+
+    report = scene / f"{scene.name}_trace_report.html"
+    assert report.is_file(), "no report after a pass ended"
+    body = report.read_text()
+    assert "seed" in body and "authored" in body, "the seed -> authored diff is missing"
+
+
+def test_report_can_be_disabled(tmp_path, monkeypatch):
+    from litereality_agent.agent.trace import AgentTrace
+
+    scene = _scene_with_room(tmp_path)
+    monkeypatch.setenv("LITEREALITY_OUTPUT", str(scene.parent))
+    monkeypatch.setenv("LR_TRACE_HTML", "0")
+
+    tr = AgentTrace("author", room=scene / "realism_authoring" / "room", scan=scene.name)
+    tr.start(model="m")
+    tr.end()
+    assert not (scene / f"{scene.name}_trace_report.html").exists()
+
+
+def test_a_broken_report_never_takes_down_the_run(tmp_path, monkeypatch):
+    """The trace describes the run; it must not be able to end it. Same rule as the rest of trace.py."""
+    from litereality_agent.agent import trace_report as tr_mod
+    from litereality_agent.agent.trace import AgentTrace
+
+    scene = _scene_with_room(tmp_path)
+    monkeypatch.setenv("LITEREALITY_OUTPUT", str(scene.parent))
+
+    def _boom(*a, **k):
+        raise RuntimeError("report generation exploded")
+
+    monkeypatch.setattr(tr_mod, "build", _boom)
+
+    tr = AgentTrace("author", room=scene / "realism_authoring" / "room", scan=scene.name)
+    tr.start(model="m")
+    tr.end(calls=1)  # must not raise
+    assert tr.render_report() is None
+
+
+def test_no_report_for_a_traces_dir_outside_a_scene(tmp_path, monkeypatch):
+    """`parents[3]` is only the scene when the layout says so — never write into a stranger."""
+    from litereality_agent.agent.trace import AgentTrace
+
+    monkeypatch.delenv("LITEREALITY_SCAN", raising=False)
+    room = tmp_path / "a" / "b" / "c" / "room"
+    room.mkdir(parents=True)
+    tr = AgentTrace("author", room=room)
+    tr.start(model="m")
+    tr.end()
+    assert not list(tmp_path.rglob("*_trace_report.html"))
