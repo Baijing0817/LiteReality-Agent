@@ -6,6 +6,8 @@ the harness can watch it to update build freshness / write revisions. Lazy impor
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from litereality_agent.agent.tools._scene import room_dir_from
 from litereality_agent.agent.tools.base import (
     BaseDeclarativeTool,
@@ -60,9 +62,9 @@ class CompileInvocation(SceneToolInvocation):
                 error=f"compile raised {type(e).__name__}: {e}",
                 build={"status": "error", "error": str(e)},
             )
-        if glb is None:
+        if glb is None or not Path(glb).is_file():
             return ToolResult(
-                error="compile failed — Room.py did not assemble (see build errors).",
+                error="compile failed — Room.py did not produce Room.glb (see build errors).",
                 build={"status": "error", "glb_path": None},
             )
         _write_compile_stamp(room_dir)
