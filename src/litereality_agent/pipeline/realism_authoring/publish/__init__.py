@@ -39,6 +39,18 @@ def run(context: RunContext, options: dict) -> StageResult:
     glb = context.preview_dir / "Room.glb"
     if rc or not glb.is_file():
         return StageResult("publish", StageStatus.FAILED, error=f"final compile failed; see {log}")
+    # Flatten node-graph SHELL materials into the glb. `build_from_room` only EXPORTS; the bake is
+    # the step `compile_room` adds on top, and the agent's own compile/render tool goes through
+    # `compile_room` — so every render the author sees is baked. Publishing without it silently
+    # shipped a different room: a procedural wall/floor/ceiling material (`two_tone_mat`,
+    # `carpet_mat`, `ceiling_tile_mat`) has no glTF representation, so it exports with neither a
+    # texture nor a baseColorFactor and renders WHITE. Flat-RGB and fetched-image materials
+    # survive either way, which is why this stayed invisible until a room used procedural ones.
+    from litereality_agent.room_format import api
+
+    bake_rc = api.bake_room(context.preview_dir / "Room.blend", glb)
+    if bake_rc:
+        warnings.append(f"material bake exited {bake_rc}; see {glb.parent / 'bake.log'}")
     viewer = context.authoring_root / f"{context.scan}.html"
     args: list[object] = [
         glb, viewer, context.scan, f"--room={context.authored_room}", f"--scan={context.scan}"
