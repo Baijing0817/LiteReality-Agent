@@ -23,9 +23,9 @@ import sys
 
 from litereality_agent import REPO_ROOT
 
-# `select_views` now sits beside this file. `image_selection/select_references.py` still spawns it by
-# path to build the reference sheets init consumes; both live under `agent/tools` now, so that is an
-# intra-package reference. A real import replaces the `sys.path` insert this used to need.
+# `select_views` sits beside this file and is now reached by a real import rather than the
+# `sys.path` insert it needed when the two lived apart. Only `quality()` is used from it — the
+# scorer both the whole-room cover and this per-target ranking share, so the two agree.
 from litereality_agent.agent.tools.select_views.source import select_views as SV
 
 

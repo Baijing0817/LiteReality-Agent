@@ -21,9 +21,13 @@ def provider() -> str:
 def classify_image(*args, **kwargs):
     p = provider()
     if p == "openai":
-        from litereality_agent.models.llm.openai import classify
+        from litereality_agent.pipeline.scene_init.reconstruct.classify import (
+            classify_openai as classify,
+        )
 
         return classify.classify_image(*args, **kwargs)
-    from litereality_agent.models.llm.claude import classify
+    from litereality_agent.pipeline.scene_init.reconstruct.classify import (
+        classify_claude as classify,
+    )
 
     return classify.classify_image(*args, **kwargs)
