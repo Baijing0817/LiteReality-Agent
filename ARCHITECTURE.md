@@ -21,7 +21,7 @@ src/litereality_agent/
 │   └── realism_authoring/
 │       ├── author/      evidence and optional realism passes
 │       └── publish/     final compilation and viewer
-├── agent/               agent runners, tools, traces, and procedural object generation
+├── agent/               agent runners, tools (each owning its source), traces, and narration
 │   └── providers/       which coding agent drives a session (`claude/` and `codex/`)
 ├── room_format/         Room.py manifest, compilation, rendering, export, and validation
 ├── models/              canonical inference and model-specific service adapters

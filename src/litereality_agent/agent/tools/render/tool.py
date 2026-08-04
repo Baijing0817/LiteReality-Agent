@@ -39,7 +39,7 @@ def _sync_stale_objects(room_dir) -> list[str]:
     if not proc.is_dir():
         return []
     try:
-        from litereality_agent.room_format.rendering.engine.compose import (
+        from litereality_agent.agent.tools.render.source.compose import (
             _config_for,
             _scan_from_room,
         )
@@ -120,7 +120,7 @@ async def render_target(scene_path, target: str, frames: list[int] | None, n: in
         selection = res.output["frames"]
         frames = [r["frame"] for r in selection]
 
-    from litereality_agent.room_format.rendering import engine as irt  # lazy: Blender
+    from litereality_agent.agent.tools.render import source as irt  # lazy: Blender
 
     room = str(room_dir)
     if target.lower() == "room" or target in ("Floor0", "Ceiling0"):
@@ -147,7 +147,7 @@ async def render_target(scene_path, target: str, frames: list[int] | None, n: in
             # No ortho render for this surface yet (e.g. Ceiling0 before its mesh is created —
             # RoomPlan has no ceiling) → attach the raw REAL stitch so the reference is never missing.
             try:
-                from litereality_agent.room_format.rendering.engine.compose import (
+                from litereality_agent.agent.tools.render.source.compose import (
                     _config_for,
                     _scan_from_room,
                 )

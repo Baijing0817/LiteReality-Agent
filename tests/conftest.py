@@ -118,6 +118,70 @@ def _isolate_data_roots(tmp_path_factory, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("LR_SCENE", raising=False)
 
 
+@dataclass(frozen=True)
+class ExampleScan:
+    """A real capture plus the seed room built from it — what a `-m scan` tool test binds to."""
+
+    name: str
+    capture: Path  # <scans>/<name>/  — frame_*.jpg, frame_*.json, roomplan/room.usdz
+    room: Path  # run/<name>/scene_init/scene_stage/room_init/room  — the seed Room.py
+
+    @property
+    def frames(self) -> list[Path]:
+        return sorted(self.capture.glob("frame_*.jpg"))
+
+
+def _scan_roots() -> list[Path]:
+    """Where a capture may live, in the order we prefer.
+
+    `$LR_SCANS_DIR` is resolved through settings rather than `os.environ` on purpose: pytest does
+    not load `.env`, so a raw env read finds nothing and every scan test skips while looking like
+    it ran. That is exactly how the previous scan test died unnoticed.
+    """
+    from litereality_agent.settings import load_settings
+
+    repo = Path(__file__).resolve().parents[1]
+    roots = [load_settings().resolved_scans_dir(), repo / "example-scans", repo / "scans_uploaded"]
+    seen, out = set(), []
+    for root in roots:
+        if root not in seen:
+            seen.add(root)
+            out.append(root)
+    return out
+
+
+def _looks_like_capture(path: Path) -> bool:
+    return (path / "roomplan" / "room.usdz").is_file() and bool(next(path.glob("frame_*.jpg"), None))
+
+
+@pytest.fixture(scope="session")
+def example_scan() -> ExampleScan:
+    """The first real capture that also has a seed room built, else skip with how to get one.
+
+    Opt in with `-m scan`. Point `$LR_SCANS_DIR` at your captures, or clone the published
+    examples:  git clone https://github.com/LiteReality/example-scans
+    """
+    repo = Path(__file__).resolve().parents[1]
+    output = Path(os.environ.get("LITEREALITY_SCAN_OUTPUT") or repo / "run")
+    tried = []
+    for root in _scan_roots():
+        if not root.is_dir():
+            continue
+        for capture in sorted(p for p in root.iterdir() if p.is_dir()):
+            if not _looks_like_capture(capture):
+                continue
+            room = output / capture.name / "scene_init" / "scene_stage" / "room_init" / "room"
+            if (room / "Room.py").is_file():
+                return ExampleScan(name=capture.name, capture=capture, room=room)
+            tried.append(f"{capture.name} (capture ok, no seed room at {room})")
+    pytest.skip(
+        "no example scan with a seed room. Clone "
+        "https://github.com/LiteReality/example-scans and run `litereality run <scan> "
+        "--through seed`, or point $LR_SCANS_DIR at your captures."
+        + (f" Tried: {'; '.join(tried[:3])}" if tried else "")
+    )
+
+
 @pytest.fixture(autouse=True)
 def _isolate_scan_env(monkeypatch: pytest.MonkeyPatch):
     """`$LITEREALITY_SCAN` is ambient input AND output here — `compose._config_for` writes it as a

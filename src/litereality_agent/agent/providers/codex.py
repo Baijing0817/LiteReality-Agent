@@ -14,7 +14,7 @@ that one fact:
                          Read/Edit/Write/Glob only cannot be restricted the same way here.
   • no cost              `codex exec` does not report spend; `SessionResult.total_cost_usd` is None.
   • no skills            there is no skill system; callers inject the playbook as prompt text
-                         (see `object_generation/generate.py:_skill_instructions`).
+                         (see `models/object_generation/generate.py:_skill_instructions`).
 
 EVENT MAPPING IS VERSION-SENSITIVE. `codex exec --json` has shipped two families of event shape:
 a nested `{"msg": {"type": ...}}` form and a flatter `{"type": "item.completed", "item": {...}}`
@@ -355,7 +355,7 @@ class CodexHarness:
 
 def _effort() -> str:
     # Higher reasoning effort is noticeably better on geometry/material work — see the note in
-    # object_generation/generate.py where this default came from.
+    # models/object_generation/generate.py where this default came from.
     return os.environ.get("LR_CODEX_EFFORT", "high")
 
 

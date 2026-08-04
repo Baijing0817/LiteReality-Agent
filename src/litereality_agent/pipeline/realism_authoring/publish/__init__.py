@@ -17,7 +17,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     warnings: list[str] = []
     collision_rc, collision_log = run_module(
         context,
-        "litereality_agent.room_format.validation.correct",
+        "litereality_agent.pipeline.room_qc.correct",
         ["--room", context.authored_room, "--apply"],
         log_name="publish_collision",
     )
@@ -25,7 +25,7 @@ def run(context: RunContext, options: dict) -> StageResult:
         warnings.append(f"collision correction exited {collision_rc}; see {collision_log}")
     quality_rc, quality_log = run_module(
         context,
-        "litereality_agent.room_format.validation.room",
+        "litereality_agent.pipeline.room_qc.checks",
         ["--room", context.authored_room],
         log_name="publish_quality",
     )
@@ -39,6 +39,18 @@ def run(context: RunContext, options: dict) -> StageResult:
     glb = context.preview_dir / "Room.glb"
     if rc or not glb.is_file():
         return StageResult("publish", StageStatus.FAILED, error=f"final compile failed; see {log}")
+    # Flatten node-graph SHELL materials into the glb. `build_from_room` only EXPORTS; the bake is
+    # the step `compile_room` adds on top, and the agent's own compile/render tool goes through
+    # `compile_room` — so every render the author sees is baked. Publishing without it silently
+    # shipped a different room: a procedural wall/floor/ceiling material (`two_tone_mat`,
+    # `carpet_mat`, `ceiling_tile_mat`) has no glTF representation, so it exports with neither a
+    # texture nor a baseColorFactor and renders WHITE. Flat-RGB and fetched-image materials
+    # survive either way, which is why this stayed invisible until a room used procedural ones.
+    from litereality_agent.room_format import api
+
+    bake_rc = api.bake_room(context.preview_dir / "Room.blend", glb)
+    if bake_rc:
+        warnings.append(f"material bake exited {bake_rc}; see {glb.parent / 'bake.log'}")
     viewer = context.authoring_root / f"{context.scan}.html"
     args: list[object] = [
         glb, viewer, context.scan, f"--room={context.authored_room}", f"--scan={context.scan}"

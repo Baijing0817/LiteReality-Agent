@@ -30,7 +30,7 @@ from litereality_agent import PACKAGE_ROOT, REPO_ROOT, telemetry
 from litereality_agent.pipeline.scene_init import paths as config
 
 LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "inference.py"
-PROC_MODULE = "litereality_agent.agent.object_generation.generate"
+PROC_MODULE = "litereality_agent.models.object_generation.generate"
 
 
 def resolve_python(explicit: str | None) -> str:

@@ -380,6 +380,34 @@ class AgentTrace:
         self._write("session_end", calls=calls, seconds=round(time.time() - self.t0, 1),
                     cost_usd=cost_usd, counts=dict(self.counts), summary=(summary or "")[:3000])
         self.close()
+        self.render_report()
+
+    def render_report(self) -> Path | None:
+        """Rebuild the run's HTML report — the readable form of everything recorded above.
+
+        Rendered HERE, at the end of every pass, rather than only at publish: the report is most
+        wanted for a run that DIED, and a run that dies never reaches publish. Each pass rewrites
+        it, and the report merges every pass's jsonl, so it grows as the run proceeds.
+
+        `LR_TRACE_HTML=0` disables it. Never raises — the same rule as the rest of this file: a
+        trace must not take down the run it is describing.
+        """
+        if (os.environ.get("LR_TRACE_HTML", "1") or "1").strip().lower() in ("0", "false", "no"):
+            return None
+        try:
+            from litereality_agent.agent import trace_report
+
+            # <scene>/scene_init/obj_stage/traces/<file> -> <scene>. Verified by structure rather
+            # than by counting: a traces dir somewhere else must not write a report into a
+            # directory that merely sits four levels up.
+            scene = self.path.parents[3]
+            if not (scene / "scene_init").is_dir():
+                return None
+            out = scene / f"{scene.name}_trace_report.html"
+            trace_report.build(scene, out)
+            return out
+        except Exception:  # noqa: BLE001 — a report is a convenience, never a failure mode
+            return None
 
     def close(self) -> None:
         """Release the handles. Safe to call twice; a trace must never raise into a run."""
