@@ -17,7 +17,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     warnings: list[str] = []
     collision_rc, collision_log = run_module(
         context,
-        "litereality_agent.room_format.validation.correct",
+        "litereality_agent.pipeline.qc.correct",
         ["--room", context.authored_room, "--apply"],
         log_name="publish_collision",
     )
@@ -25,7 +25,7 @@ def run(context: RunContext, options: dict) -> StageResult:
         warnings.append(f"collision correction exited {collision_rc}; see {collision_log}")
     quality_rc, quality_log = run_module(
         context,
-        "litereality_agent.room_format.validation.room",
+        "litereality_agent.pipeline.qc.checks",
         ["--room", context.authored_room],
         log_name="publish_quality",
     )

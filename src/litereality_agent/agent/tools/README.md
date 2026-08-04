@@ -22,8 +22,7 @@ per-tool copy is a bug waiting to happen:
 | [`../overlay.py`](../overlay.py) | wall-plane projection — both `compose` and `select_views` |
 
 Some tools still wrap `room_format` rather than absorbing it, deliberately: `compile` →
-`room_format.compile_room` (the format's own compiler), `check_collisions` →
-`room_format.validation` (the validators `publish` also runs), `fetch_material` →
+`room_format.compile_room` (the format's own compiler), `fetch_material` →
 `compile/fetch_textures` (`textures.json` is part of the Room format contract). `select_views.py`
 also stays in `room_format`, because `image_selection/select_references.py` spawns it by path and
 moving it would point `room_format` at `agent`.

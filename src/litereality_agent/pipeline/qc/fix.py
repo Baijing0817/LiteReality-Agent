@@ -1,7 +1,7 @@
-"""qc_fix.py — DETERMINISTIC collision resolution for a built room. No model.
+"""fix.py — DETERMINISTIC collision resolution for a built room. No model.
 
-`qc_room.py` reports interpenetrating furniture; this nudges it apart. Both use the same SAT
-collision math (`qc_room._obb_mtv_2d`) and the same allow-list (`qc_room.EXPECTED_CONTAINMENT`),
+`checks.py` reports interpenetrating furniture; this nudges it apart. Both use the same SAT
+collision math (`geometry._obb_mtv_2d`) and the same allow-list (`geometry.EXPECTED_CONTAINMENT`),
 so the fixer can never "resolve" something the linter considers correct — pushing an undermount
 sink out of its counter would be a regression, not a fix.
 
@@ -18,8 +18,8 @@ and any object failing validation is reverted and reported as unresolved rather 
 worse than it started. Writes back only the `center` arrays it changed, so the Room.py diff is
 reviewable line-by-line.
 
-    .venv/bin/python authoring/qc_fix.py --room <room dir>            # dry run, prints the plan
-    .venv/bin/python authoring/qc_fix.py --room <room dir> --apply    # edit Room.py in place
+    python -m litereality_agent.pipeline.qc.fix --room <room dir>            # dry run, prints the plan
+    python -m litereality_agent.pipeline.qc.fix --room <room dir> --apply    # edit Room.py in place
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ import math
 import re
 from pathlib import Path
 
-from litereality_agent.room_format.validation.room import (
+from litereality_agent.agent.tools.check_collisions.source.geometry import (
     FURNITURE,
     OBJ_PEN,
     _expected,
