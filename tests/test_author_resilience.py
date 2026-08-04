@@ -11,6 +11,7 @@ builds `Room.py`, so it must be valid Python. That is what these pin.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,52 @@ def test_the_checkpoint_lives_outside_the_room(room: Path):
     assert ckpt.is_file()
     assert ckpt.parent != room
     assert not list(room.glob("*checkpoint*"))
+
+
+class _ResultHarness:
+    name = "test"
+    supports = frozenset()
+
+    def __init__(self, result):
+        self.result = result
+
+    def effective_model(self, spec):
+        return spec.model or "test"
+
+    async def run(self, _spec):
+        yield self.result
+
+
+def _run_with_result(room, tmp_path, monkeypatch, result):
+    from litereality_agent.agent import author, providers
+
+    refs = tmp_path / "refs"
+    scan = tmp_path / "scan"
+    refs.mkdir(exist_ok=True)
+    scan.mkdir(exist_ok=True)
+    monkeypatch.setattr(author, "surfaces_for", lambda _room: [])
+    monkeypatch.setattr(providers, "resolve", lambda *_args: _ResultHarness(result))
+    monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
+    monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
+    return asyncio.run(author.run(room, refs, scan, "test", 1))
+
+
+def test_terminal_provider_error_fails_authoring(room, tmp_path, monkeypatch):
+    from litereality_agent.agent.providers import SessionResult
+
+    before = (room / "Room.py").read_text(encoding="utf-8")
+    result = SessionResult(result="authentication failed", is_error=True)
+
+    assert _run_with_result(room, tmp_path, monkeypatch, result) == 1
+    assert (room / "Room.py").read_text(encoding="utf-8") == before
+
+
+def test_deliberate_provider_stop_keeps_partial_success(room, tmp_path, monkeypatch):
+    from litereality_agent.agent.providers import SessionResult
+
+    result = SessionResult(result="budget reached", stopped="step budget")
+
+    assert _run_with_result(room, tmp_path, monkeypatch, result) == 0
 
 
 def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):

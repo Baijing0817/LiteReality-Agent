@@ -293,6 +293,7 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
           flush=True)
     t0 = time.monotonic()
     result_text, cost = "", None
+    terminal_error = ""
     # Names and inputs live on ToolUseBlock only; the narrator holds the id→call map so a
     # ToolResultBlock can be attributed back. See tool_narration.py for what reading them off the
     # result block cost us.
@@ -350,6 +351,8 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
             result_text = m.result or ""
             cost = m.total_cost_usd
             stopped = m.stopped
+            if m.is_error:
+                terminal_error = result_text or "provider reported a terminal error"
     except BaseException as exc:  # noqa: BLE001 — including the SDK's turn-cap Exception
         # Running out of turns is not a failed run. `Room.py` is edited IN PLACE, so by this
         # point the session's work is already on disk; raising here threw it away, because
@@ -421,4 +424,6 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     if broken:
         print(f"  ✗ Room.py does not compile and no checkpoint could be restored: {broken}",
               flush=True)
-    return 1 if broken else 0
+    if terminal_error:
+        print(f"  ✗ authoring provider failed: {terminal_error}", flush=True)
+    return 1 if broken or terminal_error else 0
