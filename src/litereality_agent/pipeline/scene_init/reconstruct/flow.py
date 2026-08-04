@@ -378,8 +378,14 @@ def run_for_scan(
 
     proc = _run(cmd, cwd=str(REPO_ROOT))
     generated = sorted(p.name for p in recon_dir.glob("*.glb"))
-    plan["status"] = "ok" if proc.returncode == 0 else f"launcher_exit_{proc.returncode}"
+    failed = sorted(aid for aid, _ in refs if not (recon_dir / f"{aid}.glb").is_file())
+    if proc.returncode:
+        plan["status"] = f"launcher_exit_{proc.returncode}"
+    else:
+        plan["status"] = "failed" if failed else "ok"
     plan["generated"] = len(generated)
     plan["glb"] = generated
+    if failed:
+        plan["failed_assets"] = failed
     telemetry.event("reconstruct_done", scan=scan, status=plan["status"], generated=len(generated))
     return plan
