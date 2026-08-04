@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,6 +54,20 @@ class LiteRealitySettings(BaseSettings):
         default=None, validation_alias="LITEREALITY_PROCEDURAL_PYTHON"
     )
 
+    # WHICH coding agent drives the file-editing sessions. Independent of the model knobs below:
+    # the harness is the agent loop, the model is the brain inside it. Per-role overrides default
+    # to `agent_provider` in `resolve_dependent_defaults`.
+    agent_provider: str = Field(default="claude", validation_alias="LR_AGENT_PROVIDER")
+    author_provider: str | None = Field(default=None, validation_alias="LR_AUTHOR_PROVIDER")
+    materials_provider: str | None = Field(default=None, validation_alias="LR_MATERIALS_PROVIDER")
+    quality_provider: str | None = Field(default=None, validation_alias="LR_QUALITY_PROVIDER")
+    refine_provider: str | None = Field(default=None, validation_alias="LR_REFINE_PROVIDER")
+    procedural_provider: str | None = Field(
+        default=None, validation_alias="LR_PROCEDURAL_PROVIDER"
+    )
+    codex_model: str | None = Field(default=None, validation_alias="LR_CODEX_MODEL")
+    codex_effort: str = Field(default="high", validation_alias="LR_CODEX_EFFORT")
+
     harness_model: str = Field(default="claude-opus-5", validation_alias="HARNESS_MODEL")
     critic_model: str | None = Field(default=None, validation_alias="HARNESS_CRITIC_MODEL")
     chair_judge_model: str = Field(
@@ -80,11 +94,42 @@ class LiteRealitySettings(BaseSettings):
         default=None, validation_alias="RUNPOD_DINO_ENDPOINT"
     )
 
+    AGENT_PROVIDERS: ClassVar[tuple[str, ...]] = ("claude", "codex")
+    _PROVIDER_ROLES: ClassVar[tuple[str, ...]] = (
+        "author_provider",
+        "materials_provider",
+        "quality_provider",
+        "refine_provider",
+        "procedural_provider",
+    )
+
     @model_validator(mode="after")
     def resolve_dependent_defaults(self) -> "LiteRealitySettings":
         if not self.critic_model or self.critic_model == "$HARNESS_MODEL":
             self.critic_model = self.harness_model
+        # An unknown harness name must fail HERE, at the composition boundary, rather than deep
+        # inside a paid session: `LR_AGENT_PROVIDER=codexx` would otherwise fall through to the
+        # claude default and silently run the wrong agent.
+        self.agent_provider = self._checked_provider(self.agent_provider) or "claude"
+        for role in self._PROVIDER_ROLES:
+            resolved = self._checked_provider(getattr(self, role)) or self.agent_provider
+            setattr(self, role, resolved)
         return self
+
+    @classmethod
+    def _checked_provider(cls, value: str | None) -> str | None:
+        chosen = str(value or "").strip().lower()
+        # `models.env` is read by python-dotenv, which leaves an unexpanded `${VAR:-$OTHER}`
+        # default as the literal `$other`. Treat that as unset rather than as a bad provider —
+        # `critic_model` has the same shape of workaround above.
+        if not chosen or chosen.startswith("$"):
+            return None
+        if chosen not in cls.AGENT_PROVIDERS:
+            raise ValueError(
+                f"unsupported agent provider {chosen!r} "
+                f"(expected one of {', '.join(cls.AGENT_PROVIDERS)})"
+            )
+        return chosen
 
     @classmethod
     def load(cls, root: Path | None = None, **overrides: Any) -> "LiteRealitySettings":
@@ -115,6 +160,14 @@ class LiteRealitySettings(BaseSettings):
             "LR_DINO_PYTHON": self.dino_python,
             "LITEREALITY_TRELLIS_PYTHON": self.trellis_python,
             "LITEREALITY_PROCEDURAL_PYTHON": self.procedural_python,
+            "LR_AGENT_PROVIDER": self.agent_provider,
+            "LR_AUTHOR_PROVIDER": self.author_provider,
+            "LR_MATERIALS_PROVIDER": self.materials_provider,
+            "LR_QUALITY_PROVIDER": self.quality_provider,
+            "LR_REFINE_PROVIDER": self.refine_provider,
+            "LR_PROCEDURAL_PROVIDER": self.procedural_provider,
+            "LR_CODEX_MODEL": self.codex_model,
+            "LR_CODEX_EFFORT": self.codex_effort,
             "HARNESS_MODEL": self.harness_model,
             "HARNESS_CRITIC_MODEL": self.critic_model,
             "LR_CHAIR_JUDGE_MODEL": self.chair_judge_model,

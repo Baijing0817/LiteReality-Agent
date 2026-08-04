@@ -29,7 +29,6 @@ from pathlib import Path
 from litereality_agent import telemetry  # noqa: E402
 from litereality_agent.agent.author import (  # noqa: E402
     CAPABILITY_TOOLS,
-    build_capability_server,
     surfaces_for,
 )
 
@@ -162,8 +161,9 @@ def _object_lines(refroot: Path, scan: str) -> str:
 
 
 async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: str, max_turns: int,
-              n_target: int = 8):  # n_target kept for CLI compat; the checklist is now per-key
-    from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+              n_target: int = 8,  # n_target kept for CLI compat; the checklist is now per-key
+              provider: str | None = None):
+    from litereality_agent.agent import providers
 
     stitch_lines = "\n".join(
         f"  - {s} (head-on): {(surface_ref / f'{s}_stitched.jpg').resolve()}"
@@ -174,21 +174,20 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
                            object_lines=_object_lines(refroot, scan.name), stitch_lines=stitch_lines,
                            key_lines=key_lines, n_keys=n_keys, n_todo=n_todo)
 
-    server, cap_allowed = build_capability_server(room, CAPABILITY_TOOLS)
     from litereality_agent import REPO_ROOT as repo_root
     dirs = {str(repo_root), str(os.path.realpath(room.parents[2])), str(surface_ref), str(scan),
             str(os.path.realpath(surface_ref)), str(os.path.realpath(refroot))}
-    options = ClaudeAgentOptions(
-        cwd=str(room),
-        add_dirs=sorted(dirs),
-        system_prompt={"type": "preset", "preset": "claude_code"},
-        setting_sources=["project", "user"],
-        allowed_tools=["Read", "Edit", "Write", "Glob"] + cap_allowed,
-        mcp_servers={"cap": server},
-        permission_mode="bypassPermissions",
-        max_turns=max_turns,
+    harness = providers.resolve("materials", provider)
+    spec = providers.SessionSpec(
+        prompt=prompt,
+        cwd=room,
+        read_roots=tuple(Path(d) for d in dirs),
+        capability_tools=CAPABILITY_TOOLS,
         model=model,
+        max_turns=max_turns,
     )
+    print(f"== materials pass ==\n  room={room}\n"
+          f"  {providers.describe(harness, spec)}, max-turns={max_turns}\n", flush=True)
     try:
         telemetry.start(scan.name)
         telemetry.event("materials_pass", scan=scan.name, status="start", n_flat=n_flat)
@@ -204,10 +203,10 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
     tr.start(model=model, room=str(room), scratch=str(scratch_at) if scratch_at else None)
     t0 = time.time()
     summary = ""
-    async for msg in query(prompt=prompt, options=options):
-        tr.raw(msg)
-        if isinstance(msg, ResultMessage):
-            summary = (getattr(msg, "result", "") or "")[:2000]
+    async for msg in harness.run(spec):
+        tr.raw(getattr(msg, "raw", None) if getattr(msg, "raw", None) is not None else msg)
+        if isinstance(msg, providers.SessionResult):
+            summary = (msg.result or "")[:2000]
         for blk in getattr(msg, "content", []) or []:
             kind = type(blk).__name__
             if kind == "ToolUseBlock":
@@ -249,9 +248,11 @@ def main():
     ap.add_argument("--max-turns", type=int, default=int(os.environ.get("MATERIALS_TURNS", "80")))
     ap.add_argument("--targets", type=int, default=int(os.environ.get("MATERIALS_TARGETS", "8")),
                     help="how many of the most visible surfaces to aim for (default 8)")
+    ap.add_argument("--provider", default=None, choices=["claude", "codex"],
+                    help="agent harness (default: $LR_MATERIALS_PROVIDER, else $LR_AGENT_PROVIDER)")
     a = stage_args.bind(ap.parse_args(), need=("room", "surface_ref", "scan", "refroot"))
     return asyncio.run(run(Path(a.room), Path(a.surface_ref), Path(a.scan), Path(a.refroot),
-                           a.model, a.max_turns, a.targets))
+                           a.model, a.max_turns, a.targets, provider=a.provider))
 
 
 if __name__ == "__main__":

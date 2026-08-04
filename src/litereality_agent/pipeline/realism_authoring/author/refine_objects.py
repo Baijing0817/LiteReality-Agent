@@ -278,8 +278,22 @@ def build_server(obj_dir: Path, targets: list, blender: str, tag: str, counter: 
     return server, ["mcp__obj__render_object"]
 
 
-async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: str, model: str, max_turns: int, counter: dict):
-    from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: str, model: str,
+                     max_turns: int, counter: dict, provider: str | None = None):
+    from litereality_agent.agent import providers
+
+    # `render_object` is built HERE, per object, closing over this session's targets and round
+    # counter — it is not a registry tool, so there is nothing for the stdio MCP bridge to serve.
+    # Without it the model cannot see its own build, and the whole prompt (N render rounds) is
+    # meaningless. Fail loudly rather than run a paid session that was silently lobotomised.
+    harness = providers.resolve("refine", provider)
+    if "inproc_tools" not in harness.supports:
+        raise RuntimeError(
+            f"object refinement needs an in-process tool host; the {harness.name} harness has none. "
+            f"Its `render_object` tool is per-session, not a registry tool, so it cannot be bridged "
+            f"over stdio MCP yet. Set LR_REFINE_PROVIDER=claude (other roles can stay on "
+            f"{harness.name}), or skip the refine pass."
+        )
     obj_dir = room / "Objects" / "Procedural" / name
     if not (obj_dir / "object.py").is_file():
         return name, {"error": "no object.py"}
@@ -318,13 +332,15 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
                            targets="\n".join(f"  - {os.path.abspath(p)}" for p in targets))
     dirs = sorted({str(REPO_ROOT), str(os.path.realpath(obj_dir)),
                    str(RESULTS.resolve())} | {str(os.path.realpath(p.parent)) for p in targets})
-    options = ClaudeAgentOptions(
-        cwd=str(obj_dir), add_dirs=dirs,
-        system_prompt={"type": "preset", "preset": "claude_code"},
-        setting_sources=["project", "user"],
-        allowed_tools=["Read", "Edit", "Write", "Glob"] + allowed,
-        mcp_servers={"obj": server}, permission_mode="bypassPermissions",
-        max_turns=max_turns, max_budget_usd=_BUDGET, model=model,  # budget guardrail
+    spec = providers.SessionSpec(
+        prompt=prompt,
+        cwd=obj_dir,
+        read_roots=tuple(Path(d) for d in dirs),
+        model=model,
+        max_turns=max_turns,
+        budget_usd=_BUDGET,  # budget guardrail
+        extra_mcp={"obj": server},
+        extra_allowed=tuple(allowed),
     )
     t0 = time.monotonic()
     calls = 0
@@ -337,7 +353,7 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
     for attempt in range(1, _RETRIES + 1):
         try:
             async with _SEM:
-                async for m in query(prompt=prompt, options=options):
+                async for m in harness.run(spec):
                     for block in getattr(m, "content", []) or []:
                         if type(block).__name__ == "ToolUseBlock":
                             calls += 1
@@ -346,9 +362,9 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
                             # Objects refine concurrently, so the line leads with WHICH object.
                             hint = hint_for(nm, getattr(block, "input", {}) or {}, 34)
                             print(f"  [{name}] {nm:<14} {hint}".rstrip(), flush=True)
-                    if isinstance(m, ResultMessage):
+                    if isinstance(m, providers.SessionResult):
                         summary = m.result or ""
-                        cost = getattr(m, "total_cost_usd", None)
+                        cost = m.total_cost_usd
             last_err = None
             break  # session completed
         except BaseException as e:  # noqa: BLE001 — catch even SDK teardown errors; must not kill the scene

@@ -32,8 +32,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from litereality_agent.models.llm.openai import image as image_model
 from litereality_agent.pipeline.scene_init import paths as config
+from litereality_agent.pipeline.scene_init.ingest.references import image_gen as image_model
 
 from ..detect import detector
 

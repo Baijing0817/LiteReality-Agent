@@ -285,12 +285,36 @@ def main() -> int:
 
     if "agent_cli" in wanted:
         print("── agent CLI (drives every authoring session) ──")
-        if shutil.which("claude"):
-            ok("claude CLI on PATH (authoring · materials · refine · qc)")
-        else:
-            fail("claude CLI not on PATH — every authoring session needs it.",
-                 cmd=("npm install -g @anthropic-ai/claude-code",
-                      "then re-open the shell so PATH updates"))
+        # Which CLI is REQUIRED depends on the configured harness per role, so check the ones
+        # actually selected. Checking `claude` unconditionally told a codex user their setup was
+        # broken, and said nothing about the CLI their run would really need.
+        roles = {"author": "authoring", "materials": "materials", "quality": "qc",
+                 "refine": "refine", "procedural": "procedural objects"}
+        binaries = {"claude": ("claude", "npm install -g @anthropic-ai/claude-code"),
+                    "codex": ("codex", "npm install -g @openai/codex")}
+
+        def harness_for(role: str) -> str:
+            return (os.environ.get(f"LR_{role.upper()}_PROVIDER")
+                    or os.environ.get("LR_AGENT_PROVIDER") or "claude").strip().lower()
+
+        picked = {role: harness_for(role) for role in roles}
+        for name in sorted(set(picked.values())):
+            using = [roles[r] for r, n in picked.items() if n == name]
+            binary, install = binaries.get(name, (name, f"install the {name} CLI"))
+            if shutil.which(binary):
+                ok(f"{binary} CLI on PATH ({' · '.join(using)})")
+            else:
+                fail(f"{binary} CLI not on PATH — it is the configured harness for "
+                     f"{', '.join(using)}.",
+                     cmd=(install, "then re-open the shell so PATH updates"))
+        if "codex" in picked.values():
+            warn("codex harness selected: no step-budget wind-down, no tool allowlist "
+                 "(shell always available), no cost reporting.",
+                 env=("LR_AGENT_PROVIDER", "claude", "set this to get the full-capability harness"))
+        if picked["refine"] == "codex":
+            fail("refine is set to codex, but its per-object `render_object` tool cannot be "
+                 "bridged over stdio MCP — the pass aborts rather than run without it.",
+                 env=("LR_REFINE_PROVIDER", "claude", "other roles can stay on codex"))
 
     if "providers" in wanted:
         print("── hosted models (OpenAI images · Claude reasoning) ──")

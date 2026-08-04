@@ -42,6 +42,12 @@ def main() -> None:
         help="steps reserved for final edits after self-check tools switch off",
     )
     parser.add_argument("--profile", default="base", choices=list(PROFILES))
+    parser.add_argument(
+        "--provider",
+        default=None,
+        choices=["claude", "codex"],
+        help="agent harness (default: $LR_AUTHOR_PROVIDER, else $LR_AGENT_PROVIDER, else claude)",
+    )
     args = stage_args.bind(parser.parse_args(), need=("room", "surface_ref", "scan"))
 
     try:
@@ -55,6 +61,7 @@ def main() -> None:
                 args.profile,
                 step_budget=args.step_budget,
                 step_reserve=args.step_reserve,
+                provider=args.provider,
             )
         )
         raise SystemExit(rc or 0)

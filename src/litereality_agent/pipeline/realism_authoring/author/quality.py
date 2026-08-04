@@ -31,7 +31,6 @@ from litereality_agent import telemetry  # noqa: E402
 # reuse the authoring capability server (fetch_material / render / critic / select_views), scene-bound
 from litereality_agent.agent.author import (  # noqa: E402
     CAPABILITY_TOOLS,
-    build_capability_server,
     surfaces_for,
 )
 
@@ -182,8 +181,8 @@ def _object_lines(refroot: Path, scan: str) -> tuple[str, int]:
 
 
 async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: str, max_turns: int,
-              extra: str = ""):
-    from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+              extra: str = "", provider: str | None = None):
+    from litereality_agent.agent import providers
 
     surfaces = surfaces_for(room)
     stitches = [surface_ref / f"{s}_stitched.jpg" for s in surfaces]
@@ -207,26 +206,24 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
             + prompt
         )
 
-    server, cap_allowed = build_capability_server(room, CAPABILITY_TOOLS)
     from litereality_agent import REPO_ROOT as repo_root
     dirs = {str(repo_root), str(os.path.realpath(room.parents[2])), str(surface_ref), str(scan),
             str(os.path.realpath(surface_ref)), str(os.path.realpath(refroot))}
-    options = ClaudeAgentOptions(
-        cwd=str(room),
-        add_dirs=sorted(dirs),
-        system_prompt={"type": "preset", "preset": "claude_code"},
-        setting_sources=["project", "user"],
-        allowed_tools=["Read", "Edit", "Write", "Glob"] + cap_allowed,
-        mcp_servers={"cap": server},
-        permission_mode="bypassPermissions",
-        max_turns=max_turns,
+    harness = providers.resolve("quality", provider)
+    spec = providers.SessionSpec(
+        prompt=prompt,
+        cwd=room,
+        read_roots=tuple(Path(d) for d in dirs),
+        capability_tools=CAPABILITY_TOOLS,
         model=model,
+        max_turns=max_turns,
     )
 
     n_stitch = sum(1 for p in stitches if p.is_file())
-    print(f"== QC pass ==\n  model={model} room={room}\n"
+    print(f"== QC pass ==\n  room={room}\n"
           f"  tools=Read,Edit,Write,Glob + {list(CAPABILITY_TOOLS)}\n"
-          f"  stitches={n_stitch} · object refs={n_obj}\n", flush=True)
+          f"  stitches={n_stitch} · object refs={n_obj}\n"
+          f"  {providers.describe(harness, spec)}\n", flush=True)
     try:
         telemetry.start(scan.name)
         telemetry.event(
@@ -249,8 +246,8 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
     tr = AgentTrace("qc", room=room, scan=scan.name)
     tr.start(model=model, room=str(room),
              scratch=str(scratch_at) if scratch_at else None)
-    async for m in query(prompt=prompt, options=options):
-        tr.raw(m)
+    async for m in harness.run(spec):
+        tr.raw(getattr(m, "raw", None) if getattr(m, "raw", None) is not None else m)
         for block in getattr(m, "content", []) or []:
             b = type(block).__name__
             if b == "TextBlock" and getattr(block, "text", "").strip():
@@ -278,9 +275,9 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
                 failed = nar.error_line(name, block)
                 if failed:
                     print(failed, flush=True)
-        if isinstance(m, ResultMessage):
+        if isinstance(m, providers.SessionResult):
             result_text = m.result or ""
-            cost = getattr(m, "total_cost_usd", None)
+            cost = m.total_cost_usd
     dt = round(time.monotonic() - t0, 1)
     calls, counts = nar.calls, nar.counts
     try:
@@ -312,12 +309,14 @@ def main():
     ap.add_argument("--max-turns", type=int, default=160)
     ap.add_argument("--extra", default="", help="mandatory user-directed fixes prepended to the prompt")
     ap.add_argument("--extra-file", default="", help="read the --extra text from a file")
+    ap.add_argument("--provider", default=None, choices=["claude", "codex"],
+                    help="agent harness (default: $LR_QUALITY_PROVIDER, else $LR_AGENT_PROVIDER)")
     a = stage_args.bind(ap.parse_args(), need=("room", "surface_ref", "scan", "refroot"))
     extra = a.extra
     if a.extra_file:
         extra = Path(a.extra_file).read_text()
     asyncio.run(run(Path(a.room), Path(a.surface_ref), Path(a.scan), Path(a.refroot),
-                    a.model, a.max_turns, extra))
+                    a.model, a.max_turns, extra, provider=a.provider))
 
 
 if __name__ == "__main__":

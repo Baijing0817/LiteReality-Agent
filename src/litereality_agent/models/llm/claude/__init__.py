@@ -1,1 +1,0 @@
-"""Claude-backed model operations."""

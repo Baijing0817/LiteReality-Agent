@@ -1,7 +1,7 @@
 """Every module named as a STRING must resolve.
 
 A cross-package call that goes through a subprocess names its target in a string — `-m
-litereality_agent.agent.object_generation.generate` — and a string is invisible to every import
+litereality_agent.models.object_generation.generate` — and a string is invisible to every import
 check, every linter and every rename. This has already failed twice in exactly the same way: a
 package moved, the imports were rewritten, and the `-m` strings quietly kept pointing at the old
 name. The symptom is never an ImportError in the parent; it is a stage that "completes" with a
@@ -95,7 +95,7 @@ def test_no_retired_top_level_spelling():
 
 
 @pytest.mark.parametrize("dotted", [
-    "litereality_agent.agent.object_generation.generate",  # subprocess target used by the pipeline
+    "litereality_agent.models.object_generation.generate",  # subprocess target used by the pipeline
     "litereality_agent.room_format.compile.build_from_room",
     "litereality_agent.room_format.manifest",
     "litereality_agent.pipeline.scene_init.flow",
@@ -113,8 +113,8 @@ def test_known_subprocess_targets(dotted: str):
 
 
 def test_executable_helpers_survived_the_layout_move():
+    from litereality_agent.agent.tools.shared import config
     from litereality_agent.pipeline.scene_init.reconstruct import flow
-    from litereality_agent.room_format.rendering import config
 
     paths = (
         flow.LAUNCHER,
@@ -135,24 +135,38 @@ def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
     assert Path(flow.resolve_python(None)) == REPO / ".venv" / "bin" / "python"
 
 
-def test_agent_render_tool_uses_the_moved_room_format_engine():
+def test_agent_render_tool_uses_the_engine_under_its_own_source():
+    """The engine is the render tool's own source now; nothing may point back at room_format."""
     source = (PKG / "agent" / "tools" / "render" / "tool.py").read_text(encoding="utf-8")
-    assert "from litereality_agent.room_format.rendering import engine" in source
-    assert "from litereality_agent.agent.tools.render import engine" not in source
+    assert "litereality_agent.agent.tools.render.source" in source
+    assert "room_format.rendering.engine" not in source
+    assert not (PKG / "room_format" / "rendering" / "engine").exists(), (
+        "an engine reappeared under room_format — the render tool owns exactly one"
+    )
 
 
-def test_blender_render_worker_finds_the_moved_camera_renderer():
-    worker = PKG / "room_format" / "rendering" / "engine" / "_blender_frames.py"
-    camera_renderer = worker.parent.parent / "room_render" / "render_room_cameras.py"
-    assert camera_renderer.is_file()
+def test_blender_render_worker_finds_the_camera_renderer():
+    """The worker runs inside Blender and reaches package code by path, so the path must resolve.
+
+    It used to join `_HERE/../room_render`, which broke silently when the tools' source moved under
+    `agent/`: Blender exits 0 on a raised script, so the failure surfaced far away as a missing
+    render_manifest.json. It anchors on the package directory now.
+    """
+    worker = PKG / "agent" / "tools" / "render" / "source" / "_blender_frames.py"
+    assert worker.is_file()
+    assert (PKG / "room_format" / "rendering" / "room_render" / "render_room_cameras.py").is_file()
+
     source = worker.read_text(encoding="utf-8")
-    assert 'os.path.join(_HERE, "..", "room_render")' in source
+    assert '"room_format", "rendering", "room_render"' in source
+    assert 'os.path.join(_HERE, "..", "room_render")' not in source, (
+        "back to the sibling assumption that the move already broke once"
+    )
 
 
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from litereality_agent.pipeline.scene_init.reconstruct.qc import chair_qc
+    from litereality_agent.pipeline.scene_init.reconstruct.mesh_qc import chair_repair
 
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")
@@ -171,4 +185,4 @@ def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "litereality_agent.models.registry.gen3d_from_settings", lambda configured: Hosted()
     )
-    assert chair_qc._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0
+    assert chair_repair._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0
