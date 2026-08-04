@@ -27,7 +27,7 @@ async def vision(
     """Read every image with the configured hosted Claude model."""
     from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
-    from litereality_agent.agent import config
+    from litereality_agent.agent.tools.shared import config
 
     options = ClaudeAgentOptions(
         cwd=str(config.ROOT),

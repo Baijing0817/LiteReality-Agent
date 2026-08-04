@@ -16,16 +16,13 @@ derived from the wall corners — RoomPlan has no ceiling and a mesh floor).
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "stitch_wall_image"))
-import stitch_wall as SW
-
+from litereality_agent.agent.tools.shared.stitch_wall_image import stitch_wall as SW
 from litereality_agent.fonts import font as _shared_font
 
 NEAR = 0.05

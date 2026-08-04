@@ -36,10 +36,10 @@ SETTINGS = load_settings()
 # the view tools and Blender helpers a subprocess must exec), REPO_ROOT is
 # where the USER's data is (output/, scans_uploaded/, .key, .venv). They coincide in a source
 # checkout, which is exactly why each path below has to say which one it means.
-HARNESS = Path(__file__).resolve().parent
 AGENT_DIR = SETTINGS.repo_root
 ROOT = SETTINGS.repo_root
-SDK = PACKAGE_ROOT / "room_format" / "rendering"
+SDK = PACKAGE_ROOT / "room_format" / "rendering"   # what stayed: room_render
+TOOLS = PACKAGE_ROOT / "agent" / "tools"           # what the tools own
 
 # --- where the scan context comes from -------------------------------------- #
 # Historically this had exactly one source: the caller exported $LITEREALITY_SCAN (plus
@@ -145,14 +145,14 @@ def ensure_dirs() -> None:
 # tools — all inside the SDK now (render + view selection consolidated here)
 RENDER_TOOL = SDK / "room_render" / "render_room_cameras.py"
 ANNOTATE_TOOL = SDK / "room_render" / "annotate_views.py"
-SELECT_TOOL = SDK / "room_render" / "select_views.py"  # moved into the SDK
+SELECT_TOOL = TOOLS / "select_views" / "source" / "select_views.py"
 RANK_TOOL = SDK / "room_render" / "rank_views.py"  # moved into the SDK
 
 # stage 1 — rectified head-on "ortho" reference per surface (the agent's material
 # ground truth). The SDK tool stitches walls; surface_reference.py extends it to the
 # floor + ceiling and adds triage. Outputs land in SURFACE_REF (per-scan scratch,
 # shared across iterations — it is ground truth, not iteration state).
-STITCH_TOOL = SDK / "stitch_wall_image" / "stitch_wall.py"
+STITCH_TOOL = TOOLS / "shared" / "stitch_wall_image" / "stitch_wall.py"
 SURFACE_REF = Path(os.environ.get("LR_SURFACE_REF") or (AUTHORING / "surface_ref"))
 SURFACE_REF_MANIFEST = SURFACE_REF / "surface_ref_manifest.json"
 STITCH_PPM = int(os.environ.get("HARNESS_STITCH_PPM", "160"))  # ortho resolution (px/m)

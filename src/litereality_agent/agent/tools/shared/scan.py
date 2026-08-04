@@ -30,7 +30,7 @@ STAGE_ROOTS = ("run",)
 def config_for(scan: str):
     """Import the harness config with LITEREALITY_SCAN set to `scan` (config reads it at import)."""
     os.environ["LITEREALITY_SCAN"] = scan
-    from litereality_agent.agent import config
+    from litereality_agent.agent.tools.shared import config
 
     config.ensure_dirs()  # the render writes here
 

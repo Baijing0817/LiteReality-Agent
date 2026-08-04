@@ -113,7 +113,7 @@ def test_known_subprocess_targets(dotted: str):
 
 
 def test_executable_helpers_survived_the_layout_move():
-    from litereality_agent.agent import config
+    from litereality_agent.agent.tools.shared import config
     from litereality_agent.pipeline.scene_init.reconstruct import flow
 
     paths = (

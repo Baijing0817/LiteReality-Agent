@@ -10,7 +10,7 @@ stage. The three layers:
   OBJECTS — object_views.py            per furniture: bbox top-4 (object_view_quality);
                                         per opening: projected-box top-4 (opening_references)
 
-  python -m litereality_agent.room_format.rendering.image_selection.select_references <scan> \
+  python -m litereality_agent.agent.tools.shared.image_selection.select_references <scan> \
          [--out DIR] [--stitch ROOM_PIPELINE_DIR] [--room-manifest render_manifest.json]
 
 Notes
@@ -30,7 +30,7 @@ from litereality_agent import REPO_ROOT as ROOT
 
 HERE = Path(__file__).resolve().parent
 # the view picker is CODE (shipped with the package); scans_uploaded/ and .venv are the CHECKOUT
-SELECT_VIEWS = PACKAGE_ROOT / "room_format" / "rendering" / "room_render" / "select_views.py"
+SELECT_VIEWS = PACKAGE_ROOT / "agent" / "tools" / "select_views" / "source" / "select_views.py"
 
 
 def run(scan, out_dir, stitch_dir=None, room_manifest=None, output_root=None):

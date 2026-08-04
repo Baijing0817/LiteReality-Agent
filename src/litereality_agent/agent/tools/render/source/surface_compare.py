@@ -15,11 +15,11 @@ import os
 import subprocess
 from pathlib import Path
 
-from litereality_agent.agent import config
+from litereality_agent.agent.tools.shared import config
 
-# `services/` has not existed since the layout restructure, so this pointed at nothing and
-# `render_ortho.py` below could never be found. The sheets live under room_format.
-_SC_DIR = config.PACKAGE_ROOT / "room_format" / "rendering" / "image_selection" / "surface_compare"
+# This pointed at `services/`, gone since the layout restructure, so `render_ortho.py` could
+# never be found. image_selection is shared tool source now.
+_SC_DIR = config.PACKAGE_ROOT / "agent" / "tools" / "shared" / "image_selection" / "surface_compare"
 
 
 def enabled() -> bool:
@@ -160,7 +160,7 @@ def build(room_dir: Path, out_dir: Path) -> dict:
 
         if str(config.ROOT) not in sys.path:
             sys.path.insert(0, str(config.ROOT))
-        from litereality_agent.room_format.rendering.image_selection.surface_compare import sheet
+        from litereality_agent.agent.tools.shared.image_selection.surface_compare import sheet
 
         sp = out_dir / "surface_compare.jpg"
         sheet.compose(ortho, config.SURFACE_REF, sp, config.SCAN)

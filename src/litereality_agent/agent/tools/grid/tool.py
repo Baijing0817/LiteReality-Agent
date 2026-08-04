@@ -49,7 +49,7 @@ class GridInvocation(BaseToolInvocation):
     async def execute(self) -> ToolResult:
         from PIL import Image, ImageDraw
 
-        from litereality_agent.agent import config
+        from litereality_agent.agent.tools.shared import config
         from litereality_agent.fonts import font as _font
 
         p = self.params

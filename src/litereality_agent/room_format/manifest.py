@@ -20,7 +20,7 @@ Given that folder — and nothing else — stage 2 can rebuild the whole environ
 
     pkg = manifest.require("run/<scan>")  # or None: discovered from $LR_SCENE / cwd
     manifest.apply_env(pkg)                         # exports the $LITEREALITY_* contract
-    ...                                             # litereality_agent.agent.config now resolves
+    ...                                             # litereality_agent.agent.tools.shared.config now resolves
 
 From a shell, `python -m litereality_agent.room_format.manifest env <dir>` prints those exports for
 `eval` — that is how `the CLI --scene <dir>` rebuilds its environment.
@@ -430,7 +430,7 @@ def bootstrap(argv: list[str] | None = None, *, hint: Path | str | None = None) 
     """Resolve a package from `--scene`/`$LR_SCENE`/cwd and apply its env. Never raises.
 
     Call this BEFORE importing anything that reads `$LITEREALITY_*` at import time (chiefly
-    `litereality_agent.agent.config`, which resolves every harness path the moment it is imported).
+    `litereality_agent.agent.tools.shared.config`, which resolves every harness path the moment it is imported).
 
     `--scene` is PEEKED at, not consumed: the entry point's own argparse still declares it, so
     `--help` stays honest and a typo is still an argparse error rather than a silent miss.

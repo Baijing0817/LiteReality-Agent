@@ -10,7 +10,6 @@ Two uses:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 _LOADED = None
@@ -19,10 +18,10 @@ _LOADED = None
 def _modules(config):
     global _LOADED
     if _LOADED is None:
-        sys.path.insert(0, str(config.SDK / "stitch_wall_image"))
-        sys.path.insert(0, str(config.SDK / "image_selection"))
-        import stitch_wall as SW
-        import surface_views as SV
+        # Real imports now that both live under agent/tools/shared — these were `sys.path`
+        # inserts back when they sat outside the package the tools could reach.
+        from litereality_agent.agent.tools.shared.image_selection import surface_views as SV
+        from litereality_agent.agent.tools.shared.stitch_wall_image import stitch_wall as SW
 
         _LOADED = (SW, SV)
     return _LOADED

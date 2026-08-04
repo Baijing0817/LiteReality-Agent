@@ -15,17 +15,20 @@ tool, OpenAI-format schemas), `code_region.py`, `_scene.py`, `_vlm.py` (self-con
 Three primitives are shared rather than owned by one tool, because more than one needs them and a
 per-tool copy is a bug waiting to happen:
 
-| Module | Why it is shared |
+| Module in [`shared/`](shared/) | Why it is shared |
 |---|---|
-| [`../config.py`](../config.py) | harness paths and knobs — four tools plus the pipeline's `evidence.py` |
-| [`../scan.py`](../scan.py) | `scan_from_room` / `config_for`; `tests/test_scan_inference.py` pins that exactly one copy exists |
-| [`../overlay.py`](../overlay.py) | wall-plane projection — both `compose` and `select_views` |
+| `config.py` | harness paths and knobs — four tools plus the pipeline's `evidence.py` |
+| `scan.py` | `scan_from_room` / `config_for`; `tests/test_scan_inference.py` pins that exactly one copy exists |
+| `overlay.py` | wall-plane projection — both `compose` and `select_views` |
+| `image_selection/` | `surface_views` reaches `render` (via `wall_refs`) and `select_views` (via `overlay`) |
+| `stitch_wall_image/` | rectified wall stitches — `overlay`, `wall_refs`, `surface_views`, and the pipeline's `evidence.py` |
 
 Some tools still wrap `room_format` rather than absorbing it, deliberately: `compile` →
 `room_format.compile_room` (the format's own compiler), `fetch_material` →
-`compile/fetch_textures` (`textures.json` is part of the Room format contract). `select_views.py`
-also stays in `room_format`, because `image_selection/select_references.py` spawns it by path and
-moving it would point `room_format` at `agent`.
+`compile/fetch_textures` (`textures.json` is part of the Room format contract).
+
+What is left in `room_format/rendering/` is genuinely room-format work: `room_render/` (capture-pose
+renders, ranking, render-vs-capture) and the object turntables.
 
 ## Capability tools
 

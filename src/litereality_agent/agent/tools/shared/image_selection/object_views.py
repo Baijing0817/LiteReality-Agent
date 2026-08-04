@@ -13,7 +13,7 @@ The scorers are the locked-in methods and live elsewhere (not duplicated here):
   - opening_references:    litereality_agent/pipeline/object_init/opening_references.py
 This module only READS their outputs under run/<scan>/scene_init/obj_stage/object_init/ and presents them.
 
-  python -m litereality_agent.room_format.rendering.image_selection.object_views <scan>   # -> sheet + manifest
+  python -m litereality_agent.agent.tools.shared.image_selection.object_views <scan>   # -> sheet + manifest
 """
 
 from __future__ import annotations

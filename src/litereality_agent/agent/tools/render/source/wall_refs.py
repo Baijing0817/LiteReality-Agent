@@ -14,9 +14,8 @@ This is the wall-selection we built (sharp + boxed + minimal-covering), distinct
 from __future__ import annotations
 
 import json
-import sys
 
-from litereality_agent.agent import config
+from litereality_agent.agent.tools.shared import config
 from litereality_agent.fonts import font as _shared_font
 
 REFS_DIR = config.HARNESS_OUT / "wall_refs"
@@ -25,10 +24,8 @@ SHEET = REFS_DIR / "wall_refs_sheet.jpg"
 
 
 def _load():
-    sys.path.insert(0, str(config.SDK / "stitch_wall_image"))
-    sys.path.insert(0, str(config.SDK / "image_selection"))
-    import stitch_wall as SW
-    import surface_views as SV
+    from litereality_agent.agent.tools.shared.image_selection import surface_views as SV
+    from litereality_agent.agent.tools.shared.stitch_wall_image import stitch_wall as SW
 
     return SV, SW
 

@@ -28,11 +28,11 @@ from litereality_agent.agent.tools.base import (
 
 def _wall_scores(room_dir: Path) -> dict[int, dict[str, float]]:
     """{frame -> {wall_name -> on-screen coverage 0..1}} via wall-plane projection (no Blender)."""
-    from litereality_agent.agent import overlay as _overlay
     from litereality_agent.agent.tools.render.source.compose import (
         _config_for,
         _scan_from_room,
     )
+    from litereality_agent.agent.tools.shared import overlay as _overlay
 
     config = _config_for(_scan_from_room(room_dir))
     planes = _overlay.load_planes(config)

@@ -25,8 +25,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from litereality_agent.agent.scan import config_for as _config_for
-from litereality_agent.agent.scan import scan_from_room as _scan_from_room
+from litereality_agent.agent.tools.shared.scan import config_for as _config_for
+from litereality_agent.agent.tools.shared.scan import scan_from_room as _scan_from_room
 from litereality_agent.fonts import font as _shared_font
 
 _HERE = Path(__file__).resolve().parent
@@ -177,7 +177,7 @@ def render_scene(room_dir, frames, *, scan=None, out_dir=None, height: int = 560
     """SCENE mode: label EVERY visible object (walls, doors, windows, furniture) as a chip, on
     BOTH the render and the real photo. Returns {frame_index: side_by_side_png}."""
     _, config, out_dir, renders, visible = _frame_prep(room_dir, frames, scan, out_dir, "scene")
-    from litereality_agent.agent import overlay as _overlay
+    from litereality_agent.agent.tools.shared import overlay as _overlay
 
     from ._annotate import draw_chips, draw_wall_edges
 
@@ -205,7 +205,7 @@ def render_scene(room_dir, frames, *, scan=None, out_dir=None, height: int = 560
 def render_wall(room_dir, frames, *, scan=None, out_dir=None, height: int = 560) -> dict[int, str]:
     """WALL mode: outline + name every visible wall on BOTH the render and the real photo."""
     _, config, out_dir, renders, visible = _frame_prep(room_dir, frames, scan, out_dir, "wall")
-    from litereality_agent.agent import overlay as _overlay
+    from litereality_agent.agent.tools.shared import overlay as _overlay
 
     from ._annotate import draw_chips, draw_wall_edges
 
@@ -249,7 +249,7 @@ def render_wall_focus(room_dir, frames, wall: str, *, scan=None, out_dir=None, h
     is the wall's projected extent (clamped to the frame). Frames where the wall isn't visible are
     still paired (no box). Returns {frame_index: side_by_side_png}."""
     _, config, out_dir, renders, visible = _frame_prep(room_dir, frames, scan, out_dir, "wall_focus")
-    from litereality_agent.agent import overlay as _overlay
+    from litereality_agent.agent.tools.shared import overlay as _overlay
 
     from ._annotate import WALL_ORANGE, draw_object_box
 
@@ -278,7 +278,7 @@ def render_walls_focus_batch(
     is one pass total — the observe phase's main speedup. Returns {wall: {frame: png}}."""
     all_frames = sorted({f for fs in frames_by_wall.values() for f in fs})
     _, config, out_dir, renders, visible = _frame_prep(room_dir, all_frames, scan, out_dir, "wall_focus")
-    from litereality_agent.agent import overlay as _overlay
+    from litereality_agent.agent.tools.shared import overlay as _overlay
 
     from ._annotate import WALL_ORANGE, draw_object_box
 
@@ -436,7 +436,7 @@ def render_wall_reference(
         )
         if ref_frames:
             _run_blender_frames(room_dir, ",".join(map(str, ref_frames)), config, raw_dir)
-            from litereality_agent.agent import overlay as _overlay
+            from litereality_agent.agent.tools.shared import overlay as _overlay
 
             planes = _overlay.load_planes(config)
 
@@ -497,7 +497,7 @@ def render_wall_reference(
 
 def _wall_focus_render(raw_png: Path, wall: str, fi: int, planes, config, dst_dir: Path) -> Path:
     """Outline + name ONLY `wall` on a copy of a raw frame render (wall-focus)."""
-    from litereality_agent.agent import overlay as _overlay
+    from litereality_agent.agent.tools.shared import overlay as _overlay
 
     from ._annotate import draw_chips, draw_wall_edges
 
