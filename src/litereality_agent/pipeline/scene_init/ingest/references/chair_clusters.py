@@ -34,8 +34,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from litereality_agent.fonts import font as _shared_font
-from litereality_agent.models.llm.openai import image as image_model
 from litereality_agent.pipeline.scene_init import paths as config
+from litereality_agent.pipeline.scene_init.ingest.references import image_gen as image_model
 
 from ..detect import detector  # DINOv2 embeddings (isolated torch tool) for the visual signal
 from . import chair_type_judge  # Opus 4.8 judgment layer — the primary grouping decision

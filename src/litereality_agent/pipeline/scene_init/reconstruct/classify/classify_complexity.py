@@ -26,8 +26,8 @@ import pickle
 import sys
 from pathlib import Path
 
-from litereality_agent.models.llm import classification
 from litereality_agent.pipeline.scene_init import paths as config
+from litereality_agent.pipeline.scene_init.reconstruct.classify import classification
 
 ROUTE_SCHEMA = {
     "type": "object",

@@ -1,1 +1,0 @@
-"""OpenAI-backed model operations."""

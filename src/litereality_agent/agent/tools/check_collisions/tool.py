@@ -92,8 +92,8 @@ class CheckCollisionsInvocation(SceneToolInvocation):
         return "check_collisions: furniture clash + containment report"
 
     async def execute(self) -> ToolResult:
-        # Lazy: qc_room is light, but keep tool import time flat and match the other tools' pattern.
-        from litereality_agent.room_format.validation import room as qc_room
+        # Lazy: geometry is light, but keep tool import time flat and match the other tools' pattern.
+        from .source import geometry as qc_room
 
         try:
             room_dir = room_dir_from(self.scene_path)
@@ -272,7 +272,7 @@ class CheckCollisionsInvocation(SceneToolInvocation):
             ))
         glb = Path(cands[0])
         try:
-            from litereality_agent.room_format.validation import collision_mesh as sc
+            from .source import collision_mesh as sc
             bodies = sc.build_bodies(glb, SHELL)
             clashes = sc.check_all(bodies, SHELL)
             for w in sc.open_clearance(bodies, SHELL):

@@ -40,7 +40,7 @@ from litereality_agent.pipeline.scene_init.ingest.references import (
 )
 from litereality_agent.pipeline.scene_init.reconstruct import flow as reconstruct
 from litereality_agent.pipeline.scene_init.reconstruct.classify import classify_complexity
-from litereality_agent.pipeline.scene_init.reconstruct.qc import chair_qc
+from litereality_agent.pipeline.scene_init.reconstruct.mesh_qc import chair_repair
 
 
 def resolve_scan(value: str, name: str | None) -> tuple[Path, str]:
@@ -364,7 +364,7 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
                 telemetry.stage("reconstruct", scan, "error", error=str(exc))
         if args.chair_qc or full:  # must follow TRELLIS — it repairs what TRELLIS made
             telemetry.stage("chair_qc", scan, "start")
-            qc = chair_qc.repair_scan(
+            qc = chair_repair.repair_scan(
                 scan, max_attempts=args.qc_attempts, include_warn=args.qc_include_warn,
                 python=args.trellis_python, model=args.image_model, seed=args.seed,
                 decimation=args.decimation, dry_run=args.dry_run_reconstruct,
