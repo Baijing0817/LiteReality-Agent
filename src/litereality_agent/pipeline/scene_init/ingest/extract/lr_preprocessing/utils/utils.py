@@ -433,5 +433,5 @@ def extract_rgbd(scan_path, folder):
         np.save(extrinsic_name, pose)
 
         # Copy image and depth files
-        os.system(f"cp {image_path} {image_new_path}")
-        os.system(f"cp {depth_path} {depth_new_path}")
+        shutil.copyfile(image_path, image_new_path)
+        shutil.copyfile(depth_path, depth_new_path)
