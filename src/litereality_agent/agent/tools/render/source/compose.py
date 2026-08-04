@@ -13,19 +13,20 @@ the real capture evidence:
 Each returns a dict of {frame|wall: output_png}. The tool sets ``$LITEREALITY_SCAN`` so the
 harness config resolves the scan's paths (raw frames, surface stitches, wall references).
 
-CLI:  python -m litereality_agent.room_format.rendering.engine <frames|surface> --room <room dir> [...]
-API:  from litereality_agent.room_format.rendering.engine import render_frames, render_surface
+CLI:  python -m litereality_agent.agent.tools.render.source <frames|surface> --room <room dir> [...]
+API:  from litereality_agent.agent.tools.render.source import render_frames, render_surface
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from litereality_agent.agent.scan import config_for as _config_for
+from litereality_agent.agent.scan import scan_from_room as _scan_from_room
 from litereality_agent.fonts import font as _shared_font
 
 _HERE = Path(__file__).resolve().parent
@@ -87,41 +88,9 @@ def _frame_int(frame) -> int | None:
         return None
 
 
-def _config_for(scan: str):
-    """Import the harness config with LITEREALITY_SCAN set to `scan` (config reads it at import)."""
-    os.environ["LITEREALITY_SCAN"] = scan
-    from litereality_agent.room_format.rendering import config
-
-    config.ensure_dirs()  # the render writes here
-
-    return config
 
 
-# `run/` is the one stage root. It used to be two -- the CLI symlinked
-# the staging and deliverables spellings of `scene_init/scene_stage`, so the same room had two
-# legitimate spellings and matching only one of them raised for every real run. Since `render`,
-# `select_views` and `survey` all funnel through here, the model lost render-verify after one
-# failed call and authored the room blind. Keep the realpath check below even with a single
-# root: a room dir reached through any symlink still has to resolve.
-_STAGE_ROOTS = ("run",)
 
-
-def _scan_from_room(room_dir: Path) -> str:
-    """Recover the scan name from a room dir: `run/<scan>/scene_init/scene_stage/.../room`.
-
-    Checks the path AS GIVEN and its realpath, so a room reached through a symlink still resolves.
-    Falls back to `$LITEREALITY_SCAN`, which the CLI exports for every stage, so a room dir outside
-    the stage tree still resolves instead of killing the tool.
-    """
-    room_dir = Path(room_dir)
-    for candidate in (room_dir, room_dir.resolve()):
-        for p in candidate.parents:
-            if p.parent.name in _STAGE_ROOTS:
-                return p.name
-    scan = os.environ.get("LITEREALITY_SCAN")
-    if scan:
-        return scan
-    raise ValueError(f"could not infer scan from room dir {room_dir} — pass scan= explicitly")
 
 
 def _run_blender_frames(room_dir: Path, spec: str, config, renders: Path) -> None:
@@ -208,7 +177,8 @@ def render_scene(room_dir, frames, *, scan=None, out_dir=None, height: int = 560
     """SCENE mode: label EVERY visible object (walls, doors, windows, furniture) as a chip, on
     BOTH the render and the real photo. Returns {frame_index: side_by_side_png}."""
     _, config, out_dir, renders, visible = _frame_prep(room_dir, frames, scan, out_dir, "scene")
-    from . import _overlay
+    from litereality_agent.agent import overlay as _overlay
+
     from ._annotate import draw_chips, draw_wall_edges
 
     planes = _overlay.load_planes(config)
@@ -235,7 +205,8 @@ def render_scene(room_dir, frames, *, scan=None, out_dir=None, height: int = 560
 def render_wall(room_dir, frames, *, scan=None, out_dir=None, height: int = 560) -> dict[int, str]:
     """WALL mode: outline + name every visible wall on BOTH the render and the real photo."""
     _, config, out_dir, renders, visible = _frame_prep(room_dir, frames, scan, out_dir, "wall")
-    from . import _overlay
+    from litereality_agent.agent import overlay as _overlay
+
     from ._annotate import draw_chips, draw_wall_edges
 
     planes = _overlay.load_planes(config)
@@ -278,7 +249,8 @@ def render_wall_focus(room_dir, frames, wall: str, *, scan=None, out_dir=None, h
     is the wall's projected extent (clamped to the frame). Frames where the wall isn't visible are
     still paired (no box). Returns {frame_index: side_by_side_png}."""
     _, config, out_dir, renders, visible = _frame_prep(room_dir, frames, scan, out_dir, "wall_focus")
-    from . import _overlay
+    from litereality_agent.agent import overlay as _overlay
+
     from ._annotate import WALL_ORANGE, draw_object_box
 
     planes = _overlay.load_planes(config)
@@ -306,7 +278,8 @@ def render_walls_focus_batch(
     is one pass total — the observe phase's main speedup. Returns {wall: {frame: png}}."""
     all_frames = sorted({f for fs in frames_by_wall.values() for f in fs})
     _, config, out_dir, renders, visible = _frame_prep(room_dir, all_frames, scan, out_dir, "wall_focus")
-    from . import _overlay
+    from litereality_agent.agent import overlay as _overlay
+
     from ._annotate import WALL_ORANGE, draw_object_box
 
     planes = _overlay.load_planes(config)
@@ -426,7 +399,7 @@ def render_wall_reference(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. render every surface head-on (one Blender pass) via the existing surface_compare
-    from litereality_agent.room_format.rendering import surface_compare
+    from litereality_agent.agent.tools.render.source import surface_compare
 
     res = surface_compare.build(room_dir, out_dir / "_sc")
     renders: dict[str, str] = res["renders"]  # {surface: ortho_png}
@@ -446,7 +419,7 @@ def render_wall_reference(
     #    tile's frame number so the panel can be labelled "Wall0 · frame N" like the reference.
     ref_tiles: dict[str, list[tuple]] = {}
     if with_refs:
-        from litereality_agent.room_format.rendering import wall_refs
+        from litereality_agent.agent.tools.render.source import wall_refs
 
         for s in wall_refs.build().get("surfaces", []):
             ref_tiles[s["name"]] = [(t["path"], t.get("frame", "")) for t in s.get("tiles", [])]
@@ -463,7 +436,7 @@ def render_wall_reference(
         )
         if ref_frames:
             _run_blender_frames(room_dir, ",".join(map(str, ref_frames)), config, raw_dir)
-            from . import _overlay
+            from litereality_agent.agent import overlay as _overlay
 
             planes = _overlay.load_planes(config)
 
@@ -524,7 +497,8 @@ def render_wall_reference(
 
 def _wall_focus_render(raw_png: Path, wall: str, fi: int, planes, config, dst_dir: Path) -> Path:
     """Outline + name ONLY `wall` on a copy of a raw frame render (wall-focus)."""
-    from . import _overlay
+    from litereality_agent.agent import overlay as _overlay
+
     from ._annotate import draw_chips, draw_wall_edges
 
     img = Image.open(raw_png).convert("RGB")

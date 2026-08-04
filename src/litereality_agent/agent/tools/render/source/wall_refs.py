@@ -16,9 +16,8 @@ from __future__ import annotations
 import json
 import sys
 
+from litereality_agent.agent import config
 from litereality_agent.fonts import font as _shared_font
-
-from . import config
 
 REFS_DIR = config.HARNESS_OUT / "wall_refs"
 MANIFEST = REFS_DIR / "wall_refs.json"

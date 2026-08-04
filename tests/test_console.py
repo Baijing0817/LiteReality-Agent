@@ -520,7 +520,7 @@ def test_importing_the_harness_config_creates_nothing(tmp_path, monkeypatch):
         f"os.environ.update(LITEREALITY_SCAN='probe', LITEREALITY_OUTPUT={str(tmp_path)!r},"
         " LITEREALITY_BLENDER='/nonexistent');"
         "sys.modules.setdefault('bpy', type(sys)('bpy'));"
-        "import litereality_agent.room_format.rendering.config as c;"
+        "import litereality_agent.agent.config as c;"
         f"print(sorted(str(p) for p in Path({str(tmp_path)!r}).rglob('*')))"
     )
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
@@ -540,7 +540,7 @@ def test_ensure_dirs_is_what_creates_them(tmp_path, monkeypatch):
         f"os.environ.update(LITEREALITY_SCAN='probe', LITEREALITY_OUTPUT={str(tmp_path)!r},"
         " LITEREALITY_BLENDER='/nonexistent');"
         "sys.modules.setdefault('bpy', type(sys)('bpy'));"
-        "import litereality_agent.room_format.rendering.config as c; c.ensure_dirs();"
+        "import litereality_agent.agent.config as c; c.ensure_dirs();"
         f"print(sorted(str(p.relative_to({str(tmp_path)!r})) for p in Path({str(tmp_path)!r}).rglob('*')))"
     )
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}

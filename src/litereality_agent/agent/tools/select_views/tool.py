@@ -3,7 +3,7 @@
 Wraps the repo's view-selection stack:
   - target "room"    → greedy cover: fewest frames that together see every wall well
   - target "Wall<N>" → frames where that wall projects large & on-screen (wall-plane projection,
-                       no Blender render needed — reuses render/engine/_overlay)
+                       no Blender render needed — reuses agent/overlay.py)
   - target <Object>  → authoring/views/room_render/select_for.views_for over a render_manifest with object
                        visibility (needs a prior render('room') pass that wrote the manifest)
 
@@ -28,8 +28,8 @@ from litereality_agent.agent.tools.base import (
 
 def _wall_scores(room_dir: Path) -> dict[int, dict[str, float]]:
     """{frame -> {wall_name -> on-screen coverage 0..1}} via wall-plane projection (no Blender)."""
-    from litereality_agent.room_format.rendering.engine import _overlay
-    from litereality_agent.room_format.rendering.engine.compose import (
+    from litereality_agent.agent import overlay as _overlay
+    from litereality_agent.agent.tools.render.source.compose import (
         _config_for,
         _scan_from_room,
     )
@@ -135,7 +135,7 @@ def _select_object(room_dir: Path, obj: str, n: int) -> list[dict] | str:
     mf = _find_manifest(room_dir)
     if mf is None:
         return "no render manifest with object visibility yet — call render(target='room') once first"
-    from litereality_agent.room_format.rendering.room_render.select_for import views_for
+    from litereality_agent.agent.tools.select_views.source.select_for import views_for
 
     manifest = json.loads(mf.read_text())
     rows = views_for(manifest, obj, n=n, min_quality=0.0)

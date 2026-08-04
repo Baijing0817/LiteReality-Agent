@@ -21,11 +21,12 @@ import json
 import os
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, ROOT)
-sys.path.insert(0, HERE)  # room_render dir, so the sibling import resolves as a module too
-import select_views as SV  # noqa: E402  — reuse its quality() measure
+from litereality_agent import REPO_ROOT
+
+# `select_views` stays in room_format: `image_selection/select_references.py` spawns it by path to
+# build the reference sheets the init stage consumes, and moving it here would point room_format at
+# agent. A real package import replaces the `sys.path` insert this used when the two were siblings.
+from litereality_agent.room_format.rendering.room_render import select_views as SV
 
 
 def views_for(manifest: dict, target_id: str, n: int = 3, min_quality: float = 0.5) -> list[dict]:
@@ -67,7 +68,9 @@ def main() -> int:
     )
     ap.add_argument(
         "--manifest",
-        default=os.path.join(ROOT, "run", "room_render", "render_manifest.json"),
+        # Anchored on the data root. This used to join a `ROOT` derived from __file__, which
+        # resolved inside the package rather than the data tree — the default never existed.
+        default=os.path.join(REPO_ROOT, "run", "room_render", "render_manifest.json"),
         help="render_manifest.json (needs the full visibility pass from describe-all)",
     )
     args = ap.parse_args()

@@ -15,9 +15,11 @@ import os
 import subprocess
 from pathlib import Path
 
-from . import config
+from litereality_agent.agent import config
 
-_SC_DIR = config.PACKAGE_ROOT / "services" / "rendering" / "image_selection" / "surface_compare"
+# `services/` has not existed since the layout restructure, so this pointed at nothing and
+# `render_ortho.py` below could never be found. The sheets live under room_format.
+_SC_DIR = config.PACKAGE_ROOT / "room_format" / "rendering" / "image_selection" / "surface_compare"
 
 
 def enabled() -> bool:

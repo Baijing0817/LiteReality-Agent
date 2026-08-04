@@ -40,8 +40,8 @@ drawn on **BOTH** sides and lines up), plus a **wall-reference** mode:
 > or find them without a Blender render:
 >
 > ```python
-> from litereality_agent.room_format.rendering.engine.compose import _config_for, _scan_from_room
-> from litereality_agent.room_format.rendering.engine import _overlay
+> from litereality_agent.agent.tools.render.source.compose import _config_for, _scan_from_room
+> from litereality_agent.agent.tools.render.source import _overlay
 > config = _config_for(_scan_from_room(room))
 > planes = _overlay.load_planes(config)
 > frames = [int(jf.stem.split("_")[1]) for jf in sorted(config.SCAN_DIR.glob("frame_*.json"))
@@ -54,11 +54,11 @@ drawn on **BOTH** sides and lines up), plus a **wall-reference** mode:
 ## Call it (Python)
 
 ```python
-from litereality_agent.room_format.rendering.engine import render_frames, render_surface
+from litereality_agent.agent.tools.render.source import render_frames, render_surface
 
 room = "run/<scan>/scene_init/scene_stage/stage_2/iteration_2/room"
 
-from litereality_agent.room_format.rendering.engine import (
+from litereality_agent.agent.tools.render.source import (
     render_scene, render_wall, render_wall_focus, render_object, render_wall_reference)
 
 # scene / wall — any number of frames at once
@@ -84,12 +84,12 @@ Each call returns `{frame|wall: path_to_side_by_side_png}` and writes the PNGs u
 ## Call it (CLI)
 
 ```bash
-python -m litereality_agent.room_format.rendering.engine scene  --room <room> --frames 10,20,30
-python -m litereality_agent.room_format.rendering.engine wall   --room <room> --frames 10,20
-python -m litereality_agent.room_format.rendering.engine wall-focus --room <room> --frames 34,35 --wall Wall2
-python -m litereality_agent.room_format.rendering.engine object --room <room> --frames 10 --object Table0
-python -m litereality_agent.room_format.rendering.engine ref    --room <room> --walls Wall0,Wall2
-python -m litereality_agent.room_format.rendering.engine ref    --room <room>                # all walls
+python -m litereality_agent.agent.tools.render.source scene  --room <room> --frames 10,20,30
+python -m litereality_agent.agent.tools.render.source wall   --room <room> --frames 10,20
+python -m litereality_agent.agent.tools.render.source wall-focus --room <room> --frames 34,35 --wall Wall2
+python -m litereality_agent.agent.tools.render.source object --room <room> --frames 10 --object Table0
+python -m litereality_agent.agent.tools.render.source ref    --room <room> --walls Wall0,Wall2
+python -m litereality_agent.agent.tools.render.source ref    --room <room>                # all walls
 ```
 
 ## Prerequisites — what must already exist

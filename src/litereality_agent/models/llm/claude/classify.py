@@ -2,7 +2,7 @@
 
 Runs on the logged-in Claude CLI via ``claude_agent_sdk`` (read-only, one-shot).
 
-Deliberately does NOT import the harness (``litereality_agent.room_format.rendering.config`` requires ``$LITEREALITY_SCAN``);
+Deliberately does NOT import the harness (``litereality_agent.agent.config`` requires ``$LITEREALITY_SCAN``);
 init must stay decoupled. It reproduces the minimal Claude-vision call inline, the same way
 :mod:`openai_classify` talks to OpenAI directly.
 """

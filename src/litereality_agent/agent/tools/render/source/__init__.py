@@ -9,7 +9,7 @@ Frame side-by-side (annotates BOTH render + real, which share the camera pose):
 Wall reference:
   render_wall_reference(room, walls)  # ortho render | stitch, + wall-focused ref frames
 
-    from litereality_agent.room_format.rendering.engine import render_scene, render_wall, render_wall_focus, render_object, render_wall_reference
+    from litereality_agent.agent.tools.render.source import render_scene, render_wall, render_wall_focus, render_object, render_wall_reference
 """
 
 from .compose import (

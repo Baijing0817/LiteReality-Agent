@@ -1,13 +1,13 @@
 """CLI for the image-render-tool — four modes.
 
   # frame side-by-side (render | real), annotated on BOTH sides:
-  python -m litereality_agent.room_format.rendering.engine scene  --room R --frames 10,20        # all objects
-  python -m litereality_agent.room_format.rendering.engine wall   --room R --frames 10,20        # walls only
-  python -m litereality_agent.room_format.rendering.engine wall-focus --room R --frames 10 --wall Wall2   # ONE wall
-  python -m litereality_agent.room_format.rendering.engine object --room R --frames 10 --object Table0
+  python -m litereality_agent.agent.tools.render.source scene  --room R --frames 10,20        # all objects
+  python -m litereality_agent.agent.tools.render.source wall   --room R --frames 10,20        # walls only
+  python -m litereality_agent.agent.tools.render.source wall-focus --room R --frames 10 --wall Wall2   # ONE wall
+  python -m litereality_agent.agent.tools.render.source object --room R --frames 10 --object Table0
 
   # wall reference (ortho render | stitch + wall-focused ref frames):
-  python -m litereality_agent.room_format.rendering.engine ref    --room R --walls Wall0,Wall2
+  python -m litereality_agent.agent.tools.render.source ref    --room R --walls Wall0,Wall2
 """
 
 from __future__ import annotations
