@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Geometry QA for generated GLBs — flags floor slabs, fused background, floating
+"""Geometry checks for one generated GLB — flags floor slabs, fused background, floating
 fragments, bad aspect, and squat-blob chairs.
+
+This is the MESH-level gate, run per generated asset during reconstruction. Not to be
+confused with `pipeline/room_qc`, which gates the assembled `Room.py` at the end: this
+one asks "is this chair a usable mesh", that one asks "is this furniture in a sane place".
+`chair_repair.py` next door acts on what this reports.
 
 Ported from the studio pipeline's qa/glb_geometry_qa.py. The per-mesh checks
 (qa_glb + helpers) are kept verbatim; only the runner is Week3-aware: it scans the
 TRELLIS chair GLBs under trellis/out/<scan>/chairs/*.glb (TRELLIS is the chair path
 and the usual source of bad geometry), runs the checks, and writes a report.
 
-    python trellis/glb_qa.py                         # QA all chairs, all scans
-    python trellis/glb_qa.py --scan tea_room
-    python trellis/glb_qa.py --glb path/to/x.glb     # QA arbitrary GLB(s)
+    python -m litereality_agent.pipeline.scene_init.reconstruct.mesh_qc.checks
+    python -m ...mesh_qc.checks --scan tea_room
+    python -m ...mesh_qc.checks --glb path/to/x.glb     # check arbitrary GLB(s)
 
 GLBs are assumed glTF Y-up (TRELLIS output), so "up" is the Y extent.
 """

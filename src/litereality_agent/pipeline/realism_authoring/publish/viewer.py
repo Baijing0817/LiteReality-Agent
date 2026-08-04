@@ -68,7 +68,7 @@ def collect_qc(room_dir: Path | None) -> dict:
         return {}
     out: dict = {}
     try:
-        from litereality_agent.pipeline.qc.checks import qc
+        from litereality_agent.pipeline.room_qc.checks import qc
 
         r = qc(str(room_dir))
         out = {

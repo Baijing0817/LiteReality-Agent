@@ -1,9 +1,9 @@
 """geometry.py — the box-geometry primitives `check_collisions` is built on. No model, no I/O.
 
 Split out of the old `room_format/validation/room.py` when the QC moved into the pipeline
-(`pipeline/qc`): the *report* is a pipeline concern, but this arithmetic — parse the SHELL,
+(`pipeline/room_qc`): the *report* is a pipeline concern, but this arithmetic — parse the SHELL,
 does box A overlap box B, which wall is this fixture on — is what the TOOL runs on every
-invocation, so it lives under the tool that owns it. `pipeline.qc` imports it back the other
+invocation, so it lives under the tool that owns it. `pipeline.room_qc` imports it back the other
 way, which is the sanctioned direction (see structure.md: the tools' source lives in
 ``agent/tools`` precisely so it can be reused outside the agentic loop).
 

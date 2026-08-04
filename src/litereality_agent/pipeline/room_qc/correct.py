@@ -16,8 +16,8 @@ are anchored to walls (needs a human / the model pass).
 
 Needs a compiled `Room.glb` (build the room first) and `python-fcl`.
 
-    python -m litereality_agent.pipeline.qc.correct --room <dir>          # dry run: print the plan
-    python -m litereality_agent.pipeline.qc.correct --room <dir> --apply  # write the nudges into Room.py
+    python -m litereality_agent.pipeline.room_qc.correct --room <dir>          # dry run: print the plan
+    python -m litereality_agent.pipeline.room_qc.correct --room <dir> --apply  # write the nudges into Room.py
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from pathlib import Path
 
 from litereality_agent.agent.tools.check_collisions.source import collision_mesh as sc
 from litereality_agent.agent.tools.check_collisions.source.geometry import _extract_shell
-from litereality_agent.pipeline.qc.fix import (
+from litereality_agent.pipeline.room_qc.fix import (
     FREE_STANDING,
     MAX_NUDGE,
     _anchored,

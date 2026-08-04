@@ -166,7 +166,7 @@ def test_blender_render_worker_finds_the_camera_renderer():
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from litereality_agent.pipeline.scene_init.reconstruct.qc import chair_qc
+    from litereality_agent.pipeline.scene_init.reconstruct.mesh_qc import chair_repair
 
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")
@@ -185,4 +185,4 @@ def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch)
     monkeypatch.setattr(
         "litereality_agent.models.registry.gen3d_from_settings", lambda configured: Hosted()
     )
-    assert chair_qc._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0
+    assert chair_repair._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0

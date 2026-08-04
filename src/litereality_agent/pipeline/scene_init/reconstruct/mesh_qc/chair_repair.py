@@ -25,7 +25,7 @@ from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest.references import chair_clusters
 from litereality_agent.pipeline.scene_init.reconstruct import flow as reconstruct
 
-from . import glb_qa
+from . import checks
 
 
 def _clusters(scan: str) -> dict[str, dict]:
@@ -43,7 +43,7 @@ def _normalized_ref(scan: str, cid: str) -> Path:
 
 
 def _qa(glb: Path, scan: str, cid: str) -> dict:
-    return glb_qa.qa_glb(glb, {"scan": scan, "object": cid, "category": "chair"})
+    return checks.qa_glb(glb, {"scan": scan, "object": cid, "category": "chair"})
 
 
 def _trellis_one(
