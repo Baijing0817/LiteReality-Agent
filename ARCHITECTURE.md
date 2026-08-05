@@ -85,9 +85,9 @@ process environment > .env > models.env > typed defaults
 
 Heavy inference is isolated from the main environment. A model package owns one inference path
 regardless of where it executes. A local adapter can run it in a separately configured process;
-a hosted adapter sends its request contract through `runtimes/`. Modal wraps canonical TRELLIS
-inference under `deploy/modal`; RunPod remains only for optional DINO execution. Deployment files
-stay outside application source. The CLI and unit tests do not start DINO,
+a hosted adapter sends its request contract through `runtimes/`. Modal wraps canonical TRELLIS,
+GroundingDINO, and DINOv2 inference under `deploy/modal`; RunPod remains an optional DINO fallback.
+Deployment files stay outside application source. The CLI and unit tests do not start DINO,
 TRELLIS, Blender, or paid model calls.
 
 ## Output compatibility

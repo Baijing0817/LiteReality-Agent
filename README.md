@@ -20,7 +20,7 @@ cp .env.example .env
 Configure `OPENAI_API_KEY`, the scan/output paths, Blender, and a TRELLIS runtime. Modal is the
 hosted TRELLIS runtime; local model environments are isolated and explicitly selected. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for the package and runtime boundaries.
-Install the Modal client with `uv sync --extra modal` when using that hosted runtime.
+See [deploy/modal/README.md](deploy/modal/README.md) for hosted-model setup.
 
 ## Run
 
