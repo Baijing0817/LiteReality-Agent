@@ -15,7 +15,7 @@ The public boundary is `ingest.run(context, options)`. Generated data stays unde
 - `merge_boxes.py` combines RoomPlan boxes that represent one physical object.
 
 GroundingDINO, DINOv2, and reference-image providers live under their named `models/` packages.
-Ingest coordinates those implementations but does not own them; RunPod is an execution runtime.
+Ingest coordinates those implementations but does not own their execution runtime.
 
 Old runs may contain provider-specific artifact names. `pipeline.scene_init.paths.ref_artifact`
 reads those as fallbacks; new code uses provider-neutral names.

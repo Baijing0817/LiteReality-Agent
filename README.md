@@ -54,19 +54,19 @@ Output lives under `run/<scene>/`:
 Model packages contain one inference implementation and its application-facing adapters:
 
 ```text
-models/grounding_dino/{inference,service,runpod,worker}.py
+models/grounding_dino/{inference,service,modal,worker}.py
 models/dinov2/inference.py
 models/trellis/{inference,service,modal}.py
 models/object_generation/
-runtimes/{modal,runpod}.py
+runtimes/modal.py
 deploy/modal/trellis/
-deploy/runpod/grounding_dino/
+deploy/modal/dino/
 ```
 
 Inference does not move when execution moves. Local services use an isolated process; Modal wraps
 the same model implementation through the shared runtime transport; deployment-only files live
-outside `src` under `deploy/`. The remaining RunPod runtime is limited to the optional DINO
-adapter. The normal offline test suite never loads models or starts Blender.
+outside `src` under `deploy/`. DINO can instead use an explicitly selected local environment.
+The normal offline test suite never loads models or starts Blender.
 
 A hosted API call is not a model package. Reference-image generation and quick classification are
 single requests to someone else's endpoint, with no inference to host and no runtime to choose, so

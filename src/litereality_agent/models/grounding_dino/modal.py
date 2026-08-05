@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import io
+import os
+from pathlib import Path
 from typing import Any
 
-from litereality_agent.models.grounding_dino.runpod import _image_b64
 from litereality_agent.models.grounding_dino.service import Detection
 from litereality_agent.runtimes.modal import ModalClient
 
@@ -84,3 +87,19 @@ class ModalDinoService:
 
     def close(self) -> None:
         """Match the local worker lifecycle API; Modal holds no local process."""
+
+
+def _image_b64(image: Any) -> str:
+    """Encode supported image inputs for the JSON-safe Modal request contract."""
+    if isinstance(image, (str, os.PathLike)):
+        raw = Path(image).read_bytes()
+    elif isinstance(image, bytes):
+        raw = image
+    else:
+        from PIL import Image
+
+        pil = image if hasattr(image, "save") else Image.fromarray(image)
+        buffer = io.BytesIO()
+        pil.convert("RGB").save(buffer, format="PNG")
+        raw = buffer.getvalue()
+    return base64.b64encode(raw).decode()

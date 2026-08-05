@@ -86,7 +86,6 @@ class LiteRealitySettings(BaseSettings):
 
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
-    runpod_api_key: SecretStr | None = Field(default=None, validation_alias="RUNPOD_API_KEY")
     modal_trellis_app: str | None = Field(default=None, validation_alias="MODAL_TRELLIS_APP")
     modal_trellis_function: str = Field(
         default="generate", validation_alias="MODAL_TRELLIS_FUNCTION"
@@ -95,9 +94,6 @@ class LiteRealitySettings(BaseSettings):
     modal_dino_function: str = Field(default="infer", validation_alias="MODAL_DINO_FUNCTION")
     modal_environment: str = Field(default="main", validation_alias="MODAL_ENVIRONMENT")
     modal_profile: str | None = Field(default=None, validation_alias="MODAL_PROFILE")
-    runpod_dino_endpoint: str | None = Field(
-        default=None, validation_alias="RUNPOD_DINO_ENDPOINT"
-    )
 
     AGENT_PROVIDERS: ClassVar[tuple[str, ...]] = ("claude", "codex")
     _PROVIDER_ROLES: ClassVar[tuple[str, ...]] = (
@@ -185,12 +181,10 @@ class LiteRealitySettings(BaseSettings):
             "MODAL_DINO_APP": self.modal_dino_app,
             "MODAL_DINO_FUNCTION": self.modal_dino_function,
             "MODAL_ENVIRONMENT": self.modal_environment,
-            "RUNPOD_DINO_ENDPOINT": self.runpod_dino_endpoint,
         }
         secrets = {
             "OPENAI_API_KEY": self.openai_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
-            "RUNPOD_API_KEY": self.runpod_api_key,
         }
         env = {key: str(value) for key, value in values.items() if value is not None}
         env.update(

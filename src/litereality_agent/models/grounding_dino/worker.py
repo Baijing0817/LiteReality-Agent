@@ -1,4 +1,4 @@
-"""GroundingDINO worker shared by subprocess and RunPod runtimes.
+"""GroundingDINO worker shared by local subprocess and hosted runtimes.
 
 A persistent JSON-lines server over stdin/stdout: the model loads once and serves many
 detect requests warm (bbox_polish calls DINO on many crops per scan). Spawned by
@@ -137,19 +137,5 @@ def hosted_handler(request: dict) -> dict:
         }
 
 
-def runpod_handler(job: dict) -> dict:
-    """Adapt RunPod's job envelope to the provider-neutral hosted handler."""
-    return hosted_handler(job.get("input") or {})
-
-
-def runpod_main() -> None:
-    import runpod
-
-    runpod.serverless.start({"handler": runpod_handler})
-
-
 if __name__ == "__main__":
-    if "--runpod" in sys.argv:
-        runpod_main()
-    else:
-        raise SystemExit(main())
+    raise SystemExit(main())

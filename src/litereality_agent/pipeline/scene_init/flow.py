@@ -390,7 +390,7 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
     workers = {name: branch_concurrency(len(per_branch.get(name, [])), args.concurrency)
                for name in ("procedural", "openings")}
     branches = [
-        ("trellis", trellis_branch),  # RunPod parallelises its own batch
+        ("trellis", trellis_branch),  # The configured runtime handles its own batch.
         ("procedural", lambda: agent_branch("procedural", False, args.procedural,
                                             workers["procedural"])),
         ("openings", lambda: agent_branch("build_openings", True, args.build_openings,

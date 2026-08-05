@@ -134,7 +134,7 @@ def _tiny_png() -> str:
 
 
 # What each stage actually touches. Checking everything on every run gates a stage-2 run on a
-# torch install and a RunPod endpoint it will never call, and a failure there aborts a pipeline
+# torch install or hosted endpoint it will never call, and a failure there aborts a pipeline
 # that would have run perfectly well.
 STAGE_CHECKS = {
     "scene_init": {"deps", "dinov2", "detect", "blender", "providers", "gen3d", "agent_cli", "scan"},

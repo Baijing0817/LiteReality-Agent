@@ -51,7 +51,6 @@ def test_registry_prefers_modal_dino(monkeypatch):
         modal_dino_function="infer",
         modal_environment="main",
         modal_profile="huangzhening",
-        runpod_dino_endpoint=None,
         dino_model="detector",
         dino_embed_model="embedder",
     )

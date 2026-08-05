@@ -225,7 +225,7 @@ def polish(scan: str, *, force: bool = False) -> dict:
             return previous
         except (OSError, ValueError):
             pass  # unreadable marker: fall through and redo it properly
-    # Resolve DINO once through the model registry. Hosted RunPod wins when configured; an isolated
+    # Resolve DINO once through the model registry. Hosted Modal wins when configured; an isolated
     # local interpreter remains available for Linux workstations. The light pipeline process never
     # needs to import torch in either case.
     if not detector.using_service():
