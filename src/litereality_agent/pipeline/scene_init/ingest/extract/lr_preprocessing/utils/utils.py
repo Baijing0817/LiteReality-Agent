@@ -1,102 +1,25 @@
-import os
-from typing import Any, Dict, List
-import numpy as np
+import ast
 import filecmp
 import os
 import shutil
-from zipfile import ZipFile
 from itertools import combinations
 from typing import Any, Dict, List, Tuple
+from zipfile import ZipFile
+
 import numpy as np
-from trimesh import Trimesh
 import utils.scannerapp_utils as scannerapp_utils
+from trimesh import Trimesh
 
 
-def get_object_pose(
-    object_file: str, flip_x: bool = True, flip_y: bool = False
-) -> Dict[str, Any]:
-    """
-    object_file: path to the usda file of the object.
-    """
-    with open(object_file, "r") as f:
-        lines = f.readlines()
-        position, bbox, rotation, point_center, faces, normals = (
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        scale = None
-        for line in lines:
-            if "normal3f[] normals" in line:
-                assert normals is None
-                normals = np.array(eval(line.split("=")[1].strip()), dtype=float)
-            if "int[] faceVertexIndices" in line:
-                assert faces is None
-                faces = eval(line.split("=")[1].strip())
-            if "double3 xformOp:scale" in line:
-                scale = np.array(eval(line.split("=")[1].strip()), dtype=float)
-            if "point3f[] points" in line:
-                assert bbox is None
-                points = np.array(eval(line.split("=")[1].strip()), dtype=float)
-                bbox = points.max(axis=0) - points.min(axis=0)
-                point_center = (
-                    np.abs(points.max(axis=0)) - np.abs(points.min(axis=0))
-                ) / 2
-            if "matrix4d xformOp:transform" in line:
-                assert rotation is None and position is None
-                transform = np.array(eval(line.split("=")[1].strip()), dtype=float)
-
-                center = np.zeros(3, dtype=float) if point_center is None else np.asarray(point_center, dtype=float)
-                position = np.asarray(transform[3, :3], dtype=float) + center
-
-                roll = np.arctan2(transform[2, 1], transform[2, 2]) * 180 / np.pi
-                pitch = (
-                    np.arctan2(
-                        transform[2, 0],
-                        np.sqrt(transform[2, 1] ** 2 + transform[2, 2] ** 2),
-                    )
-                    * 180
-                    / np.pi
-                )
-                yaw = np.arctan2(transform[1, 0], transform[0, 0]) * 180 / np.pi
-                rotation = np.array([roll, pitch, yaw])
-    if bbox is None and scale is not None:
-        bbox = np.asarray(scale, dtype=float)
-        half = bbox / 2.0
-        points = np.array([
-            [-half[0], -half[1], -half[2]],
-            [ half[0], -half[1], -half[2]],
-            [-half[0],  half[1], -half[2]],
-            [ half[0],  half[1], -half[2]],
-            [-half[0], -half[1],  half[2]],
-            [ half[0], -half[1],  half[2]],
-            [-half[0],  half[1],  half[2]],
-            [ half[0],  half[1],  half[2]],
-        ], dtype=float)
-        point_center = np.zeros(3, dtype=float)
-    assert (
-        position is not None
-        and bbox is not None
-        and rotation is not None
-    )
-    if faces is None:
-        faces = []
-    if normals is None:
-        normals = np.zeros_like(points, dtype=float)
-    pose = {
-        "position": position.copy(),
-        "rotation": rotation.copy(),
-        "bbox": bbox.copy(),
-        "transform": transform.copy(),
-        "points": points.copy(),
-        "faces": faces,
-        "normals": normals,
-    }
-
-    return pose
+def _parse_usda_literal(line: str):
+    """Parse one USDA assignment without executing capture content."""
+    _, separator, value = line.partition("=")
+    if not separator:
+        raise ValueError("USDA assignment is missing '='")
+    try:
+        return ast.literal_eval(value.strip())
+    except (SyntaxError, ValueError) as exc:
+        raise ValueError("invalid USDA literal") from exc
 
 
 def get_wall_and_object_floor_files(room_usda: str) -> Dict[str, List[str]]:
@@ -126,7 +49,6 @@ def get_wall_and_object_floor_files(room_usda: str) -> Dict[str, List[str]]:
                 if not append_to_walls and not append_to_objects:
                     raise Exception("No group found")
                 line = line[line.find("./") + 2 : line.rfind(".usda") + 5]
-                mesh_id = line.split("/")[-1].split(".")[0]
                 line = os.path.join(base_dir, line)
                 if append_to_walls:
                     walls.append(line)
@@ -161,22 +83,22 @@ def get_object_pose(
         for line in lines:
             if "normal3f[] normals" in line:
                 assert normals is None
-                normals = np.array(eval(line.split("=")[1].strip()), dtype=float)
+                normals = np.array(_parse_usda_literal(line), dtype=float)
             if "int[] faceVertexIndices" in line:
                 assert faces is None
-                faces = eval(line.split("=")[1].strip())
+                faces = _parse_usda_literal(line)
             if "double3 xformOp:scale" in line:
-                scale = np.array(eval(line.split("=")[1].strip()), dtype=float)
+                scale = np.array(_parse_usda_literal(line), dtype=float)
             if "point3f[] points" in line:
                 assert bbox is None
-                points = np.array(eval(line.split("=")[1].strip()), dtype=float)
+                points = np.array(_parse_usda_literal(line), dtype=float)
                 bbox = points.max(axis=0) - points.min(axis=0)
                 point_center = (
                     np.abs(points.max(axis=0)) - np.abs(points.min(axis=0))
                 ) / 2
             if "matrix4d xformOp:transform" in line:
                 assert rotation is None and position is None
-                transform = np.array(eval(line.split("=")[1].strip()), dtype=float)
+                transform = np.array(_parse_usda_literal(line), dtype=float)
 
                 center = np.zeros(3, dtype=float) if point_center is None else np.asarray(point_center, dtype=float)
                 position = np.asarray(transform[3, :3], dtype=float) + center
