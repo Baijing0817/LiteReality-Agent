@@ -68,6 +68,7 @@ cp .env.example .env
 | `BLENDER_PATH` | your Blender install **directory**, not the binary |
 | `LR_SCANS_DIR` | the folder holding your scans |
 
+for example:
 ```dotenv
 OPENAI_API_KEY=sk-...
 MODAL_TOKEN_ID=ak-...
@@ -87,20 +88,9 @@ One-time per workspace. See [deploy/modal/README.md](deploy/modal/README.md) for
 **4. Check you're ready to go.**
 
 ```bash
-uv run python sanity.py
-```
-
-`sanity.py` verifies dependencies, models, Blender, and API keys, and prints the exact fix for
-anything missing. It exists to catch *silent degradation* — components that "work" by quietly
-falling back to a weaker path. **Exit 0 means safe to run.**
-
-It checks the runtime you actually configured: on the default Modal setup it confirms the hosted
-apps answer, and does not ask for the local torch stack. To also load every model and run one
-inference through it:
-
-```bash
 SANITY_DEEP=1 uv run python sanity.py
 ```
+
 
 ## Run
 
@@ -128,28 +118,6 @@ uv run litereality stage author run/my-room --force --polish
 
 `--polish` adds object refinement, materials, and a model-driven quality pass on top of authoring.
 
-### What you get
-
-```
-run/<scan>/
-  capture/<scan>/           the RoomPlan capture, as scanned
-  scene_init/               object reconstruction and the seed room
-  realism_authoring/
-    room/                   ← the room, as editable source
-      Room.py                 the scene, as a Python program
-      Objects/Static/         reconstructed geometry (Sofa0, ChairCluster0, Table4, …)
-      Objects/Procedural/     generated geometry (windows, doors, shelving, …)
-      materials/
-    room_preview/           ← the room, as something to look at
-      Room.blend
-      Room.glb
-      viewer.html             the finished room in a browser
-      trace.html              what the agent did, step by step
-```
-
-`room/` is the source of truth — `Room.py` is a real program, so the room is readable, diffable,
-and editable by hand. Everything in `room_preview/` is built from it and can be regenerated.
-
 ### Watching it happen
 
 Authoring takes a while, and `viewer.html` only exists once it finishes. To watch instead of wait:
@@ -162,12 +130,6 @@ That serves the room beside the agent's trace at `http://127.0.0.1:8770` and rec
 the agent saves `Room.py`. It only reads the run tree, so it can be started, killed, and restarted
 mid-run without disturbing anything. Pass `--no-bake` for faster geometry-only rebuilds, at the
 cost of procedural wall and floor materials rendering flat.
-
-### Not built yet
-
-- **`litereality edit`**, for directing changes to a finished room in the same terms the agent used
-  to build it. Until it exists, note that re-running authoring rebuilds `room/` from the seed, so
-  hand-edits to `Room.py` do not survive a `stage author --force`.
 
 ## Development
 
