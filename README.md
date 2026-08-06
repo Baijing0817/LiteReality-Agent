@@ -135,10 +135,6 @@ In the formats you'd take elsewhere:
 - `room_preview/Room.blend` — the same room as a Blender scene
 - `room/` — define the entire room here
 
-Publish also renders the room from the capture's own ARKit poses and sets each render beside the
-real photo taken there, under `realism_authoring/compare/` — the check on whether this is *that*
-room rather than merely a plausible one. It costs a few minutes; `--compare-frames 0` skips it.
-
 ## Development
 
 Safe local verification is limited to static checks, offline unit tests, CLI parsing, and package
