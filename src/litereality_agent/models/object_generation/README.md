@@ -51,7 +51,8 @@ procedural/glb/<scan>/<name>/
     object.md             how to edit it (constants, joints, rebuild)
     previews/             render-check (open/closed for movers, iso/front for static)
     textures/
-procedural/glb/procedural_report.json
+procedural/glb/procedural_report.json   objects pass
+procedural/glb/openings_report.json     doors/windows pass (--openings)
 ```
 
 Each moving part carries glTF node extras `articulation_type`

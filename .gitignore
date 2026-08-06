@@ -37,3 +37,5 @@ __MACOSX
 
 # retired code, kept locally for reference only (recoverable), not pushed
 /legacy/
+# scratch measurement runs (run-measure, run-measure2, ...)
+/run-measure*

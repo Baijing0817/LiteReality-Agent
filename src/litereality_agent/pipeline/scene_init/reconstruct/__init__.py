@@ -14,7 +14,8 @@ def run(context: RunContext, options: dict) -> StageResult:
     args: list[object] = [
         "--scan", context.capture_dir, "--name", context.scan,
         "--output-root", context.output_root,
-        "--skip-extract", "--skip-crop", "--classify", "--reconstruct",
+        "--skip-extract", "--skip-crop", "--skip-references",
+        "--classify", "--reconstruct",
         "--procedural", "--build-openings",
         "--agent-model", context.settings.procedural_model,
     ]
