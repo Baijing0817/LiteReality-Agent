@@ -7,9 +7,10 @@ from litereality_agent.settings import LiteRealitySettings, load_settings
 
 def gen3d_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
-    if settings.modal_trellis_app:
-        if not settings.modal_profile:
-            raise RuntimeError("MODAL_PROFILE must be set when using hosted TRELLIS.")
+    # Modal is the default runtime, so a configured profile is the whole opt-in; the app name
+    # already defaults. Keying off the profile rather than the app name keeps an explicit local
+    # GPU runtime reachable now that MODAL_TRELLIS_APP is never empty.
+    if settings.modal_profile:
         from litereality_agent.models.trellis.modal import ModalTrellisService
 
         return ModalTrellisService(
@@ -23,16 +24,14 @@ def gen3d_from_settings(settings: LiteRealitySettings | None = None):
 
         return LocalTrellisService(python=str(settings.trellis_python))
     raise RuntimeError(
-        "TRELLIS is not configured: set MODAL_TRELLIS_APP for hosted execution or "
+        "TRELLIS is not configured: set MODAL_PROFILE for hosted execution (the default) or "
         "TRELLIS_PYTHON for an explicit local GPU runtime."
     )
 
 
 def detection_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
-    if settings.modal_dino_app:
-        if not settings.modal_profile:
-            raise RuntimeError("MODAL_PROFILE must be set when using hosted DINO.")
+    if settings.modal_profile:
         from litereality_agent.models.grounding_dino.modal import ModalDinoService
 
         return ModalDinoService(
