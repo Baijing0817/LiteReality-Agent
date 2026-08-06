@@ -104,6 +104,15 @@ def _stage(args) -> int:
     return _print_results([result])
 
 
+def _live(args) -> int:
+    from litereality_agent.pipeline.realism_authoring import live
+
+    return live.serve(
+        args.target, port=args.port, host=args.host, poll=args.poll,
+        output_root=args.output_root, bake=args.bake, bake_resolution=args.bake_resolution,
+    )
+
+
 def _inspect(args) -> int:
     from litereality_agent.room_ops import manifest
 
@@ -168,6 +177,19 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--output-root")
     _add_author_options(stage)
     stage.set_defaults(handler=_stage)
+
+    live = commands.add_parser("live", help="watch a room being authored, with the agent's trace")
+    live.add_argument("target", metavar="SCAN_OR_SCENE")
+    live.add_argument("--port", type=int, default=8770)
+    live.add_argument("--host", default="127.0.0.1")
+    live.add_argument("--poll", type=float, default=1.0, help="seconds between Room.py checks")
+    live.add_argument("--output-root")
+    live.add_argument(
+        "--no-bake", dest="bake", action="store_false",
+        help="geometry only — faster, but procedural SHELL materials render flat",
+    )
+    live.add_argument("--bake-resolution", type=int, default=1024)
+    live.set_defaults(handler=_live)
 
     setup = commands.add_parser("setup", help="authenticate Modal and deploy the model apps")
     setup.add_argument("--profile", help="Modal profile to use instead of the active one")

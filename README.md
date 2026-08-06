@@ -150,6 +150,19 @@ run/<scan>/
 `room/` is the source of truth — `Room.py` is a real program, so the room is readable, diffable,
 and editable by hand. Everything in `room_preview/` is built from it and can be regenerated.
 
+### Watching it happen
+
+Authoring takes a while, and `viewer.html` only exists once it finishes. To watch instead of wait:
+
+```bash
+uv run litereality live run/my-room
+```
+
+That serves the room beside the agent's trace at `http://127.0.0.1:8770` and recompiles whenever
+the agent saves `Room.py`. It only reads the run tree, so it can be started, killed, and restarted
+mid-run without disturbing anything. Pass `--no-bake` for faster geometry-only rebuilds, at the
+cost of procedural wall and floor materials rendering flat.
+
 ### Not built yet
 
 - **`litereality edit`**, for directing changes to a finished room in the same terms the agent used
