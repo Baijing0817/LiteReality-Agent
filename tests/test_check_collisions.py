@@ -13,6 +13,9 @@ from __future__ import annotations
 import asyncio
 import json
 
+# python-fcl is a core dependency (the true-mesh backend the QC clash gate runs on), so a
+# missing one must FAIL these tests rather than skip them — a skipped clash gate is invisible.
+import fcl  # noqa: F401
 import pytest
 
 from litereality_agent.agent.tools.check_collisions.source import geometry as qc_room
@@ -193,7 +196,6 @@ def test_mesh_contacts_booleans():
     """mesh_contacts returns true-mesh contact booleans (not FCL depth): overlapping furniture boxes
     are a pair, separated ones are not."""
     trimesh = pytest.importorskip("trimesh")
-    pytest.importorskip("fcl")  # python-fcl backend
     from litereality_agent.agent.tools.check_collisions.source import collision_mesh as sc
 
     a = trimesh.creation.box((1, 1, 1))
@@ -235,7 +237,6 @@ def test_wall_penetrations_mesh_extent(tmp_path):
     """scene_collision.wall_penetrations flags a furniture MESH crossing a wall plane (glb frame,
     SHELL(x,y)=glb(x,-z)), which the box centre tests can't see."""
     trimesh = pytest.importorskip("trimesh")
-    pytest.importorskip("fcl")
     from litereality_agent.agent.tools.check_collisions.source import collision_mesh as sc
 
     shell = {"walls": {"Wall0": {"start": [0, 0], "end": [4, 0]},
@@ -266,7 +267,6 @@ def test_check_all_mesh_end_to_end():
     object_clash, a chair tucked UNDER it is not, a desk poking through a wall is a wall_clash, and a
     piece past the wall loop is outside_room."""
     trimesh = pytest.importorskip("trimesh")
-    pytest.importorskip("fcl")
     from litereality_agent.agent.tools.check_collisions.source import collision_mesh as sc
 
     shell = {

@@ -377,9 +377,10 @@ def main() -> int:
             ok("python-fcl available (true-mesh clash resolver)")
         except Exception:  # noqa: BLE001
             fail("python-fcl NOT available — QC's true-mesh clash resolver will abort and the "
-                 "run will SILENTLY skip it.",
-                 cmd=("uv sync --frozen --extra detect --extra collision --group dev",
-                      "or: uv pip install python-fcl"))
+                 "run will SILENTLY skip it. It is a core dependency, so this means the env is "
+                 "stale, not that an extra is missing.",
+                 cmd=("uv sync --frozen --extra modal --group dev",
+                      "or: uv pip install python-fcl networkx"))
 
     if "agent_cli" in wanted:
         print("── agent CLI (drives every authoring session) ──")

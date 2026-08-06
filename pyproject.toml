@@ -32,6 +32,12 @@ dependencies = [
     "opencv-python",
     "tqdm",
     "open3d",
+    # QC true-mesh collision. NOT optional: publish runs `room_qc.correct` on every default run and
+    # only records a warning if it exits non-zero, so a missing FCL turned the deterministic clash
+    # gate into a silent no-op. Prebuilt wheels exist for every interpreter and platform we support,
+    # so this costs a few MB and no compiler — cheaper than shipping a gate that quietly does nothing.
+    "python-fcl",
+    "networkx",
     # viewer (later)
     "fastapi>=0.111.0",
     "uvicorn>=0.30.0",
@@ -43,7 +49,6 @@ modal = ["modal>=1.3,<2"]
 # in that env, NOT the light loop/agent env.
 detect = ["torch", "torchvision", "transformers"]  # GroundingDINO detect + DINOv2 grouping (torchvision required by DINOv2 image processor)
 gen3d = ["torch", "trimesh"]            # TRELLIS (gen3d role) — later
-collision = ["python-fcl", "networkx"]  # true-mesh QC collision (scene_collision.py / check_collisions method='mesh')
 
 [project.urls]
 Repository = "https://github.com/ZheningHuang/LiteReality-Agent"
