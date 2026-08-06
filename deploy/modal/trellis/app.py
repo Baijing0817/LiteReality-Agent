@@ -1,6 +1,7 @@
 """Modal deployment wrapper for the canonical TRELLIS.2 implementation.
 
-Deploy only from the shared ``huangzhening`` Modal workspace profile. See README.md.
+Deploys into whichever workspace the active ``MODAL_PROFILE`` names; the weights are ungated, so
+no Hugging Face account or secret is required. See README.md.
 """
 
 from __future__ import annotations
@@ -16,6 +17,16 @@ FUNCTION_NAME = "generate"
 MODEL_VOLUME = "litereality-trellis-models"
 REMOTE_REPO_ROOT = Path("/root")
 WEIGHTS_ROOT = Path("/models")
+
+# TRELLIS.2's image encoder is the gated ``facebook/dinov3-vitl16-pretrain-lvd1689m``. The DINOv3
+# licence grants the right to redistribute the trained weights provided the licence travels with
+# them, so we bake an ungated mirror into the image instead of requiring every deployer to hold an
+# HF account. Pinned by commit and verified by digest: a mirror owner can force-push or delete the
+# repo, and four independent uploads of these weights agree on this digest.
+DINOV3_DIR = Path("/opt/dinov3")
+DINOV3_REPO = "camenduru/dinov3-vitl16-pretrain-lvd1689m"
+DINOV3_REVISION = "3c276edd87d6f6e569ff0c4400e086807d0f3881"
+DINOV3_SHA256 = "dcb2e45127cccbf1601e5f42fef165eea275c8e5213197e8dcf3f48822718179"
 
 deployment_root = Path(__file__).resolve().parent
 image = (
@@ -36,17 +47,26 @@ image = (
     # Keep this after the cached native-extension layer so the compatibility pin
     # remains a CPU-only image operation and cannot trigger another GPU build.
     .pip_install("transformers==4.57.5")
+    # CPU-only, and deliberately after the cached GPU layer so pulling 1.2GB of weights can never
+    # trigger another H100 build. Fails the build on a digest mismatch rather than at inference.
+    .run_commands(
+        f"python3.10 -c \"from huggingface_hub import snapshot_download; \
+snapshot_download('{DINOV3_REPO}', revision='{DINOV3_REVISION}', local_dir='{DINOV3_DIR}')\"",
+        f"echo '{DINOV3_SHA256}  {DINOV3_DIR}/model.safetensors' | sha256sum -c -",
+    )
     .env(
         {
             "LR_REPO_ROOT": str(REMOTE_REPO_ROOT),
             "LITEREALITY_WEIGHTS": str(WEIGHTS_ROOT),
             "HF_XET_HIGH_PERFORMANCE": "1",
+            # resolve_dinov3() reads this first; with it set, pipeline.json is repointed at the
+            # local copy and loading never reaches the gated repo, so no HF token is needed.
+            "LITEREALITY_DINOV3": str(DINOV3_DIR),
         }
     )
     .add_local_python_source("litereality_agent")
 )
 weights = modal.Volume.from_name(MODEL_VOLUME, create_if_missing=True)
-huggingface = modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])
 app = modal.App(APP_NAME)
 _pipeline = None
 
@@ -70,7 +90,6 @@ def _load_pipeline():
     image=image,
     gpu="H100",
     volumes={str(WEIGHTS_ROOT): weights},
-    secrets=[huggingface],
     timeout=20 * 60,
     retries=0,
     scaledown_window=10,
