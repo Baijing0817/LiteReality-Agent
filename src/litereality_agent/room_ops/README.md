@@ -1,6 +1,6 @@
-# Room format
+# Room ops
 
-`room_format` owns LiteReality's portable, editable room representation:
+`room_ops` owns LiteReality's portable, editable room representation:
 
 ```text
 Room.py + scene.json + object definitions/assets
@@ -12,7 +12,7 @@ representation. Pipeline decisions and model/agent execution do not belong here.
 ## Public API
 
 ```python
-from litereality_agent.room_format import compile_room, export_scene
+from litereality_agent.room_ops import compile_room, export_scene
 
 room = export_scene("office-elliott")
 glb = compile_room(room)
@@ -21,23 +21,23 @@ glb = compile_room(room)
 The equivalent module entry points are:
 
 ```bash
-uv run python -m litereality_agent.room_format.export.export_room --scan office-elliott
-uv run python -m litereality_agent.room_format.compile.build_from_room --room /path/to/Room
+uv run python -m litereality_agent.room_ops.export.export_room --scan office-elliott
+uv run python -m litereality_agent.room_ops.compile.build_from_room --room /path/to/Room
 ```
 
 ## Package layout
 
 ```text
-room_format/
+room_ops/
 ├── api.py                 stable Python API
 ├── manifest.py            scene.json schema and package discovery
-├── paths.py               room-format input/output path resolution
+├── paths.py               room-ops input/output path resolution
 ├── surfaces.py            Room.py surface discovery
 ├── procedural_materials.py
+├── viewer.py              self-contained Three.js HTML export
 ├── export/                capture/reconstructed assets → editable Room.py
 ├── compile/               Room.py → Room.glb/Room.blend
-├── rendering/             render and reference-view utilities
-└── validation/            collision, placement, and room checks
+└── rendering/             render and reference-view utilities
 ```
 
 ## Format contract
@@ -69,4 +69,4 @@ height, and object bounding boxes. Procedural objects retain editable Blender bu
 recipes; static neural assets retain their source GLB.
 
 Blender compilation is invoked only by explicit compile/render operations. Importing
-`litereality_agent.room_format` does not start Blender.
+`litereality_agent.room_ops` does not start Blender.

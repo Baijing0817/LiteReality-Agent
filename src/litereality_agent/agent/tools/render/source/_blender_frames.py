@@ -12,7 +12,7 @@ import sys
 _argv = sys.argv[sys.argv.index("--") + 1 :]
 repo, room_py, scan_dir, assets, out_dir, frames_spec = _argv[:6]
 
-# render_room_cameras is package code under ``room_format``, not under the caller-supplied <repo>
+# render_room_cameras is package code under ``room_ops``, not under the caller-supplied <repo>
 # (which is the data root). This used to join "..", because the worker sat beside `room_render`;
 # moving the tools' source under `agent/` broke that sibling relationship silently — Blender exits
 # 0 on a raised script, so it surfaced as a missing render_manifest.json. Anchor on the package
@@ -21,7 +21,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _PKG = _HERE
 while os.path.basename(_PKG) != "litereality_agent" and os.path.dirname(_PKG) != _PKG:
     _PKG = os.path.dirname(_PKG)
-sys.path.insert(0, os.path.join(_PKG, "room_format", "rendering", "room_render"))
+sys.path.insert(0, os.path.join(_PKG, "room_ops", "rendering", "room_render"))
 import render_room_cameras as R  # noqa: E402
 
 os.environ["SB_ROOM_PY"] = room_py

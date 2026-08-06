@@ -16,7 +16,7 @@ harness pass is a self-contained, viewable iteration:
 
 The LIVE room/preview paths (ROOM_DIR, ROOM_PY, RENDER_DIR, …) are DYNAMIC: the
 runner calls :func:`set_room` at the top of each iteration to repoint them (and the
-``LITEREALITY_ROOM_DIR`` / ``LITEREALITY_ROOM_PREVIEW`` env vars so the room-format
+``LITEREALITY_ROOM_DIR`` / ``LITEREALITY_ROOM_PREVIEW`` env vars so the room-ops
 CLIs follow). All render + view-selection tooling lives inside the SDK.
 """
 
@@ -38,7 +38,7 @@ SETTINGS = load_settings()
 # checkout, which is exactly why each path below has to say which one it means.
 AGENT_DIR = SETTINGS.repo_root
 ROOT = SETTINGS.repo_root
-SDK = PACKAGE_ROOT / "room_format" / "rendering"   # what stayed: room_render
+SDK = PACKAGE_ROOT / "room_ops" / "rendering"   # what stayed: room_render
 TOOLS = PACKAGE_ROOT / "agent" / "tools"           # what the tools own
 
 # --- where the scan context comes from -------------------------------------- #
@@ -71,7 +71,7 @@ AUTHORING = Path(os.environ.get("LR_AUTHORING") or (SCAN_OUT / "realism_authorin
 ROOM_INIT = SCENE_STAGE / "room_init"
 
 # the packed object GLBs the room places (shared across iterations) — must match
-# room_format.paths.assets_dir (scene_stage/_scene_assets).
+# room_ops.paths.assets_dir (scene_stage/_scene_assets).
 ASSETS_DIR = SCENE_STAGE / "_scene_assets"
 ASSET_GLB_DIR = ASSETS_DIR / "glb"
 
@@ -98,7 +98,7 @@ RENDER_MANIFEST = FULL_MANIFEST = ROOM_GLB = None
 
 def set_room(room_dir, preview_dir) -> None:
     """Repoint the LIVE room definition + render dir at THIS iteration, and export the
-    matching env so the room-format CLIs and render-tool subprocesses follow.
+    matching env so the room-ops CLIs and render-tool subprocesses follow.
 
     ``room_dir``    = scene_stage/stage_<N>/iteration_<M>/room   (Room.py the agent edits)
     ``preview_dir`` = scene_stage/stage_<N>/iteration_<M>/room_preview  (renders + room.glb)
@@ -114,7 +114,7 @@ def set_room(room_dir, preview_dir) -> None:
     FULL_MANIFEST = RENDER_DIR / "full_manifest.json"
     ROOM_GLB = RENDER_DIR / "room.glb"
     # render_room_cameras.py execs $SB_ROOM_PY as the scene + renders into $SB_RENDER_DIR;
-    # room_format.paths.room_dir/room_preview_dir read the LITEREALITY_* overrides.
+    # room_ops.paths.room_dir/room_preview_dir read the LITEREALITY_* overrides.
     os.environ["SB_ROOM_PY"] = str(ROOM_PY)
     os.environ["SB_RENDER_DIR"] = str(RENDER_DIR)
     os.environ["LITEREALITY_ROOM_DIR"] = str(ROOM_DIR)
@@ -160,13 +160,13 @@ STITCH_PPM = int(os.environ.get("HARNESS_STITCH_PPM", "160"))  # ortho resolutio
 # colour-adaptation: shift a fetched PBR's DIFFUSE to a target RGB in LAB space while
 # PRESERVING the pattern (and the untouched roughness/normal stay physical). This is how
 # a surface gets the right colour without ever degrading to a flat colour-only material.
-RECOLOR_TOOL = PACKAGE_ROOT / "room_format" / "compile" / "recolor.py"
+RECOLOR_TOOL = PACKAGE_ROOT / "room_ops" / "compile" / "recolor.py"
 
 
 def blender() -> str:
-    """Delegates to the canonical room-format Blender resolver; see the note about the six
+    """Delegates to the canonical room-ops Blender resolver; see the note about the six
     copies that disagreed about macOS."""
-    from litereality_agent.room_format.paths import find_blender as _canonical
+    from litereality_agent.room_ops.paths import find_blender as _canonical
 
     return _canonical()
 

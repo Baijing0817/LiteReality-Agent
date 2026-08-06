@@ -17,9 +17,9 @@ One interface for everything: every object, static or procedural, exposes an `ob
 assembler can treat them all alike. A static object.py loads its bundled glb (materials and
 orientation fixes can go here later); a procedural one builds the geometry from nothing.
 
-Rebuild with `python -m litereality_agent.room_format.compile.build_from_room --room Room/<scan>`.
+Rebuild with `python -m litereality_agent.room_ops.compile.build_from_room --room Room/<scan>`.
 
-    python -m litereality_agent.room_format.export.export_room --scan office-elliott
+    python -m litereality_agent.room_ops.export.export_room --scan office-elliott
 """
 
 from __future__ import annotations
@@ -99,9 +99,9 @@ def reset_dir(d: Path):
 
 
 def find_blender() -> str:
-    """Delegates to the canonical room-format Blender resolver; see the note about the six
+    """Delegates to the canonical room-ops Blender resolver; see the note about the six
     copies that disagreed about macOS."""
-    from litereality_agent.room_format.paths import find_blender as _canonical
+    from litereality_agent.room_ops.paths import find_blender as _canonical
 
     return _canonical()
 
@@ -115,7 +115,7 @@ def extract_shell_json(usdz: Path) -> dict:
             find_blender(),
             "-b",
             "--python",
-            str(HERE / "extract_shell.py"),  # sibling in room_format/export/
+            str(HERE / "extract_shell.py"),  # sibling in room_ops/export/
             "--",
             str(usdz),
             str(tmp),
@@ -270,7 +270,7 @@ def export(scan: str, out_root: Path | None = None) -> Path | None:
     # object's members.json) into the SHELL's object boxes, so the assembler has a box named for the
     # merged object to place its GLB into (else the merged GLB has no box and is dropped).
     _apply_shell_merges(shell, scan)
-    # build_room.py lives in room_format/compile; HERE is room_format/export.
+    # build_room.py lives in room_ops/compile; HERE is room_ops/export.
     room_py = (HERE.parent / "compile" / "build_room.py").read_text(encoding="utf-8")
     # SHELL MUST be defined BEFORE `ROOM = main()` runs — else _load_shell can't see the embedded
     # SHELL and falls back to room.usdz (the room-py-shell-ordering gotcha). build_room.py ends with
@@ -309,7 +309,7 @@ def export(scan: str, out_root: Path | None = None) -> Path | None:
                 try:
                     from ..compile.texture_recipe import gen_recipe
                 except ImportError:
-                    from litereality_agent.room_format.compile.texture_recipe import (
+                    from litereality_agent.room_ops.compile.texture_recipe import (
                         gen_recipe,  # type: ignore
                     )
                 recipe, bundled = gen_recipe(tex)

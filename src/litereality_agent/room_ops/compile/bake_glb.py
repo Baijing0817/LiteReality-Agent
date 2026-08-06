@@ -16,7 +16,7 @@ object.py, so they are left untouched.
 
     blender -b Room.blend --python bake_glb.py -- <out.glb> [res]
 
-Run via :func:`bake_room_glb` (spawns Blender) from the room-format API.
+Run via :func:`bake_room_glb` (spawns Blender) from the room-ops API.
 """
 
 from __future__ import annotations

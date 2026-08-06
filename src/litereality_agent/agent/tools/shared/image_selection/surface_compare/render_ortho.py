@@ -9,12 +9,12 @@ from mathutils import Matrix, Vector
 
 # _REPO is the CHECKOUT (data); the sibling tool below is resolved from __file__ instead.
 _REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
-# render_room_cameras is package code under room_format. This used to join "../../room_render",
+# render_room_cameras is package code under room_ops. This used to join "../../room_render",
 # a sibling relationship that stopped holding when image_selection moved under agent/tools.
 _PKG = os.path.dirname(os.path.abspath(__file__))
 while os.path.basename(_PKG) != "litereality_agent" and os.path.dirname(_PKG) != _PKG:
     _PKG = os.path.dirname(_PKG)
-sys.path.insert(0, os.path.join(_PKG, "room_format", "rendering", "room_render"))
+sys.path.insert(0, os.path.join(_PKG, "room_ops", "rendering", "room_render"))
 import render_room_cameras as R
 
 argv = sys.argv[sys.argv.index("--") + 1 :]

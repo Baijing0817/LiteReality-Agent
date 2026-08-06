@@ -34,7 +34,7 @@ from litereality_agent.agent.tool_narration import hint_for
 from litereality_agent.fonts import font as _shared_font
 
 # Blender execs this by path, so it must be absolute: the CWD of a stage is not the repo.
-OBJVIEW = str(PACKAGE_ROOT / "room_format" / "rendering" / "object_turntable.py")
+OBJVIEW = str(PACKAGE_ROOT / "room_ops" / "rendering" / "object_turntable.py")
 
 OBJECTS = ["Table0", "Table1", "Wall1_Door_0", "Wall5_Window_0"]
 RESULTS = Path("output/_results/obj_refine")
@@ -160,7 +160,7 @@ def _snapshot_views(obj_dir: Path, blender: str, views_dir: Path, open_frac: flo
     symptom was a missing before/after image, with nothing in the log connecting the two."""
     why = ""
     try:
-        from litereality_agent.room_format.compile.fetch_textures import materialize
+        from litereality_agent.room_ops.compile.fetch_textures import materialize
         tj = obj_dir / "textures.json"
         if tj.is_file():
             try:
@@ -224,7 +224,7 @@ def _beforeafter_sheet(name: str, targets: list, before: Path | None, after: Pat
 
 def _render_object_sync(obj_dir: Path, targets: list, blender: str, tag: str, counter: dict) -> dict:
     """Materialize textures -> build object.py -> 4-view render -> montage vs reference. Returns paths."""
-    from litereality_agent.room_format.compile.fetch_textures import materialize
+    from litereality_agent.room_ops.compile.fetch_textures import materialize
     tj = obj_dir / "textures.json"
     if tj.is_file():
         try:
@@ -430,7 +430,7 @@ def _blender() -> str:
     only written when the snapshot succeeds. `find_blender` accepts either spelling and returns the
     binary. (A blank BLENDER_PATH is the same story: `os.environ[...]` raised KeyError, or handed
     over an empty string.)"""
-    from litereality_agent.room_format.paths import find_blender
+    from litereality_agent.room_ops.paths import find_blender
 
     return find_blender()
 

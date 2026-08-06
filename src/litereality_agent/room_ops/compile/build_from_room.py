@@ -12,8 +12,8 @@ objects are then assembled into Room.glb (and Room.blend alongside it).
 
     Room/<scan>/  (definition)  ---->  Room_preview/<scan>/
 
-    python -m litereality_agent.room_format.compile.build_from_room --room Room/office-elliott
-    python -m litereality_agent.room_format.compile.build_from_room --room Room/tea_room --regenerate
+    python -m litereality_agent.room_ops.compile.build_from_room --room Room/office-elliott
+    python -m litereality_agent.room_ops.compile.build_from_room --room Room/tea_room --regenerate
 
 By default a cached object glb is reused; --regenerate forces every object.py to run again.
 Cameras are included when the original scan frames are present, otherwise geometry only.
@@ -37,9 +37,9 @@ HERE = Path(__file__).resolve().parent
 
 
 def find_blender() -> str:
-    """Delegates to the canonical room-format Blender resolver; see the note about the six
+    """Delegates to the canonical room-ops Blender resolver; see the note about the six
     copies that disagreed about macOS."""
-    from litereality_agent.room_format.paths import find_blender as _canonical
+    from litereality_agent.room_ops.paths import find_blender as _canonical
 
     return _canonical()
 

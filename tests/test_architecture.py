@@ -6,15 +6,15 @@ import ast
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "litereality_agent"
-LAYERS = {"agent", "models", "pipeline", "room_format", "runtimes"}
+LAYERS = {"agent", "models", "pipeline", "room_ops", "runtimes"}
 # `models` may reach `agent` because procedural object generation is a model that happens to be
 # produced by an agent session: it drives a harness from `agent/providers`. The arrow is safe
 # because `agent` imports nothing from `models`, so the two cannot form a cycle.
 ALLOWED = {
-    "agent": {"room_format"},
+    "agent": {"room_ops"},
     "models": {"agent", "runtimes"},
-    "pipeline": {"agent", "models", "room_format"},
-    "room_format": set(),
+    "pipeline": {"agent", "models", "room_ops"},
+    "room_ops": set(),
     "runtimes": set(),
 }
 

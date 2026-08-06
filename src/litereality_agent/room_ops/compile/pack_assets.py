@@ -212,7 +212,7 @@ def pack(scan: str | None = None, glb_dir: str | None = None, out: Path | None =
     manifest = {
         "scene": scene,
         "glb_dir": "glb",
-        "note": "Packed by room_format.compile.pack_assets for build_room.py.",
+        "note": "Packed by room_ops.compile.pack_assets for build_room.py.",
         "assets": assets,
     }
     (assets_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

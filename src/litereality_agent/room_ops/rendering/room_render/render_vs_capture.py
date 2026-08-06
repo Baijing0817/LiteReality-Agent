@@ -6,7 +6,7 @@ RENDER | REAL side by side for the SAME viewpoint. It is a true per-frame compar
 captured frames — unlike ``walkthrough_sidebyside``, which interpolates a smooth fly-through and stacks
 it against the whole capture video.
 
-    python -m litereality_agent.room_format.rendering.room_render.render_vs_capture --scan <scan_dir> --room <room_dir> \
+    python -m litereality_agent.room_ops.rendering.room_render.render_vs_capture --scan <scan_dir> --room <room_dir> \
         --out <out_dir> [--res-div 2] [--fps 6] [--frames all|N|a-b|0,8,30]
 
 Outputs under <out_dir>:  renders/frame_NNNNN.png (raw renders), pairs/pair_NNNNN.png (side-by-side),

@@ -59,7 +59,7 @@ try:
 except NameError:
     SELF_PATH = None
     HERE = os.getcwd()
-PROJECT = os.path.dirname(HERE)  # room_format package root
+PROJECT = os.path.dirname(HERE)  # room_ops package root
 
 
 def _default_scan():

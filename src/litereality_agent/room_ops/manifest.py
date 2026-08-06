@@ -22,7 +22,7 @@ Given that folder — and nothing else — stage 2 can rebuild the whole environ
     manifest.apply_env(pkg)                         # exports the $LITEREALITY_* contract
     ...                                             # litereality_agent.agent.tools.shared.config now resolves
 
-From a shell, `python -m litereality_agent.room_format.manifest env <dir>` prints those exports for
+From a shell, `python -m litereality_agent.room_ops.manifest env <dir>` prints those exports for
 `eval` — that is how `the CLI --scene <dir>` rebuilds its environment.
 
 Deliberately **stdlib only**, importing nothing else in this package: it is the seam between the
@@ -509,7 +509,7 @@ def capture_stats(capture: Path | str) -> dict[str, Any]:
 
 
 # ── the shell interface ──────────────────────────────────────────────────────
-# `python -m litereality_agent.room_format.manifest <cmd> [<dir>]`
+# `python -m litereality_agent.room_ops.manifest <cmd> [<dir>]`
 #
 #     env    eval-able exports that rebuild the stage-2 environment — the CLI sources this
 #     show   human summary + which recorded paths are actually on disk

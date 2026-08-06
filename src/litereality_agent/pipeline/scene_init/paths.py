@@ -21,7 +21,7 @@ folders:
             trace.jsonl, images/, agent/
         manifest.json                      # per-scan roll-up of everything above
 
-(The room-build half lands in a sibling ``scene_stage/`` — see `room_format.paths`.)
+(The room-build half lands in a sibling ``scene_stage/`` — see `room_ops.paths`.)
 
 Override the output root with ``--output-root`` / ``$LITEREALITY_OUTPUT``.
 
@@ -110,7 +110,7 @@ def obj_stage_dir(scan: str | None = None) -> Path:
     clustering, reconstructed GLBs). It lives under stage 1's own root in the deliverables tree,
     ``run/<scan>/scene_init/obj_stage`` (override the root via $LITEREALITY_FINAL). When the
     staging and deliverables roots differ, the staging spelling is kept as a symlink to here, so
-    the room-format library, CLI, and tools resolve to the same physical tree either way."""
+    the room-ops library, CLI, and tools resolve to the same physical tree either way."""
     return scene_init_dir(scan) / "obj_stage"
 
 

@@ -283,7 +283,7 @@ def test_only_one_module_resolves_blender():
                 implementations.append(str(f.relative_to(pkg)))
             elif "_canonical()" not in m.group(0) and "os.environ" in m.group(0):
                 implementations.append(str(f.relative_to(pkg)))
-    assert implementations == ["room_format/paths.py"], (
+    assert implementations == ["room_ops/paths.py"], (
         f"Blender is resolved in more than one place: {implementations}"
     )
 
@@ -291,7 +291,7 @@ def test_only_one_module_resolves_blender():
 def test_the_resolver_finds_a_macos_app_bundle(monkeypatch, tmp_path):
     """The case that broke a real run: nothing in the environment, nothing on PATH, Blender
     installed as an app bundle."""
-    from litereality_agent.room_format import paths as ic
+    from litereality_agent.room_ops import paths as ic
 
     bundle = tmp_path / "Blender.app" / "Contents" / "MacOS"
     bundle.mkdir(parents=True)
@@ -308,7 +308,7 @@ def test_the_error_says_what_to_set(monkeypatch, tmp_path):
     """`Blender not found` with no next step is what sent this investigation the long way round."""
     import pytest as _pytest
 
-    from litereality_agent.room_format import paths as ic
+    from litereality_agent.room_ops import paths as ic
 
     monkeypatch.delenv("BLENDER", raising=False)
     monkeypatch.delenv("LITEREALITY_BLENDER", raising=False)

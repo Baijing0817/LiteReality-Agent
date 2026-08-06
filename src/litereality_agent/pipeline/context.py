@@ -51,7 +51,7 @@ class RunContext:
                 scene = candidate
                 scan = candidate.name
                 try:
-                    from litereality_agent.room_format.manifest import read
+                    from litereality_agent.room_ops.manifest import read
 
                     package = read(candidate)
                     scan = package.scan

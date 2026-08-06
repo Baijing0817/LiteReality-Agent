@@ -23,11 +23,11 @@ per-tool copy is a bug waiting to happen:
 | `image_selection/` | surface geometry + head-on comparison — reaches `render` (via `wall_refs`) and `select_views` (via `overlay`) |
 | `stitch_wall_image/` | rectified wall stitches — `overlay`, `wall_refs`, `surface_views`, and the pipeline's `evidence.py` |
 
-Some tools still wrap `room_format` rather than absorbing it, deliberately: `compile` →
-`room_format.compile_room` (the format's own compiler), `fetch_material` →
+Some tools still wrap `room_ops` rather than absorbing it, deliberately: `compile` →
+`room_ops.compile_room` (the format's own compiler), `fetch_material` →
 `compile/fetch_textures` (`textures.json` is part of the Room format contract).
 
-What is left in `room_format/rendering/` is genuinely room-format work: `room_render/` (capture-pose
+What is left in `room_ops/rendering/` is genuinely room-ops work: `room_render/` (capture-pose
 renders, ranking, render-vs-capture) and the object turntables.
 
 ## Capability tools

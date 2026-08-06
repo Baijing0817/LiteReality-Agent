@@ -59,7 +59,7 @@ folder too.
 The whole pipeline exists to produce one thing — a good `Room.py` that has passed all quality
 control.
 
-## room_format
+## room_ops
 
 What we can do with a `Room.py` folder, whether or not agents have re-optimized it:
 
@@ -71,7 +71,7 @@ What we can do with a `Room.py` folder, whether or not agents have re-optimized 
 
 ### Where does the scene-editing demo go?
 
-Under `room_format`, since it is more about what we do once we already have a room. It does not
+Under `room_ops`, since it is more about what we do once we already have a room. It does not
 change the original `Room.py` folder itself: it uses the tools defined under `agent/tools` to do
 what we ask, then saves the result to a **new** folder rather than overwriting the old one.
 Everything that happens in the pipeline folder overwrites the original `Room.py`.
