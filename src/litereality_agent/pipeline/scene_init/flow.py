@@ -58,6 +58,34 @@ def resolve_scan(value: str, name: str | None) -> tuple[Path, str]:
     return raw, scan_name
 
 
+def _references_on_disk(scan: str) -> bool:
+    """True when a previous run left the reference manifests `--skip-references` would reuse.
+
+    Falls back to regenerating rather than proceeding on a partial tree: a missing manifest means
+    the routing and the reconstruction would disagree about which objects exist.
+    """
+    return (
+        (config.object_refs_root() / scan / "object_references.json").is_file()
+        and (config.chair_clusters_root() / scan / "chair_clusters.json").is_file()
+    )
+
+
+def _load_reference_json(path: Path, default: dict) -> dict:
+    """Read a reference manifest, falling back to `default` when it is absent or unreadable.
+
+    Openings legitimately have no manifest on a room without doors or windows, so a miss here is
+    not an error — but a CORRUPT manifest silently becoming an empty object list would drop every
+    object from the run, so say so rather than swallowing it.
+    """
+    if not path.is_file():
+        return dict(default)
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        print(f"[references] {path} is unreadable ({exc}); regenerating instead", flush=True)
+        raise
+
+
 def process_scan(raw: Path, scan: str, args: argparse.Namespace) -> dict:
     print(console.rule(f"scene_init · {scan}"))
     print(f"   {console.colour('dim')}capture: {raw}{console.colour('off')}", flush=True)
@@ -157,41 +185,70 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
             "openings": op["openings"],
         }
 
+    # 3-5. references. `--skip-references` reuses what is already on disk. The reconstruct stage
+    # passes it: it re-enters this module only to reach classify/build, and re-deriving references
+    # over crops that --skip-crop has already frozen is not merely wasted time. Chair grouping is
+    # an LLM judgment, so it returns a DIFFERENT answer often enough to matter (2/3/3/2 clusters
+    # across four runs of the same five chairs) and `cluster_and_generate` rewrites
+    # chair_clusters.json unconditionally — so the later stage can overwrite the grouping that
+    # ingest committed to and that the references and routing were built against.
+    reuse = args.skip_references and _references_on_disk(scan)
+
     # 3. object references (non-chair objects)
     telemetry.stage("object_references", scan, "start")
-    obj_result = object_references.generate_for_scan(
-        scan,
-        config.object_refs_root(),
-        skip_image_generation=args.skip_image_generation,
-        force_image_generation=args.force_image_generation,
-        model=args.image_model,
-        max_images=args.max_images,
-        only=only,
-        include_openings=args.include_openings,
-    )
-    telemetry.stage("object_references", scan, "done", n_objects=len(obj_result["objects"]))
+    if reuse:
+        obj_result = _load_reference_json(
+            config.object_refs_root() / scan / "object_references.json",
+            {"scan": scan, "objects": []},
+        )
+        telemetry.stage("object_references", scan, "reused")
+    else:
+        obj_result = object_references.generate_for_scan(
+            scan,
+            config.object_refs_root(),
+            skip_image_generation=args.skip_image_generation,
+            force_image_generation=args.force_image_generation,
+            model=args.image_model,
+            max_images=args.max_images,
+            only=only,
+            include_openings=args.include_openings,
+        )
+        telemetry.stage("object_references", scan, "done", n_objects=len(obj_result["objects"]))
 
     # 4. chair grouping + per-cluster reference
     telemetry.stage("chair_clusters", scan, "start")
-    chair_result = chair_clusters.cluster_and_generate(
-        scan,
-        config.chair_clusters_root(),
-        skip_image_generation=args.skip_image_generation,
-        force_image_generation=args.force_image_generation,
-        model=args.image_model,
-        use_dino=use_dino,
-    )
-    telemetry.stage(
-        "chair_clusters",
-        scan,
-        "done",
-        chairs=chair_result["chair_count"],
-        clusters=len(chair_result["clusters"]),
-    )
+    if reuse:
+        chair_result = _load_reference_json(
+            config.chair_clusters_root() / scan / "chair_clusters.json",
+            {"chair_count": 0, "clusters": []},
+        )
+        telemetry.stage("chair_clusters", scan, "reused")
+    else:
+        chair_result = chair_clusters.cluster_and_generate(
+            scan,
+            config.chair_clusters_root(),
+            skip_image_generation=args.skip_image_generation,
+            force_image_generation=args.force_image_generation,
+            model=args.image_model,
+            use_dino=use_dino,
+        )
+        telemetry.stage(
+            "chair_clusters",
+            scan,
+            "done",
+            chairs=chair_result["chair_count"],
+            clusters=len(chair_result["clusters"]),
+        )
 
     # 5. door/window references (projected 3D opening boxes → clean hosted references)
     opening_result = {"openings": []}
-    if not args.skip_openings:
+    if reuse:
+        telemetry.stage("opening_references", scan, "start")
+        opening_result = _load_reference_json(
+            config.opening_refs_root() / scan / "opening_references.json", {"openings": []}
+        )
+        telemetry.stage("opening_references", scan, "reused")
+    elif not args.skip_openings:
         telemetry.stage("opening_references", scan, "start")
         opening_result = opening_references.generate_for_scan(
             scan,
@@ -531,6 +588,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--skip-crop", action="store_true", help="Reuse existing crops, never crop."
+    )
+    parser.add_argument(
+        "--skip-references",
+        action="store_true",
+        help="Reuse the references already on disk instead of regenerating them. The reconstruct "
+        "stage passes this: crops are frozen by then, so re-deriving them re-runs the chair "
+        "judge and can reshuffle the clustering ingest already committed to.",
     )
     parser.add_argument(
         "--use-dino",
