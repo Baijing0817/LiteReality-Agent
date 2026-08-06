@@ -126,9 +126,6 @@ uv run litereality stage author run/my-room --force --polish --live
 uv run litereality view run/<scan>
 ```
 
-```bash
-uv run python -m litereality_agent.room_ops.walk path/to/Room.glb
-```
 
 ### The room itself
 
