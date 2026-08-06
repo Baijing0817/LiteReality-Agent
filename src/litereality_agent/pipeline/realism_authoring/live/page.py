@@ -37,6 +37,8 @@ _PAGE = """<!doctype html>
   #bar .t{font-weight:600;font-size:14px}
   .pill{display:inline-flex;align-items:center;gap:7px;background:rgba(27,30,36,.9);
         border:1px solid var(--line);border-radius:20px;padding:5px 12px;backdrop-filter:blur(6px)}
+  button.pill{pointer-events:auto;color:var(--ink);font:inherit;font-size:12px;cursor:pointer}
+  button.pill:hover{border-color:var(--accent);color:var(--accent)}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:0 0 auto}
   .dot.building{background:var(--warn);animation:pulse 1s ease-in-out infinite}
   .dot.failed{background:var(--bad)}
@@ -75,8 +77,9 @@ _PAGE = """<!doctype html>
       <span class="pill t">__LABEL__</span>
       <span class="pill"><i class="dot" id="dot"></i><span id="status">waiting for a build</span></span>
       <span class="pill" id="meta"></span>
+      <button class="pill" id="reset" title="Frame the whole room again (R)">reset view</button>
     </div>
-    <div id="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
+    <div id="hint">drag to orbit · scroll to zoom · right-drag to pan · R to reset the view</div>
   </div>
 
   <div id="side">
@@ -238,7 +241,13 @@ async function poll() {
   setTimeout(poll, POLL);
 }
 poll();
-window.__live = { camera, controls, scene, root: () => current, frame: () => current && frame(current) };
+/* Re-frame on demand. The swap deliberately never moves the camera, which is right while you are
+   watching one wall — but it means a viewer that has wandered inside the geometry has no way back
+   short of reloading, and reloading costs a full glb parse. */
+document.getElementById('reset').addEventListener('click', () => { if (current) frame(current); });
+addEventListener('keydown', (e) => {
+  if (e.key === 'r' && !e.metaKey && !e.ctrlKey && current) frame(current);
+});
 </script>
 </body></html>
 """
