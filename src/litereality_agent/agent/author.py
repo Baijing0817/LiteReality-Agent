@@ -39,8 +39,33 @@ def surfaces_for(room: Path) -> list[str]:
 # capability tools exposed to the authoring model: real materials + optional self-check
 CAPABILITY_TOOLS = ("fetch_material", "render", "critic", "select_views", "grid", "check_collisions")
 
+# Shared by both profiles. Measured on two runs of the same scene, the pass spent its whole budget
+# exploring and made every edit at the very end: the first reached its first edit 16.5 min in (69%
+# of the session, 85 of 91 tool calls already spent), the second was still on Read/Bash/
+# fetch_material after 83 calls with no edit at all. Both called `render` at most once, before any
+# edit existed — so "author, render, look, correct" never actually ran a cycle. Nothing in the old
+# wording forbade that, and a self-paced model under a step budget will always bank the cheap calls
+# first. Hence a stated cadence rather than encouragement, and an explicit first target: the floor
+# and walls fill most of every frame, so they are what makes progress visible at all.
+RHYTHM = """\
+HOW TO WORK — SHIP CHANGES AS YOU GO, NOT IN ONE BATCH AT THE END.
+Someone may be watching this room rebuild live, and an unedited `Room.py` shows them nothing. A run
+that is cut short keeps only what you have already saved.
+• EDIT `Room.py` AT LEAST ONCE EVERY 20-30 TOOL CALLS. If you are nearing 30 calls since your last
+  edit, stop investigating: make the best change you can justify from what you already know, save
+  it, and keep investigating afterwards. An imperfect saved change beats a perfect unsaved one.
+• BIGGEST VISIBLE WIN FIRST — the FLOOR, then the WALLS. Their material fills most of every frame,
+  so the floor PBR set and the wall paints change the room more than any fixture can. Work in this
+  order, editing at each step: floor -> walls -> ceiling -> fixtures.
+• Read for your NEXT edit, not for the whole room. `Room.md` and the `SHELL` dict up front, then ONE
+  surface's head-on stitch at a time — measure that surface, edit it, save, move to the next.
+• Every edit must leave `Room.py` compiling. Many small complete changes, never one large one.
+"""
+
 PROMPT = """\
 You are reconstructing a REAL room as an editable Python program, self-paced (no fixed steps).
+
+{rhythm}
 
 The room is `Room.py` in your working directory: a builder + a `SHELL` dict (walls, openings,
 object boxes). FIRST Read `Room.md` and `Room.py` IN FULL to learn the helper API (how shell
@@ -57,9 +82,13 @@ Two jobs, IN THIS ORDER — do (1) fully first, then (2):
      evidence-based: correct obvious errors against the photos, keep it metric, and do NOT redesign a
      room that is already right. Do NOT move/resize the furniture object boxes
      (Table*/Chair*/reconstructed objects) — structure means walls / openings / floor+ceiling height only.
-   • THEN MATERIALS for every surface ({surface_list}): base colour (hue+lightness),
-     finish, pattern. READ PAST anything mounted on a wall — material is the exposed wall. Don't skip
-     the CEILING. Don't touch fixtures until the structure is corrected and every surface has a material.
+     Keep this pass SHORT — correct the obvious errors and move on to materials; do not audit every
+     number before your first edit.
+   • THEN MATERIALS, in the order FLOOR -> WALLS -> CEILING, covering every surface
+     ({surface_list}): base colour (hue+lightness), finish, pattern. Do the FLOOR first — it is the
+     single largest visible surface. Save after each surface rather than batching them all into one
+     edit. READ PAST anything mounted on a wall — material is the exposed wall. Don't skip the
+     CEILING. Don't touch fixtures until the structure is corrected and every surface has a material.
 2) WALL FIXTURES the scan missed but the photos show (sockets, switches, trunking, boards, signs,
    radiators, shelves, skirting, ceiling vents, rugs) — simple procedural geometry flush to the
    wall, anchored to the SHELL's opening offsets / wall lengths. Never over a Door/Window opening.
@@ -98,8 +127,9 @@ You have TOOLS beyond editing — use them:
   then fix `Room.py`. Use this to CATCH COLOUR DRIFT especially — author, render, look, correct.
 - `critic(images, goal)` — a strict pass/score verdict if you want a second opinion.
 - `select_views(target)` — best frames (render auto-picks if you omit frames).
-Call them when useful; you don't have to render every surface. A couple of render-checks on the
-surfaces you're least sure about is worth far more than none.
+Render-check the surfaces you are least sure about, especially for COLOUR DRIFT — but never let a
+render replace an edit: it is your SAVED `Room.py` that the room is rebuilt from, so save first and
+check afterwards.
 
 Constraints:
 - Edit ONLY `Room.py`; it MUST stay valid Python that compiles. You MAY correct SHELL STRUCTURE
@@ -114,6 +144,8 @@ When done, summarise per surface: the material (flat vs fetched PBR + which asse
 DETAIL_PROMPT = """\
 You are reconstructing a REAL room as an editable Python program, self-paced. The priority THIS run
 is FIXTURE DETAIL: every mounted object must read as a real 3D thing, never a flat slab.
+
+{rhythm}
 
 The room is `Room.py` in your working directory: a builder + a `SHELL` dict (walls, openings, object
 boxes). FIRST Read `Room.md` and `Room.py` IN FULL to learn the helper API (how materials are
@@ -247,7 +279,7 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     stitches = [surface_ref / f"{s}_stitched.jpg" for s in surfaces]
     stitch_lines = "\n".join(f"  - {s} (head-on): {p}" for s, p in zip(surfaces, stitches) if p.is_file())
     prompt = PROFILES.get(profile, PROMPT).format(stitch_lines=stitch_lines, scan=scan,
-                                                  surface_list=", ".join(surfaces))
+                                                  surface_list=", ".join(surfaces), rhythm=RHYTHM)
     # Images the model MAKES to look at are evidence; give it somewhere durable to put them.
     from litereality_agent.agent import scratch
     scratch_at = scratch.bind(near=room)
