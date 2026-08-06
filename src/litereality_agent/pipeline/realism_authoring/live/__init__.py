@@ -8,8 +8,8 @@ killed, and restarted at any point in a run without disturbing it.
 
 It lives under `pipeline/` because finding those things IS run-tree layout knowledge — where the
 authored room sits, where each pass writes its trace — which `room_ops` deliberately does not have
-(see the note in `publish/viewer.py`). The compile itself is a room-ops capability and is called as
-one, so the dependency still points inward.
+(see the note in `room_ops/walk`, which walks a FINISHED room and therefore lives there).
+The compile itself is a room-ops capability and is called as one, so the dependency points inward.
 
     python -m litereality_agent.pipeline.realism_authoring.live <scan> [--port 8770]
     litereality live <scan>
@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import errno
 import json
 import shutil
 import threading
@@ -42,6 +41,7 @@ from urllib.parse import parse_qs, urlparse
 
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.realism_authoring.live import page
+from litereality_agent.room_ops.serve import bind
 
 # Every pass writes its own trace file, and a run has several. Globbed rather than listed so a new
 # pass shows up in the feed without editing this module.
@@ -399,29 +399,6 @@ def _handler(room: LiveRoom, label: str):
     return Handler
 
 
-PORT_TRIES = 20
-
-
-def _bind(handler, host: str, port: int) -> ThreadingHTTPServer:
-    """Bind the first free port at or above `port`.
-
-    A viewer is very often started while an older one is still up — the previous run's, or this
-    run's in another terminal — and the port a viewer happens to sit on is incidental to what was
-    asked for. Refusing to start over it means an authoring run dies at the door for a reason that
-    has nothing to do with the room, so walk up until one binds and let `describe` announce where
-    it landed rather than making the caller pick a free number by hand.
-    """
-    for candidate in range(port, port + PORT_TRIES):
-        try:
-            return ThreadingHTTPServer((host, candidate), handler)
-        except OSError as exc:
-            if exc.errno != errno.EADDRINUSE:
-                raise
-    raise SystemExit(
-        f"live viewer found no free port in {port}-{port + PORT_TRIES - 1} on {host}"
-    )
-
-
 def start(
     context: RunContext,
     *,
@@ -438,14 +415,14 @@ def start(
     traces being tailed cannot end up under different roots — which is exactly what happens when a
     viewer and a stage are launched separately with mismatched `--output-root`.
 
-    `port` is where to start looking, not a requirement — see `_bind`. Read the bound port off the
+    `port` is where to start looking, not a requirement — see `room_ops.serve.bind`. Read it off the
     returned url (or `server.server_port`); it is not necessarily the one asked for.
 
     The caller owns shutdown: `room.stop()` then `server.shutdown()`.
     """
     room = LiveRoom(context, poll=poll, bake=bake, bake_resolution=bake_resolution)
     # Bind before the watcher starts, so exhausting the port range leaves nothing running behind.
-    server = _bind(_handler(room, context.scan), host, port)
+    server = bind(_handler(room, context.scan), host, port)
     room.trace.refresh()
     threading.Thread(target=room.watch, daemon=True).start()
     threading.Thread(target=server.serve_forever, daemon=True).start()

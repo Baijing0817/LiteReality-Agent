@@ -19,6 +19,7 @@ import pytest
 
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.realism_authoring import live
+from litereality_agent.room_ops import serve
 
 
 def _event(seq: int, t: float, **extra) -> str:
@@ -122,9 +123,8 @@ def test_idle_s_reports_silence_since_the_last_event(run_tree: Path) -> None:
     room.trace.refresh()
     assert 29.0 <= room.state(0)["idle_s"] <= 35.0
 
-    path.write_text(
-        _event(1, time.time() - 30.0, kind="tool") + "\n" + _event(2, time.time(), kind="think") + "\n"
-    )
+    with path.open("a") as fh:              # tracers append; they never rewrite an earlier line
+        fh.write(_event(2, time.time(), kind="think") + "\n")
     room.trace.refresh()
     assert room.state(0)["idle_s"] < 5.0, "a fresh event must reset the clock"
 
@@ -400,7 +400,7 @@ def test_start_skips_a_taken_port(run_tree: Path) -> None:
         room, server, url = live.start(_context(run_tree), port=taken, bake=False)
         try:
             assert server.server_port != taken
-            assert server.server_port in range(taken, taken + live.PORT_TRIES)
+            assert server.server_port in range(taken, taken + serve.PORT_TRIES)
             assert url == f"http://127.0.0.1:{server.server_port}/"
             urlopen(f"{url}state?since=0").read()  # the one that answers is the one announced
         finally:
@@ -416,7 +416,7 @@ def test_start_gives_up_when_the_whole_range_is_taken(run_tree: Path, monkeypatc
     def refuse(*_args, **_kwargs):
         raise OSError(errno.EADDRINUSE, "Address already in use")
 
-    monkeypatch.setattr(live, "ThreadingHTTPServer", refuse)
+    monkeypatch.setattr(serve, "ThreadingHTTPServer", refuse)
     with pytest.raises(SystemExit, match="no free port"):
         live.start(_context(run_tree), port=8770, bake=False)
 
@@ -426,7 +426,7 @@ def test_start_does_not_swallow_other_bind_errors(run_tree: Path, monkeypatch) -
     def refuse(*_args, **_kwargs):
         raise OSError(errno.EADDRNOTAVAIL, "Can't assign requested address")
 
-    monkeypatch.setattr(live, "ThreadingHTTPServer", refuse)
+    monkeypatch.setattr(serve, "ThreadingHTTPServer", refuse)
     with pytest.raises(OSError) as caught:
         live.start(_context(run_tree), port=8770, bake=False)
     assert caught.value.errno == errno.EADDRNOTAVAIL

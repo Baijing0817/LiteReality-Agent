@@ -26,7 +26,7 @@ Alongside it, a VERBATIM sidecar — every SDK message exactly as it arrived:
 The curated events are a reading of the run and can only answer questions we anticipated; the
 sidecar is the source they were derived from, for the ones we did not.
 
-The viewer reads this back (see authoring/export_viewer.collect_trace) so a default run is
+`trace_report.py` reads this back into a readable timeline, so a default run is
 documented without any extra step.
 """
 

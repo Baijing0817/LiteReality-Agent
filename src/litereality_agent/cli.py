@@ -80,6 +80,17 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--quality-pass", action="store_true")
 
 
+def _add_publish_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--compare-frames", type=int, default=None,
+        help="real-vs-render comparison pairs to build at the end of publish; 0 to skip (default 6)",
+    )
+
+
+def _publish_options(args) -> dict:
+    return {"compare_frames": getattr(args, "compare_frames", None)}
+
+
 def _add_live_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--live",
@@ -147,7 +158,7 @@ def _run(args) -> int:
             through=args.through,
             force=set(args.force or ()),
             strict=args.strict,
-            options={"author": _author_options(args)},
+            options={"author": _author_options(args), "publish": _publish_options(args)},
         )
         rc = _print_results(results)
         finished("run finished" if not rc else "run failed")
@@ -165,6 +176,7 @@ def _stage(args) -> int:
             options={
                 "skip_image_generation": args.skip_image_generation,
                 **_author_options(args),
+                **_publish_options(args),
             },
         )
         rc = _print_results([result])
@@ -178,6 +190,20 @@ def _live(args) -> int:
     return live.serve(
         args.target, port=args.port, host=args.host, poll=args.poll,
         output_root=args.output_root, bake=args.bake, bake_resolution=args.bake_resolution,
+    )
+
+
+def _view(args) -> int:
+    """Walk a published room. `publish` knows which file it wrote; `room_ops.walk` serves any glb —
+    resolving one run's tree to the other's argument is this layer's whole job."""
+    from litereality_agent.pipeline.realism_authoring import publish
+    from litereality_agent.room_ops import walk
+
+    context = _context(args)
+    return walk.serve(
+        publish.viewable_room(context), context.scan,
+        port=args.port, host=args.host, open_browser=args.open_browser,
+        subtitle="published reconstruction",
     )
 
 
@@ -235,6 +261,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--output-root")
     _add_author_options(run)
     _add_live_options(run)
+    _add_publish_options(run)
     run.set_defaults(handler=_run)
 
     stage = commands.add_parser("stage", help="run exactly one pipeline stage")
@@ -246,7 +273,19 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--output-root")
     _add_author_options(stage)
     _add_live_options(stage)
+    _add_publish_options(stage)
     stage.set_defaults(handler=_stage)
+
+    view = commands.add_parser("view", help="walk a published room in the browser")
+    view.add_argument("target", metavar="SCAN_OR_SCENE")
+    view.add_argument(
+        "--port", type=int, default=8780,
+        help="where to start looking for a free port; taken ones are skipped",
+    )
+    view.add_argument("--host", default="127.0.0.1")
+    view.add_argument("--output-root")
+    view.add_argument("--no-open", dest="open_browser", action="store_false")
+    view.set_defaults(handler=_view)
 
     live = commands.add_parser("live", help="watch a room being authored, with the agent's trace")
     live.add_argument("target", metavar="SCAN_OR_SCENE")

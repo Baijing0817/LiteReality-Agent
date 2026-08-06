@@ -1,14 +1,13 @@
 """The live page: one HTML string, no build step and no sidecar files.
 
-This is the *streaming* sibling of `room_ops/viewer.py`. That one packs a finished room into a
-single self-contained file you can mail to someone; this one stays connected to a run in progress.
-The difference that matters is the swap: a finished viewer loads its glb once, while this page
-replaces the geometry in place on every rebuild and never touches the camera. Reloading the page
-instead would be far less code, but it throws away where the viewer was standing — and watching
-an agent work is exactly when you want to keep looking at the wall it is working on.
+This is the *streaming* sibling of `room_ops/walk`. That one walks a finished room; this one
+stays connected to a run in progress. The difference that matters is the swap: a finished viewer
+loads its glb once, while this page replaces the geometry in place on every rebuild and never
+touches the camera. Reloading the page instead would be far less code, but it throws away where the
+viewer was standing — and watching an agent work is exactly when you want to keep looking at the
+wall it is working on.
 
-Three.js comes from the same CDN and version `room_ops/viewer.py` already pins, so a live page and
-an exported page render identically and neither adds a dependency to the repo.
+Three.js comes from a CDN, as both other viewers do, so nothing here adds a dependency to the repo.
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 <h3 align="center">An Agentic System for Interactable 3D Indoor Scene Reconstruction</h3>
 </p>
 <p align="center">
-  <h3 align="center"><a href="https://litereality.github.io/Litereality-agent-site/">Website</a> | <a href="https://litereality.github.io/Litereality-agent-site/litereality-agent-post/">Blog</a> | <a href="https://apps.apple.com/gb/app/litereality/id6774158260">LiteReality Scanner</a></h3>
+  <h3 align="center"><a href="https://litereality.github.io/Litereality-agent-site/">Website</a> | <a href="https://litereality.github.io/Litereality-agent-site/litereality-agent-post/">Blog</a> | <a href="https://apps.apple.com/gb/app/litereality/id6774158260">LiteReality Scanner</a> | Technical Report (coming soon)</h3>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@ a complete, graphics-ready scene with articulated assets.
 2. **Scan your room.** One walkthrough captures the RGB frames, depth, and the RoomPlan
    `room.usdz` the pipeline needs.
 3. **Upload the scan** to the machine you'll run on.
-4. **Run LiteReality-Agent** — `uv run litereality run <path/to/scan>` — for an articulated,
+4. **Run LiteReality-Agent** — for an articulated,
    realistic room reconstruction.
 
 **Test scenes.** Don't have a scan yet? Clone the example room scans and start from them:
@@ -35,22 +35,23 @@ uv run litereality run example-scans/<scan>
 
 Tested on **macOS** (Apple Silicon) and **Linux** (with a >=24 GB GPU).
 
-1. [`uv`](https://docs.astral.sh/uv/) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
+1. [`uv`](https://docs.astral.sh/uv/)
 2. **Blender 5.x** (tested on 5.1). `BLENDER_PATH` points at the install *directory*, not the binary.
 3. **OpenAI API key** for reference image generation — typically under $1 per scene.
 4. **A logged-in agent CLI on your `PATH`** — this drives all reasoning. `claude`
    (Claude Code) is the default; `codex` (OpenAI Codex) is also supported, selected with
-   `LR_AGENT_PROVIDER`.
+   `LR_AGENT_PROVIDER` in `models.env`.
 5. **Somewhere to run TRELLIS and GroundingDINO** — either a [Modal](https://modal.com) account
    (recommended; free tier, no local GPU, works on macOS) or a Linux box with a ≥24 GB NVIDIA GPU.
    See [Install](#install) — this is the one real choice in the setup.
 
 ## Install
 
-TRELLIS and GroundingDINO need a GPU. By default they run **hosted on Modal**, so nothing heavy
-runs on your machine and an Apple Silicon Mac with no GPU is enough — Modal's free tier covers this
-workload comfortably. Got your own Linux GPU? See [deploy/local-gpu.md](deploy/local-gpu.md)
-instead.
+TRELLIS and GroundingDINO need a GPU. By default they run **hosted on Modal**, which is the
+recommended path: nothing heavy runs on your machine, so an Apple Silicon Mac with no GPU is
+enough, and detection fans out across several containers at once instead of queueing behind a
+single card. Modal's free tier covers this workload comfortably. Got your own Linux GPU? See
+[deploy/local-gpu.md](deploy/local-gpu.md) instead.
 
 **1. Install the environment.**
 
@@ -68,7 +69,7 @@ cp .env.example .env
 | `BLENDER_PATH` | your Blender install **directory**, not the binary |
 | `LR_SCANS_DIR` | the folder holding your scans |
 
-for example:
+For example:
 ```dotenv
 OPENAI_API_KEY=sk-...
 MODAL_TOKEN_ID=ak-...
@@ -102,9 +103,9 @@ uv run litereality run /path/to/capture
 
 ### The stages
 
-A reconstruction has two stages  **scene init** followed by **authoring**.
+A reconstruction has two stages: **scene init** followed by **authoring**.
 
-Scene init is deterministic
+Scene init is deterministic.
 Authoring is agentic: the agent looks at the seed room, compares it against the capture,
 and edits it until it matches. Either half can be run on its own.
 
@@ -112,35 +113,34 @@ and edits it until it matches. Either half can be run on its own.
 # scene init — capture to seed room
 uv run litereality run /path/to/capture --through seed
 
-# authoring — seed room to finished room, on a package init already produced
-uv run litereality stage author run/my-room --force --polish
+# authoring — seed room to finished room, on a package scene init already produced
+uv run litereality stage author run/my-room --force --polish --live
 ```
 
 `--polish` adds object refinement, materials, and a model-driven quality pass on top of authoring.
+`--live` shows how everything is built in real time, alongside the agent's trace.
 
-### Watching it happen
-
-Authoring takes a while, and `viewer.html` only exists once it finishes. To watch instead of wait,
-add `--live` to the run you are already starting:
+## See the results
 
 ```bash
-uv run litereality stage author run/LiteReality-Zhening-Atrium_9309-20260804-113711 --force --polish --live
+uv run litereality view run/<scan>
 ```
-
-That serves the room beside the agent's trace at `http://127.0.0.1:8770`, recompiling whenever the
-agent saves `Room.py`. When the run ends the viewer says so and keeps serving, so the finished room
-stays there to look at — `ctrl-c` to stop. Add `--live-no-bake` for geometry-only rebuilds that
-keep up with rapid saves, at the cost of procedural wall and floor materials rendering flat.
-
-To attach to a run already in progress — or to reopen a finished one — start the viewer on its own:
 
 ```bash
-uv run litereality live run/my-room
+uv run python -m litereality_agent.room_ops.walk path/to/Room.glb
 ```
 
-It only reads the run tree, so it can be started, killed, and restarted mid-run without disturbing
-anything. Prefer `--live` when you control the run: both halves then share one output root, so the
-viewer cannot end up tailing a different tree than the one being authored.
+### The room itself
+
+In the formats you'd take elsewhere:
+
+- `room_preview/Room.glb` — materials baked and clips intact, for Blender / Unity / Unreal / the web
+- `room_preview/Room.blend` — the same room as a Blender scene
+- `room/` — define the entire room here
+
+Publish also renders the room from the capture's own ARKit poses and sets each render beside the
+real photo taken there, under `realism_authoring/compare/` — the check on whether this is *that*
+room rather than merely a plausible one. It costs a few minutes; `--compare-frames 0` skips it.
 
 ## Development
 
