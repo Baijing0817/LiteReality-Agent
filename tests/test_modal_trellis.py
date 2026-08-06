@@ -173,10 +173,48 @@ def test_registry_selects_modal_trellis(monkeypatch):
 def test_registry_never_implicitly_runs_trellis_locally():
     from litereality_agent.models import registry
 
-    settings = SimpleNamespace(modal_trellis_app=None, trellis_python=None)
+    # The app name now carries a default, so an unset profile is what leaves TRELLIS unconfigured.
+    settings = SimpleNamespace(
+        modal_profile=None, modal_trellis_app="litereality-trellis", trellis_python=None
+    )
 
     with pytest.raises(RuntimeError, match="TRELLIS is not configured"):
         registry.gen3d_from_settings(settings)
+
+
+def test_registry_prefers_modal_when_only_a_profile_is_set(monkeypatch):
+    """MODAL_PROFILE alone selects hosted TRELLIS: Modal is the default runtime."""
+    from litereality_agent.models import registry
+
+    class Service:
+        def __init__(self, **options):
+            pass
+
+    monkeypatch.setattr("litereality_agent.models.trellis.modal.ModalTrellisService", Service)
+    settings = SimpleNamespace(
+        modal_profile="a-workspace",
+        modal_trellis_app="litereality-trellis",
+        modal_trellis_function="generate",
+        modal_environment="main",
+        # Set, and still not used — a configured profile wins over the local runtime.
+        trellis_python=sys.executable,
+    )
+
+    assert isinstance(registry.gen3d_from_settings(settings), Service)
+
+
+def test_registry_falls_back_to_local_trellis_without_a_profile():
+    """An explicit local GPU runtime stays reachable now that the app name always has a value."""
+    from litereality_agent.models import registry
+    from litereality_agent.models.trellis.service import LocalTrellisService
+
+    settings = SimpleNamespace(
+        modal_profile=None,
+        modal_trellis_app="litereality-trellis",
+        trellis_python=sys.executable,
+    )
+
+    assert isinstance(registry.gen3d_from_settings(settings), LocalTrellisService)
 
 
 def test_modal_client_uses_named_function_map():

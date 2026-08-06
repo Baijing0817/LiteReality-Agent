@@ -86,11 +86,16 @@ class LiteRealitySettings(BaseSettings):
 
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
-    modal_trellis_app: str | None = Field(default=None, validation_alias="MODAL_TRELLIS_APP")
+    # Modal is the default execution runtime, so the app names carry the deployed defaults and
+    # MODAL_PROFILE alone selects hosted execution. Override these only when a workspace deploys
+    # the apps under different names.
+    modal_trellis_app: str = Field(
+        default="litereality-trellis", validation_alias="MODAL_TRELLIS_APP"
+    )
     modal_trellis_function: str = Field(
         default="generate", validation_alias="MODAL_TRELLIS_FUNCTION"
     )
-    modal_dino_app: str | None = Field(default=None, validation_alias="MODAL_DINO_APP")
+    modal_dino_app: str = Field(default="litereality-dino", validation_alias="MODAL_DINO_APP")
     modal_dino_function: str = Field(default="infer", validation_alias="MODAL_DINO_FUNCTION")
     modal_environment: str = Field(default="main", validation_alias="MODAL_ENVIRONMENT")
     modal_profile: str | None = Field(default=None, validation_alias="MODAL_PROFILE")
