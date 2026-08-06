@@ -22,12 +22,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pickle
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.reconstruct.classify import classification
+
+# Each worker is one hosted vision call, so the ceiling is the provider's rate limit rather than
+# local CPU. Capped rather than unbounded so a 40-object room does not open 40 sessions at once.
+MAX_CLASSIFY_WORKERS = int(os.environ.get("LR_CLASSIFY_WORKERS", "8"))
 
 ROUTE_SCHEMA = {
     "type": "object",
@@ -156,9 +162,10 @@ def classify_for_scan(scan: str, *, model: str | None = None, include_chairs: bo
     routing_root = work / "routing"
 
     items = [it for it in collect(work, [scan], include_chairs)]
-    recs: list[dict] = []
     print(f"[classify] {scan}: {len(items)} object(s)...", flush=True)
-    for _scan, kind, name, ref, meta in items:
+
+    def classify_one(item) -> dict:
+        _scan, kind, name, ref, meta = item
         category = category_from_name(name, kind)
         dims = _dims_str(meta)
         prompt = PROMPT_TEMPLATE.format(category=category, dims=dims)
@@ -172,7 +179,7 @@ def classify_for_scan(scan: str, *, model: str | None = None, include_chairs: bo
                 "reason": f"classify error, default trellis: {exc}",
             }
         decision = apply_policy(kind, category, decision)
-        record = {
+        return {
             "scan": scan,
             "kind": kind,
             "name": name,
@@ -181,11 +188,18 @@ def classify_for_scan(scan: str, *, model: str | None = None, include_chairs: bo
             "reference": str(ref),
             **decision,
         }
-        recs.append(record)
-        flag = " [policy]" if decision.get("forced_by_policy") else ""
+
+    # One independent vision call per object, each ~9s. Run them together: the stage was serial
+    # and cost 46s on a 5-object room for no reason. `map` keeps routing order stable, and the
+    # per-object lines print after the pool drains so threads don't interleave mid-line.
+    with ThreadPoolExecutor(max_workers=max(1, min(len(items), MAX_CLASSIFY_WORKERS))) as pool:
+        recs: list[dict] = list(pool.map(classify_one, items))
+
+    for record in recs:
+        flag = " [policy]" if record.get("forced_by_policy") else ""
         print(
-            f"  {name:16s} -> {decision['route']:10s}{flag:9s} "
-            f"({decision.get('complexity', '?')}) {decision.get('reason', '')[:60]}"
+            f"  {record['name']:16s} -> {record['route']:10s}{flag:9s} "
+            f"({record.get('complexity', '?')}) {record.get('reason', '')[:60]}"
         )
 
     manifest = {"work": str(work), "model": model, "scans": {scan: recs}}

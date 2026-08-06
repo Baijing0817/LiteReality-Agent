@@ -309,6 +309,31 @@ def completeness_feedback(report: dict) -> str:
     return "\n".join(lines)
 
 
+def resume_note(job: Job) -> str:
+    """Point a retry at the previous attempt's artifacts instead of letting it start over.
+
+    The base prompt says "build ONE procedural 3D GLB", and a retry re-sends it to a FRESH session
+    that has no memory of the last attempt — so a gate rejecting one missing handle threw away a
+    correct build and paid for the whole thing again (the window rebuild cost ~600s and a second
+    full agent session). The recipe, object.py and previews are all still on disk; `object.py` only
+    gets swept away by drop_build_recipe once the object PASSES. Naming those files turns the retry
+    into an edit. Only the listed files are mentioned, so a genuinely empty directory still
+    produces a from-scratch build.
+    """
+    d = job.glb.parent
+    existing = [p.name for p in sorted(d.glob("build_*.py"))]
+    existing += [n for n in ("object.py",) if (d / n).is_file()]
+    if not existing:
+        return ""
+    return (
+        f"\n\n## PREVIOUS ATTEMPT — do NOT start from scratch.\n"
+        f"Attempt {job.attempts} of this object is already on disk in {d}:\n"
+        + "".join(f"  - {n}\n" for n in existing)
+        + "Read the build recipe, make the SMALLEST change that fixes the issues below, then "
+        "re-run it, re-render and re-check. Keep everything that is already correct."
+    )
+
+
 def verify_reasons(job: Job) -> list[str]:
     """Why this object is NOT considered built. Empty means it is.
 
@@ -471,8 +496,16 @@ def _skill_instructions() -> str:
 
 
 async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
+    # The QC gates below (probe_glb, completeness_report) are blocking subprocess.run calls, and
+    # one of them is a whole agent session. Called directly they stall the event loop, which
+    # freezes every OTHER job's agent session too — `--concurrency N` then buys nothing during
+    # the gates, and the gates are where most of the wall time is. Hand them to a thread.
     async with sem:
-        reasons = verify_reasons(job) if args.skip_existing else ["--skip-existing not set"]
+        reasons = (
+            await asyncio.to_thread(verify_reasons, job)
+            if args.skip_existing
+            else ["--skip-existing not set"]
+        )
         if args.skip_existing and not reasons:
             job.status = "skipped"
             drop_build_recipe(job.glb.parent)  # clean recipes left by earlier runs too
@@ -492,9 +525,14 @@ async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
                 await run_one(job, args, feedback)
             except Exception as e:  # noqa: BLE001
                 job.error = f"{type(e).__name__}: {e}"
-            if verify(job):  # deliverables exist AND geometric QC probe passes (stashes job.probe)
+            # deliverables exist AND geometric QC probe passes (stashes job.probe)
+            if await asyncio.to_thread(verify, job):
                 # Passed geometry; now the completeness gate (VLM: does it match the reference?).
-                comp = {"pass": True} if getattr(args, "no_completeness", False) else completeness_report(job)
+                comp = (
+                    {"pass": True}
+                    if getattr(args, "no_completeness", False)
+                    else await asyncio.to_thread(completeness_report, job)
+                )
                 job.completeness = comp
                 if comp.get("pass", True):
                     job.status = "ok"
@@ -502,7 +540,8 @@ async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
                     break
                 job.status = "failed"
                 job.error = "incomplete: " + "; ".join(comp.get("missing") or [])[:150]
-                feedback = completeness_feedback(comp)  # retry to ADD the missing features
+                # retry to ADD the missing features, editing the build already on disk
+                feedback = resume_note(job) + completeness_feedback(comp)
                 print(f"[fail] {job.scan}/{job.name}: {job.error}", file=sys.stderr)
                 continue
             job.status = "failed"
@@ -512,7 +551,7 @@ async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
                 f"QC failed: {'; '.join(v['check'] + ':' + v['part'] for v in hard)}"
                 if hard else (job.error or "GLB/previews/deliverables missing")
             )
-            feedback = probe_feedback(job.probe)
+            feedback = resume_note(job) + probe_feedback(job.probe)
             print(f"[fail] {job.scan}/{job.name}: {job.error}", file=sys.stderr)
         job.seconds = time.time() - t0
         mark = "ok  " if job.status == "ok" else "FAIL"
@@ -565,7 +604,11 @@ async def main_async(args) -> int:
         "out": str(out_root),
         "jobs": [vars(j) | {"image": str(j.image), "glb": str(j.glb)} for j in jobs],
     }
-    (out_root / "procedural_report.json").write_text(
+    # Per-branch filename. The objects pass and the openings pass share one `out_root` and used to
+    # write the same `procedural_report.json`, so whichever finished last silently replaced the
+    # other's report — the last run's file listed only the two openings, with Table0/Table1 gone.
+    # Serially that was a deterministic overwrite; now that the branches run together it is a race.
+    (out_root / f"{'openings' if args.openings else 'procedural'}_report.json").write_text(
         json.dumps(report, indent=2, default=str), encoding="utf-8"
     )
     ok = sum(1 for j in jobs if j.status == "ok")
