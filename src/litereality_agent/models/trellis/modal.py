@@ -54,6 +54,7 @@ class ModalTrellisService:
         function_name: str = "generate",
         environment_name: str = "main",
         profile: str | None = None,
+        credentials: tuple[str, str] | None = None,
         client: Any = None,
     ) -> None:
         self.client = client or ModalClient(
@@ -61,6 +62,7 @@ class ModalTrellisService:
             function_name,
             environment_name=environment_name,
             profile=profile,
+            credentials=credentials,
         )
         self.last_report: BatchReport | None = None
 

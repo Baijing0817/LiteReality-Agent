@@ -99,6 +99,13 @@ class LiteRealitySettings(BaseSettings):
     modal_dino_function: str = Field(default="infer", validation_alias="MODAL_DINO_FUNCTION")
     modal_environment: str = Field(default="main", validation_alias="MODAL_ENVIRONMENT")
     modal_profile: str | None = Field(default=None, validation_alias="MODAL_PROFILE")
+    # Modal authenticates from either a token pair or a named profile in ~/.modal.toml. The token
+    # pair is what a fresh clone should use: it is two values pasted into `.env` like any other
+    # key, needs no browser, and leaves nothing on the machine outside the checkout.
+    modal_token_id: SecretStr | None = Field(default=None, validation_alias="MODAL_TOKEN_ID")
+    modal_token_secret: SecretStr | None = Field(
+        default=None, validation_alias="MODAL_TOKEN_SECRET"
+    )
 
     AGENT_PROVIDERS: ClassVar[tuple[str, ...]] = ("claude", "codex")
     _PROVIDER_ROLES: ClassVar[tuple[str, ...]] = (
@@ -152,6 +159,28 @@ class LiteRealitySettings(BaseSettings):
     def resolved_scans_dir(self) -> Path:
         return (self.scans_dir or (self.repo_root / "scans_uploaded")).resolve()
 
+    def modal_credentials(self) -> tuple[str, str] | None:
+        """The `(token_id, token_secret)` pair, or None unless BOTH are set.
+
+        Half a token pair cannot authenticate, so it must not read as configured — otherwise the
+        runtime selects Modal and fails at the call instead of falling back or saying what is
+        missing.
+        """
+        if self.modal_token_id and self.modal_token_secret:
+            return (
+                self.modal_token_id.get_secret_value(),
+                self.modal_token_secret.get_secret_value(),
+            )
+        return None
+
+    def modal_configured(self) -> bool:
+        """Whether hosted execution is selected — the one opt-in the runtime keys off.
+
+        Either authentication route counts: a token pair in `.env`, or a named profile in
+        `~/.modal.toml`.
+        """
+        return bool(self.modal_profile) or self.modal_credentials() is not None
+
     def as_environment(self) -> dict[str, str]:
         """Serialize canonical names for subprocesses that have not yet been typed."""
         values: dict[str, object | None] = {
@@ -190,6 +219,10 @@ class LiteRealitySettings(BaseSettings):
         secrets = {
             "OPENAI_API_KEY": self.openai_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
+            # Exported so `modal deploy` and the model subprocesses authenticate from `.env`
+            # without a ~/.modal.toml on the machine.
+            "MODAL_TOKEN_ID": self.modal_token_id,
+            "MODAL_TOKEN_SECRET": self.modal_token_secret,
         }
         env = {key: str(value) for key, value in values.items() if value is not None}
         env.update(

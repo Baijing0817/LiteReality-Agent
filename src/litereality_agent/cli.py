@@ -117,6 +117,20 @@ def _inspect(args) -> int:
     return int(bool(required))
 
 
+def _setup(args) -> int:
+    from litereality_agent import repo_root
+    from litereality_agent.runtimes import setup
+
+    settings = load_settings()
+    return setup.run(
+        repo_root(),
+        environment=args.env or settings.modal_environment,
+        profile=args.profile or settings.modal_profile,
+        credentials=None if args.profile else settings.modal_credentials(),
+        skip_deploy=args.skip_deploy,
+    )
+
+
 def _generate_3d(args) -> int:
     from litereality_agent.models.registry import gen3d_from_settings
 
@@ -154,6 +168,14 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--output-root")
     _add_author_options(stage)
     stage.set_defaults(handler=_stage)
+
+    setup = commands.add_parser("setup", help="authenticate Modal and deploy the model apps")
+    setup.add_argument("--profile", help="Modal profile to use instead of the active one")
+    setup.add_argument("--env", help="Modal environment (default: MODAL_ENVIRONMENT)")
+    setup.add_argument(
+        "--skip-deploy", action="store_true", help="authenticate and record the profile only"
+    )
+    setup.set_defaults(handler=_setup)
 
     scene = commands.add_parser("scene", help="inspect a generated scene package")
     scene_subcommands = scene.add_subparsers(dest="scene_command", required=True)

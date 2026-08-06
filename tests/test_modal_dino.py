@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import base64
-from types import SimpleNamespace
 
 from litereality_agent.models.grounding_dino.modal import ModalDinoService
+from litereality_agent.settings import LiteRealitySettings
 
 
 class Client:
@@ -46,10 +46,8 @@ def test_registry_prefers_modal_dino(monkeypatch):
             captured.update(options)
 
     monkeypatch.setattr("litereality_agent.models.grounding_dino.modal.ModalDinoService", Service)
-    settings = SimpleNamespace(
-        modal_dino_app="litereality-dino",
-        modal_dino_function="infer",
-        modal_environment="main",
+    settings = LiteRealitySettings(
+        _env_file=None,
         modal_profile="huangzhening",
         dino_model="detector",
         dino_embed_model="embedder",
@@ -61,6 +59,27 @@ def test_registry_prefers_modal_dino(monkeypatch):
         "function_name": "infer",
         "environment_name": "main",
         "profile": "huangzhening",
+        "credentials": None,
         "model_id": "detector",
         "embed_model_id": "embedder",
     }
+
+
+def test_registry_selects_modal_dino_from_tokens_alone(monkeypatch):
+    """A token pair in .env is credentials enough — no ~/.modal.toml profile required."""
+    from litereality_agent.models import registry
+
+    captured = {}
+
+    class Service:
+        def __init__(self, **options):
+            captured.update(options)
+
+    monkeypatch.setattr("litereality_agent.models.grounding_dino.modal.ModalDinoService", Service)
+    settings = LiteRealitySettings(
+        _env_file=None, MODAL_TOKEN_ID="ak-1", MODAL_TOKEN_SECRET="as-2"
+    )
+
+    assert isinstance(registry.detection_from_settings(settings), Service)
+    assert captured["credentials"] == ("ak-1", "as-2")
+    assert captured["profile"] is None

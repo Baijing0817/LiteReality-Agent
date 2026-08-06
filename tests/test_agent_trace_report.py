@@ -163,7 +163,7 @@ def test_ending_a_pass_writes_the_report(tmp_path, monkeypatch):
 
     assert tr.path.parent.name == "traces", f"trace did not land in the scene: {tr.path}"
 
-    report = scene / f"{scene.name}_trace_report.html"
+    report = scene / "realism_authoring" / "room_preview" / "trace.html"
     assert report.is_file(), "no report after a pass ended"
     body = report.read_text()
     assert "seed" in body and "authored" in body, "the seed -> authored diff is missing"
@@ -179,7 +179,7 @@ def test_report_can_be_disabled(tmp_path, monkeypatch):
     tr = AgentTrace("author", room=scene / "realism_authoring" / "room", scan=scene.name)
     tr.start(model="m")
     tr.end()
-    assert not (scene / f"{scene.name}_trace_report.html").exists()
+    assert not (scene / "realism_authoring" / "room_preview" / "trace.html").exists()
 
 
 def test_a_broken_report_never_takes_down_the_run(tmp_path, monkeypatch):
@@ -211,4 +211,6 @@ def test_no_report_for_a_traces_dir_outside_a_scene(tmp_path, monkeypatch):
     tr = AgentTrace("author", room=room)
     tr.start(model="m")
     tr.end()
-    assert not list(tmp_path.rglob("*_trace_report.html"))
+    assert not list(tmp_path.rglob("trace.html"))
+    # The mkdir that makes room for the report must also stay inside a real scene.
+    assert not list(tmp_path.rglob("room_preview"))
