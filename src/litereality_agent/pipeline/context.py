@@ -18,6 +18,16 @@ def _looks_like_scan(path: Path) -> bool:
     )
 
 
+def _looks_like_path(value: str | os.PathLike[str]) -> bool:
+    text = os.fspath(value)
+    return (
+        Path(text).expanduser().is_absolute()
+        or "/" in text
+        or "\\" in text
+        or text.startswith((".", "~"))
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class RunContext:
     scan: str
@@ -63,6 +73,8 @@ class RunContext:
                 raise ValueError(f"{candidate} is neither a RoomPlan capture nor a scene package")
             scan, capture = candidate.name, candidate
         else:
+            if _looks_like_path(target):
+                raise ValueError(f"no such capture or scene path: {raw}")
             scan = str(target)
             capture = settings.resolved_scans_dir() / scan
 
