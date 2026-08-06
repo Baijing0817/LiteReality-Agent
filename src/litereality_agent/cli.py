@@ -7,7 +7,9 @@ run one stage, inspect a scene package, or invoke one model directly.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
+import threading
 from pathlib import Path
 
 from litereality_agent.pipeline import PipelineRunner, RunContext
@@ -78,30 +80,96 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--quality-pass", action="store_true")
 
 
-def _run(args) -> int:
-    results = PipelineRunner().run(
-        _context(args),
-        start=args.from_stage,
-        through=args.through,
-        force=set(args.force or ()),
-        strict=args.strict,
-        options={"author": _author_options(args)},
+def _add_live_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="watch the room and the agent's trace in a browser while this runs; the viewer keeps "
+             "serving after it finishes (ctrl-c to stop)",
     )
-    return _print_results(results)
+    parser.add_argument(
+        "--live-port", type=int, default=8770,
+        help="where to start looking for a free port; taken ones are skipped",
+    )
+    parser.add_argument(
+        "--live-no-bake",
+        action="store_true",
+        help="live viewer rebuilds geometry only — keeps up with rapid saves, but procedural "
+             "SHELL materials render flat",
+    )
+
+
+def _block_until_interrupt() -> None:
+    """Park the main thread so the daemon HTTP server keeps serving. Named so tests can replace it —
+    otherwise every `--live` test would hang here waiting for a ctrl-c that never comes."""
+    threading.Event().wait()
+
+
+@contextlib.contextmanager
+def _live_viewer(args, context):
+    """Serve the room beside the work when `--live` is passed, and keep serving after it ends.
+
+    Yields a callback the caller uses to say how the run turned out. Sharing one `RunContext` with
+    the stage is the whole point — a separately launched viewer can be pointed at a different
+    `--output-root` than the run it is meant to be watching, and then silently shows nothing.
+    """
+    if not getattr(args, "live", False):
+        yield lambda _note: None
+        return
+
+    from litereality_agent.pipeline.realism_authoring import live
+
+    live.require_room(context)
+    bake = not args.live_no_bake
+    room, server, url = live.start(context, port=args.live_port, bake=bake)
+    live.describe(context, url, bake)
+    print()
+    try:
+        yield room.finish
+    finally:
+        print(f"\nviewer still serving at {url} — ctrl-c to stop")
+        try:
+            _block_until_interrupt()
+        except KeyboardInterrupt:
+            print("\nstopped")
+        finally:
+            room.stop()
+            server.shutdown()
+            server.server_close()
+
+
+def _run(args) -> int:
+    context = _context(args)
+    with _live_viewer(args, context) as finished:
+        results = PipelineRunner().run(
+            context,
+            start=args.from_stage,
+            through=args.through,
+            force=set(args.force or ()),
+            strict=args.strict,
+            options={"author": _author_options(args)},
+        )
+        rc = _print_results(results)
+        finished("run finished" if not rc else "run failed")
+    return rc
 
 
 def _stage(args) -> int:
-    result = PipelineRunner().run_stage(
-        _context(args),
-        args.stage,
-        force=args.force,
-        strict=args.strict,
-        options={
-            "skip_image_generation": args.skip_image_generation,
-            **_author_options(args),
-        },
-    )
-    return _print_results([result])
+    context = _context(args)
+    with _live_viewer(args, context) as finished:
+        result = PipelineRunner().run_stage(
+            context,
+            args.stage,
+            force=args.force,
+            strict=args.strict,
+            options={
+                "skip_image_generation": args.skip_image_generation,
+                **_author_options(args),
+            },
+        )
+        rc = _print_results([result])
+        finished(f"{args.stage} finished" if not rc else f"{args.stage} failed")
+    return rc
 
 
 def _live(args) -> int:
@@ -166,6 +234,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--strict", action="store_true")
     run.add_argument("--output-root")
     _add_author_options(run)
+    _add_live_options(run)
     run.set_defaults(handler=_run)
 
     stage = commands.add_parser("stage", help="run exactly one pipeline stage")
@@ -176,11 +245,15 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--skip-image-generation", action="store_true")
     stage.add_argument("--output-root")
     _add_author_options(stage)
+    _add_live_options(stage)
     stage.set_defaults(handler=_stage)
 
     live = commands.add_parser("live", help="watch a room being authored, with the agent's trace")
     live.add_argument("target", metavar="SCAN_OR_SCENE")
-    live.add_argument("--port", type=int, default=8770)
+    live.add_argument(
+        "--port", type=int, default=8770,
+        help="where to start looking for a free port; taken ones are skipped",
+    )
     live.add_argument("--host", default="127.0.0.1")
     live.add_argument("--poll", type=float, default=1.0, help="seconds between Room.py checks")
     live.add_argument("--output-root")

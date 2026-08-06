@@ -29,6 +29,8 @@ been superseded by a newer save is dropped rather than published stale.
 from __future__ import annotations
 
 import argparse
+import ast
+import errno
 import json
 import shutil
 import threading
@@ -44,6 +46,12 @@ from litereality_agent.pipeline.realism_authoring.live import page
 # Every pass writes its own trace file, and a run has several. Globbed rather than listed so a new
 # pass shows up in the feed without editing this module.
 TRACE_GLOBS = ("trace.jsonl", "authoring_trace*.jsonl")
+
+# Only what a tracer actually saves beside a run. Anything else 404s rather than being guessed at.
+MIME = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".webp": "image/webp", ".gif": "image/gif",
+}
 
 
 def trace_dirs(context: RunContext) -> list[Path]:
@@ -62,6 +70,10 @@ class _Trace:
 
     dirs: list[Path]
     events: list[dict] = field(default_factory=list)
+    # Wall clock of the newest event ever seen — the page's evidence that the agent is still alive.
+    # Tracked here rather than read off `events[-1]` because the merge only sorts each batch within
+    # itself, so the tail of the list is not reliably the latest thing that happened.
+    last_t: float = 0.0
     _offsets: dict[Path, int] = field(default_factory=dict)
 
     def refresh(self) -> None:
@@ -78,6 +90,7 @@ class _Trace:
             # Passes run concurrently and each file is only ordered within itself, so the merged
             # feed is sorted by wall clock. Events already delivered keep their place.
             self.events += sorted(fresh, key=lambda e: e.get("t") or 0.0)
+            self.last_t = max([self.last_t] + [e.get("t") or 0.0 for e in fresh])
 
     def _tail(self, path: Path) -> list[dict]:
         out: list[dict] = []
@@ -140,6 +153,10 @@ class LiveRoom:
         self.status = "idle"
         self.phase = "none"
         self.error = ""
+        # Set once the run that this viewer was started alongside has ended. The viewer deliberately
+        # keeps serving afterwards — the finished room is the thing you most want to look at — so the
+        # page needs to say so, otherwise a run that ended is indistinguishable from one gone quiet.
+        self.finished = ""
         self.compile_s = 0.0
         self.bake_s = 0.0
         self.baking = False
@@ -164,6 +181,23 @@ class LiveRoom:
             self.phase = phase
 
     # -- compilation -------------------------------------------------------------------
+    def _syntax_error(self) -> str:
+        """`"SyntaxError: … (line N)"` when Room.py cannot be parsed, else `""`.
+
+        Compiling on top of the read is deliberately not done: this only has to reject a file the
+        compiler would mis-handle, and parsing 100 KB costs a few milliseconds against a build of
+        several seconds.
+        """
+        try:
+            source = self.source.read_text(encoding="utf-8")
+        except OSError as exc:
+            return f"cannot read Room.py: {exc}"
+        try:
+            ast.parse(source, filename=str(self.source))
+        except SyntaxError as exc:
+            return f"SyntaxError: {exc.msg} (line {exc.lineno})"
+        return ""
+
     def rebuild(self) -> bool:
         """Compile `Room.py` and publish the geometry. Returns True when the page has new geometry.
 
@@ -175,6 +209,19 @@ class LiveRoom:
             self.status, self.error = "building", ""
             gen = self._gen
         started = time.time()
+
+        # Parse before compiling. `build_from_room` runs Room.py inside Blender, and a Room.py that
+        # fails to parse there is only *logged* — the process still exits 0 and the previous
+        # Room.glb is left on disk, so compiling a half-saved file returns the last good room and
+        # the page reports a clean new build. Watching an agent is exactly when that lies worst:
+        # you see "build N", the geometry never changed, and nothing says why. An agent saves
+        # partial files often enough that this is the common case, not the exotic one.
+        broken = self._syntax_error()
+        if broken:
+            with self._lock:
+                self.status, self.error = "failed", broken
+            return False
+
         try:
             built = api.compile_room(self.room, self.context.preview_dir, bake=False)
         except Exception as exc:  # noqa: BLE001 — a broken Room.py must not kill the server
@@ -248,16 +295,50 @@ class LiveRoom:
     def stop(self) -> None:
         self._stop.set()
 
+    def finish(self, note: str) -> None:
+        """Record that the run this viewer accompanies has ended. Does not stop the watcher: a
+        `Room.py` edited by hand after the run should still rebuild."""
+        with self._lock:
+            self.finished = note
+
     # -- what the page asks for --------------------------------------------------------
+    def image(self, rel: str) -> Path | None:
+        """Resolve one of a trace event's `saved` paths to a file on disk, or None.
+
+        `saved` entries are relative to the trace directory that recorded them (`img/author_0048_
+        Wall0_stitched.jpg`). Resolution is containment-checked rather than merely prefix-checked:
+        `resolve()` collapses `..` and follows symlinks first, so a crafted path cannot walk out of
+        the run and turn this into an arbitrary-file endpoint. That matters because `--host` can put
+        this server on a network interface.
+        """
+        if not rel:
+            return None
+        for base in self.trace.dirs + [self.context.scene_dir]:
+            try:
+                root = base.resolve(strict=True)
+            except OSError:
+                continue
+            candidate = (root / rel).resolve()
+            if candidate.is_file() and candidate.is_relative_to(root):
+                return candidate
+        return None
+
     def state(self, cursor: int) -> dict:
         with self._lock:
             build, status, error, secs = self.build, self.status, self.error, self.compile_s
             phase, baking, bake_s = self.phase, self.baking, self.bake_s
+            finished = self.finished
         events = self.trace.since(cursor)
+        # Seconds since the agent last did anything, or None before it has done anything at all —
+        # a distinction the page needs, since "no events yet" and "gone quiet" look the same in a
+        # number but mean opposite things while a run is starting up.
+        last_t = self.trace.last_t
         return {
             "build": build,
             "status": status,
             "phase": phase,
+            "finished": finished,
+            "idle_s": round(max(0.0, time.time() - last_t), 1) if last_t else None,
             "baking": baking,
             "bake_s": round(bake_s, 2),
             "error": error,
@@ -297,9 +378,98 @@ def _handler(room: LiveRoom, label: str):
                     self.send_error(404, "no build yet")
                     return
                 return self._send(room.glb.read_bytes(), "model/gltf-binary")
+            if path == "/img":
+                rel = (parse_qs(route.query).get("p") or [""])[0]
+                found = room.image(rel)
+                if not found:
+                    self.send_error(404, "no such trace image")
+                    return
+                kind = MIME.get(found.suffix.lower(), "application/octet-stream")
+                # A trace image never changes once written, so let the browser keep it — the feed
+                # re-renders on every poll and would otherwise refetch every thumbnail.
+                self.send_response(200)
+                self.send_header("Content-Type", kind)
+                body = found.read_bytes()
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                return self.wfile.write(body)
             self.send_error(404)
 
     return Handler
+
+
+PORT_TRIES = 20
+
+
+def _bind(handler, host: str, port: int) -> ThreadingHTTPServer:
+    """Bind the first free port at or above `port`.
+
+    A viewer is very often started while an older one is still up — the previous run's, or this
+    run's in another terminal — and the port a viewer happens to sit on is incidental to what was
+    asked for. Refusing to start over it means an authoring run dies at the door for a reason that
+    has nothing to do with the room, so walk up until one binds and let `describe` announce where
+    it landed rather than making the caller pick a free number by hand.
+    """
+    for candidate in range(port, port + PORT_TRIES):
+        try:
+            return ThreadingHTTPServer((host, candidate), handler)
+        except OSError as exc:
+            if exc.errno != errno.EADDRINUSE:
+                raise
+    raise SystemExit(
+        f"live viewer found no free port in {port}-{port + PORT_TRIES - 1} on {host}"
+    )
+
+
+def start(
+    context: RunContext,
+    *,
+    port: int = 8770,
+    host: str = "127.0.0.1",
+    poll: float = 1.0,
+    bake: bool = True,
+    bake_resolution: int = 1024,
+) -> tuple[LiveRoom, ThreadingHTTPServer, str]:
+    """Start the watcher and the HTTP server on background threads and return straight away.
+
+    Split out of `serve` so a stage can run *alongside* the viewer in one process (`--live`). That
+    sharing is the point: both halves take the same `RunContext`, so the room being edited and the
+    traces being tailed cannot end up under different roots — which is exactly what happens when a
+    viewer and a stage are launched separately with mismatched `--output-root`.
+
+    `port` is where to start looking, not a requirement — see `_bind`. Read the bound port off the
+    returned url (or `server.server_port`); it is not necessarily the one asked for.
+
+    The caller owns shutdown: `room.stop()` then `server.shutdown()`.
+    """
+    room = LiveRoom(context, poll=poll, bake=bake, bake_resolution=bake_resolution)
+    # Bind before the watcher starts, so exhausting the port range leaves nothing running behind.
+    server = _bind(_handler(room, context.scan), host, port)
+    room.trace.refresh()
+    threading.Thread(target=room.watch, daemon=True).start()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return room, server, f"http://{host}:{server.server_port}/"
+
+
+def require_room(context: RunContext) -> None:
+    """The viewer has nothing to show without a compiled-able room."""
+    if not (context.authored_room / "Room.py").is_file():
+        raise SystemExit(
+            f"no authored room for {context.scan} — expected {context.authored_room / 'Room.py'}"
+        )
+
+
+def describe(context: RunContext, url: str, bake: bool) -> None:
+    """The banner both entry points print, so `--live` says the same things `live` does."""
+    print(f"live viewer  {url}")
+    print(f"  room   {context.authored_room / 'Room.py'}")
+    print(f"  traces {', '.join(str(d) for d in trace_dirs(context) if d.is_dir()) or '(none yet)'}")
+    print(
+        "  rebuilds on every save · "
+        + ("geometry first, materials baked right after" if bake else "geometry only (--no-bake)")
+        + " · ctrl-c to stop"
+    )
 
 
 def serve(
@@ -314,32 +484,18 @@ def serve(
 ) -> int:
     """Run the live viewer for `target` until interrupted."""
     context = RunContext.resolve(target, output_root=output_root)
-    if not (context.authored_room / "Room.py").is_file():
-        raise SystemExit(
-            f"no authored room for {context.scan} — expected {context.authored_room / 'Room.py'}"
-        )
-
-    room = LiveRoom(context, poll=poll, bake=bake, bake_resolution=bake_resolution)
-    room.trace.refresh()
-    watcher = threading.Thread(target=room.watch, daemon=True)
-    watcher.start()
-
-    server = ThreadingHTTPServer((host, port), _handler(room, context.scan))
-    url = f"http://{host}:{port}/"
-    print(f"live viewer  {url}")
-    print(f"  room   {context.authored_room / 'Room.py'}")
-    print(f"  traces {', '.join(str(d) for d in trace_dirs(context) if d.is_dir()) or '(none yet)'}")
-    print(
-        "  rebuilds on every save · "
-        + ("geometry first, materials baked right after" if bake else "geometry only (--no-bake)")
-        + " · ctrl-c to stop"
+    require_room(context)
+    room, server, url = start(
+        context, port=port, host=host, poll=poll, bake=bake, bake_resolution=bake_resolution,
     )
+    describe(context, url, bake)
     try:
-        server.serve_forever()
+        threading.Event().wait()
     except KeyboardInterrupt:
         print("\nstopped")
     finally:
         room.stop()
+        server.shutdown()
         server.server_close()
     return 0
 
@@ -347,7 +503,10 @@ def serve(
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="live authoring viewer")
     ap.add_argument("target", metavar="SCAN_OR_SCENE")
-    ap.add_argument("--port", type=int, default=8770)
+    ap.add_argument(
+        "--port", type=int, default=8770,
+        help="where to start looking for a free port; taken ones are skipped",
+    )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--poll", type=float, default=1.0, help="seconds between Room.py checks")
     ap.add_argument("--output-root")

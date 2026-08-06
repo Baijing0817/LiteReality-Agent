@@ -120,16 +120,27 @@ uv run litereality stage author run/my-room --force --polish
 
 ### Watching it happen
 
-Authoring takes a while, and `viewer.html` only exists once it finishes. To watch instead of wait:
+Authoring takes a while, and `viewer.html` only exists once it finishes. To watch instead of wait,
+add `--live` to the run you are already starting:
+
+```bash
+uv run litereality stage author run/LiteReality-Zhening-Atrium_9309-20260804-113711 --force --polish --live
+```
+
+That serves the room beside the agent's trace at `http://127.0.0.1:8770`, recompiling whenever the
+agent saves `Room.py`. When the run ends the viewer says so and keeps serving, so the finished room
+stays there to look at — `ctrl-c` to stop. Add `--live-no-bake` for geometry-only rebuilds that
+keep up with rapid saves, at the cost of procedural wall and floor materials rendering flat.
+
+To attach to a run already in progress — or to reopen a finished one — start the viewer on its own:
 
 ```bash
 uv run litereality live run/my-room
 ```
 
-That serves the room beside the agent's trace at `http://127.0.0.1:8770` and recompiles whenever
-the agent saves `Room.py`. It only reads the run tree, so it can be started, killed, and restarted
-mid-run without disturbing anything. Pass `--no-bake` for faster geometry-only rebuilds, at the
-cost of procedural wall and floor materials rendering flat.
+It only reads the run tree, so it can be started, killed, and restarted mid-run without disturbing
+anything. Prefer `--live` when you control the run: both halves then share one output root, so the
+viewer cannot end up tailing a different tree than the one being authored.
 
 ## Development
 

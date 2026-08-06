@@ -7,10 +7,11 @@ still covered.
 
 from __future__ import annotations
 
+import errno
 import json
 import threading
 import time
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -108,6 +109,44 @@ def test_state_cursor_only_returns_new_events(run_tree: Path) -> None:
     assert room.state(first["cursor"])["events"] == []
 
 
+def test_idle_s_reports_silence_since_the_last_event(run_tree: Path) -> None:
+    """The page's evidence that the agent is still working. Absent this, an idle-between-builds run
+    and a run that ended an hour ago report exactly the same state."""
+    path = run_tree / "scene_init" / "obj_stage" / "traces" / "trace.jsonl"
+    room = live.LiveRoom(_context(run_tree))
+
+    room.trace.refresh()
+    assert room.state(0)["idle_s"] is None, "nothing has happened yet — not the same as gone quiet"
+
+    path.write_text(_event(1, time.time() - 30.0, kind="tool") + "\n")
+    room.trace.refresh()
+    assert 29.0 <= room.state(0)["idle_s"] <= 35.0
+
+    path.write_text(
+        _event(1, time.time() - 30.0, kind="tool") + "\n" + _event(2, time.time(), kind="think") + "\n"
+    )
+    room.trace.refresh()
+    assert room.state(0)["idle_s"] < 5.0, "a fresh event must reset the clock"
+
+
+def test_idle_s_tracks_the_newest_event_not_the_last_appended(run_tree: Path) -> None:
+    """Each batch is sorted only within itself, so a slow pass can deliver stale lines after a fast
+    one. Reading `events[-1]` would then age the run backwards and stop the dot on a live agent."""
+    traces = run_tree / "scene_init" / "obj_stage" / "traces"
+    now = time.time()
+    room = live.LiveRoom(_context(run_tree))
+
+    (traces / "trace.jsonl").write_text(_event(1, now, kind="stage") + "\n")
+    room.trace.refresh()
+
+    # A second pass's trace file appears, carrying events from ten minutes ago.
+    (traces / "authoring_trace.author.jsonl").write_text(_event(1, now - 600.0, kind="tool") + "\n")
+    room.trace.refresh()
+
+    assert room.trace.events[-1]["t"] == now - 600.0   # the naive read this guards against
+    assert room.state(0)["idle_s"] < 5.0
+
+
 def test_changed_fires_once_per_save(run_tree: Path) -> None:
     room = live.LiveRoom(_context(run_tree))
     assert room._changed() is True   # first look always builds
@@ -133,6 +172,54 @@ def test_rebuild_records_failure_without_raising(run_tree: Path, monkeypatch) ->
     assert room.state(0)["status"] == "failed"
     assert "unexpected EOF" in room.state(0)["error"]
     assert room.build == 0
+
+
+def test_unparseable_room_is_rejected_before_compiling(run_tree: Path, monkeypatch) -> None:
+    """`build_from_room` runs Room.py inside Blender, logs a SyntaxError, and still exits 0 leaving
+    the previous Room.glb in place — so compiling a half-saved file republishes the LAST good room
+    as a clean new build. The parse has to happen before the compiler is ever reached."""
+    room = live.LiveRoom(_context(run_tree))
+    (run_tree / "realism_authoring" / "room" / "Room.py").write_text("def broken(:\n")
+
+    def never(*_a, **_k):
+        raise AssertionError("compile_room must not run on a Room.py that does not parse")
+
+    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", never)
+
+    assert room.rebuild() is False
+    state = room.state(0)
+    assert state["status"] == "failed"
+    assert state["error"].startswith("SyntaxError:") and "line 1" in state["error"]
+    assert room.build == 0          # nothing published, so the page cannot claim a fresh build
+
+
+def test_parseable_room_still_compiles(run_tree: Path, monkeypatch) -> None:
+    room = live.LiveRoom(_context(run_tree))
+    built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
+    built.parent.mkdir(parents=True, exist_ok=True)
+    built.write_bytes(b"geometry")
+    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+
+    assert room.rebuild() is True
+    assert room.state(0)["error"] == ""
+
+
+def test_recovers_after_the_syntax_error_is_fixed(run_tree: Path, monkeypatch) -> None:
+    """The failure is per-build state, not sticky: the next good save must clear it."""
+    room = live.LiveRoom(_context(run_tree))
+    source = run_tree / "realism_authoring" / "room" / "Room.py"
+    built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
+    built.parent.mkdir(parents=True, exist_ok=True)
+    built.write_bytes(b"geometry")
+    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+
+    source.write_text("def broken(:\n")
+    assert room.rebuild() is False
+    assert room.state(0)["status"] == "failed"
+
+    source.write_text("# fixed\n")
+    assert room.rebuild() is True
+    assert room.state(0)["status"] == "idle" and room.state(0)["error"] == ""
 
 
 def test_geometry_publishes_before_the_bake(run_tree: Path, monkeypatch) -> None:
@@ -206,6 +293,54 @@ def test_no_bake_stays_single_phase(run_tree: Path, monkeypatch) -> None:
     assert room.build == 1 and room.state(0)["phase"] == "geometry"
 
 
+def test_trace_image_resolves_relative_to_its_trace_dir(run_tree: Path) -> None:
+    img = run_tree / "scene_init" / "obj_stage" / "traces" / "img"
+    img.mkdir(parents=True)
+    (img / "author_0048_Wall0.jpg").write_bytes(b"jpegbytes")
+
+    room = live.LiveRoom(_context(run_tree))
+    found = room.image("img/author_0048_Wall0.jpg")
+    assert found is not None and found.read_bytes() == b"jpegbytes"
+    assert room.image("img/nope.jpg") is None
+    assert room.image("") is None
+
+
+def test_trace_image_refuses_to_escape_the_run(run_tree: Path, tmp_path: Path) -> None:
+    """`--host` can put this server on a real interface, so `p` is untrusted input."""
+    secret = tmp_path / "secret.png"
+    secret.write_bytes(b"private")
+    (run_tree / "scene_init" / "obj_stage" / "traces" / "img").mkdir(parents=True)
+
+    room = live.LiveRoom(_context(run_tree))
+    for attack in (
+        "../../../../../../etc/passwd",
+        "img/../../../../secret.png",
+        f"../../../{secret.name}",
+        str(secret),                      # absolute path outside the run
+    ):
+        assert room.image(attack) is None, attack
+
+
+def test_http_serves_a_trace_image(run_tree: Path) -> None:
+    img = run_tree / "scene_init" / "obj_stage" / "traces" / "img"
+    img.mkdir(parents=True)
+    (img / "shot.png").write_bytes(b"\x89PNG-ish")
+    room = live.LiveRoom(_context(run_tree))
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), live._handler(room, "Scan-1"))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        got = urlopen(base + "/img?p=img/shot.png")
+        assert got.read() == b"\x89PNG-ish"
+        assert got.headers["Content-Type"] == "image/png"
+        with pytest.raises(Exception):
+            urlopen(base + "/img?p=../../../../etc/passwd")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_http_surface(run_tree: Path) -> None:
     room = live.LiveRoom(_context(run_tree))
     room.glb.write_bytes(b"glTF-not-really")
@@ -225,3 +360,128 @@ def test_http_surface(run_tree: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+# --------------------------------------------------------------------------- #
+# `--live`: the viewer running alongside the stage that is editing the room
+# --------------------------------------------------------------------------- #
+def test_finish_marks_the_run_done_without_stopping_the_watcher(run_tree: Path) -> None:
+    """The viewer outlives the run on purpose — a finished room is the thing you most want to look
+    at, and a Room.py edited by hand afterwards must still rebuild."""
+    room = live.LiveRoom(_context(run_tree))
+    assert room.state(0)["finished"] == ""
+
+    room.finish("author finished")
+
+    assert room.state(0)["finished"] == "author finished"
+    assert not room._stop.is_set(), "finishing the run must not stop the file watcher"
+
+
+def test_start_serves_immediately_and_shuts_down_cleanly(run_tree: Path) -> None:
+    """`start` is the non-blocking half `--live` needs: it must serve before the caller does more."""
+    room, server, url = live.start(_context(run_tree), port=0, bake=False)
+    port = server.server_address[1]
+    try:
+        assert url == f"http://127.0.0.1:{port}/"  # the bound port, so the banner is reachable
+        state = json.loads(urlopen(f"http://127.0.0.1:{port}/state?since=0").read())
+        assert state["finished"] == ""
+    finally:
+        room.stop()
+        server.shutdown()
+        server.server_close()
+
+
+def test_start_skips_a_taken_port(run_tree: Path) -> None:
+    """A viewer left running from an earlier run must not stop the next one from starting — the
+    port is incidental to the room, so it walks up instead of dying on EADDRINUSE."""
+    squatter = ThreadingHTTPServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
+    taken = squatter.server_address[1]
+    try:
+        room, server, url = live.start(_context(run_tree), port=taken, bake=False)
+        try:
+            assert server.server_port != taken
+            assert server.server_port in range(taken, taken + live.PORT_TRIES)
+            assert url == f"http://127.0.0.1:{server.server_port}/"
+            urlopen(f"{url}state?since=0").read()  # the one that answers is the one announced
+        finally:
+            room.stop()
+            server.shutdown()
+            server.server_close()
+    finally:
+        squatter.server_close()
+
+
+def test_start_gives_up_when_the_whole_range_is_taken(run_tree: Path, monkeypatch) -> None:
+    """Walking up is bounded — an exhausted range is a real failure, not an endless search."""
+    def refuse(*_args, **_kwargs):
+        raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(live, "ThreadingHTTPServer", refuse)
+    with pytest.raises(SystemExit, match="no free port"):
+        live.start(_context(run_tree), port=8770, bake=False)
+
+
+def test_start_does_not_swallow_other_bind_errors(run_tree: Path, monkeypatch) -> None:
+    """Only a taken port is worth retrying; a bad host is a mistake the caller needs to see."""
+    def refuse(*_args, **_kwargs):
+        raise OSError(errno.EADDRNOTAVAIL, "Can't assign requested address")
+
+    monkeypatch.setattr(live, "ThreadingHTTPServer", refuse)
+    with pytest.raises(OSError) as caught:
+        live.start(_context(run_tree), port=8770, bake=False)
+    assert caught.value.errno == errno.EADDRNOTAVAIL
+
+
+def test_live_flag_shares_one_run_context_with_the_stage(run_tree: Path, monkeypatch) -> None:
+    """The regression this flag exists to prevent.
+
+    Launching `live` and `stage` separately lets them resolve different `--output-root`s: the stage
+    then writes its trace under one root while the viewer tails another, and the page shows a stale
+    trace forever with nothing reporting an error. Sharing the context makes that unrepresentable.
+    """
+    from litereality_agent import cli
+
+    context = _context(run_tree)
+    seen = {}
+
+    def fake_start(ctx, **kw):
+        seen["context"] = ctx
+        seen["bake"] = kw["bake"]
+        room = live.LiveRoom(ctx)
+        return room, _StubServer(), "http://127.0.0.1:8770/"
+
+    monkeypatch.setattr(live, "start", fake_start)
+    monkeypatch.setattr(cli, "_block_until_interrupt", lambda: None)
+
+    args = _LiveArgs(live=True, live_port=8770, live_no_bake=True)
+    with cli._live_viewer(args, context) as finished:
+        finished("author finished")
+
+    assert seen["context"] is context, "the viewer must watch the very context the stage runs in"
+    assert seen["bake"] is False, "--live-no-bake must reach the viewer"
+
+
+def test_without_live_flag_nothing_is_served(run_tree: Path, monkeypatch) -> None:
+    from litereality_agent import cli
+
+    def refuse(*_a, **_k):
+        raise AssertionError("no viewer may start without --live")
+
+    monkeypatch.setattr(live, "start", refuse)
+    with cli._live_viewer(_LiveArgs(live=False), _context(run_tree)) as finished:
+        finished("author finished")  # must be a no-op, not a crash
+
+
+class _StubServer:
+    def shutdown(self) -> None:
+        pass
+
+    def server_close(self) -> None:
+        pass
+
+
+class _LiveArgs:
+    def __init__(self, *, live: bool, live_port: int = 8770, live_no_bake: bool = False) -> None:
+        self.live = live
+        self.live_port = live_port
+        self.live_no_bake = live_no_bake
