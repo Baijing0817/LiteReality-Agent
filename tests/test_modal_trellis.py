@@ -8,6 +8,14 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from litereality_agent.settings import LiteRealitySettings
+
+
+def _settings(**overrides) -> LiteRealitySettings:
+    """Real settings, isolated from the developer's own .env, so runtime selection is exercised
+    through `modal_configured()` rather than a hand-built stand-in that can drift from it."""
+    return LiteRealitySettings(_env_file=None, **overrides)
+
 
 class FakeClient:
     def __init__(self, outputs):
@@ -154,12 +162,7 @@ def test_registry_selects_modal_trellis(monkeypatch):
             captured.update(options)
 
     monkeypatch.setattr("litereality_agent.models.trellis.modal.ModalTrellisService", Service)
-    settings = SimpleNamespace(
-        modal_trellis_app="litereality-trellis",
-        modal_trellis_function="generate",
-        modal_environment="main",
-        modal_profile="huangzhening",
-    )
+    settings = _settings(modal_profile="huangzhening")
 
     assert isinstance(registry.gen3d_from_settings(settings), Service)
     assert captured == {
@@ -167,16 +170,15 @@ def test_registry_selects_modal_trellis(monkeypatch):
         "function_name": "generate",
         "environment_name": "main",
         "profile": "huangzhening",
+        "credentials": None,
     }
 
 
 def test_registry_never_implicitly_runs_trellis_locally():
     from litereality_agent.models import registry
 
-    # The app name now carries a default, so an unset profile is what leaves TRELLIS unconfigured.
-    settings = SimpleNamespace(
-        modal_profile=None, modal_trellis_app="litereality-trellis", trellis_python=None
-    )
+    # The app name now carries a default, so absent credentials leave TRELLIS unconfigured.
+    settings = _settings()
 
     with pytest.raises(RuntimeError, match="TRELLIS is not configured"):
         registry.gen3d_from_settings(settings)
@@ -191,14 +193,8 @@ def test_registry_prefers_modal_when_only_a_profile_is_set(monkeypatch):
             pass
 
     monkeypatch.setattr("litereality_agent.models.trellis.modal.ModalTrellisService", Service)
-    settings = SimpleNamespace(
-        modal_profile="a-workspace",
-        modal_trellis_app="litereality-trellis",
-        modal_trellis_function="generate",
-        modal_environment="main",
-        # Set, and still not used — a configured profile wins over the local runtime.
-        trellis_python=sys.executable,
-    )
+    # trellis_python is set and still not used — configured Modal wins over the local runtime.
+    settings = _settings(modal_profile="a-workspace", trellis_python=sys.executable)
 
     assert isinstance(registry.gen3d_from_settings(settings), Service)
 
@@ -208,11 +204,7 @@ def test_registry_falls_back_to_local_trellis_without_a_profile():
     from litereality_agent.models import registry
     from litereality_agent.models.trellis.service import LocalTrellisService
 
-    settings = SimpleNamespace(
-        modal_profile=None,
-        modal_trellis_app="litereality-trellis",
-        trellis_python=sys.executable,
-    )
+    settings = _settings(trellis_python=sys.executable)
 
     assert isinstance(registry.gen3d_from_settings(settings), LocalTrellisService)
 

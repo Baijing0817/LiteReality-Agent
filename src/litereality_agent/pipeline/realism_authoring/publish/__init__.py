@@ -1,15 +1,23 @@
-"""Compile and publish the final room, viewer, and review artifacts."""
+"""Compile and publish the final room, viewer, and review artifacts.
 
-import shutil
+Everything publishable lands in `room_preview/` next to the build it describes. `room/` stays the
+one editable source; the preview tree is the one place to LOOK. Publishing used to also copy
+`Room.py` and `Room.glb` up to the authoring root, which left the same room in three places with
+nothing marking which was canonical.
+"""
 
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.result import StageResult, StageStatus
 from litereality_agent.pipeline.support import run_module
 
+# Named for what it is, not for the scan: `room_preview/` already sits under a scan-named tree, so
+# `<scan>.html` repeated it. Pairs with the `trace.html` the agent writes beside it.
+VIEWER_NAME = "viewer.html"
+
 
 def complete(context: RunContext) -> bool:
-    return (context.authoring_root / "Room.glb").is_file() and (
-        context.authoring_root / f"{context.scan}.html"
+    return (context.preview_dir / "Room.glb").is_file() and (
+        context.preview_dir / VIEWER_NAME
     ).is_file()
 
 
@@ -51,7 +59,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     bake_rc = api.bake_room(context.preview_dir / "Room.blend", glb)
     if bake_rc:
         warnings.append(f"material bake exited {bake_rc}; see {glb.parent / 'bake.log'}")
-    viewer = context.authoring_root / f"{context.scan}.html"
+    viewer = context.preview_dir / VIEWER_NAME
     args: list[object] = [
         glb, viewer, context.scan, f"--room={context.authored_room}", f"--scan={context.scan}"
     ]
@@ -63,13 +71,11 @@ def run(context: RunContext, options: dict) -> StageResult:
     )
     if viewer_rc:
         return StageResult("publish", StageStatus.FAILED, error=f"viewer export failed; see {viewer_log}")
-    shutil.copy2(glb, context.authoring_root / "Room.glb")
-    shutil.copy2(context.authored_room / "Room.py", context.authoring_root / "Room.py")
     return StageResult(
         "publish", StageStatus.COMPLETED,
         artifacts={
-            "room_source": str(context.authoring_root / "Room.py"),
-            "room_glb": str(context.authoring_root / "Room.glb"),
+            "room_source": str(context.authored_room / "Room.py"),
+            "room_glb": str(glb),
             "viewer": str(viewer),
         },
         warnings=warnings,

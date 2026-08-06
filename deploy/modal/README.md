@@ -8,19 +8,19 @@ callable until you deploy these apps into your own workspace.
 
 ## One-time setup
 
-1. Join the intended Modal workspace, or use your own — nothing is pinned to a particular one.
-2. Install the client with `uv sync --extra modal`.
-3. Authenticate and select an explicit local profile:
+Join the intended Modal workspace, or use your own — nothing is pinned to a particular one, and no
+workspace is hardcoded in source.
 
-   ```bash
-   uv run modal setup
-   uv run modal profile list
-   uv run modal profile activate <profile>
-   export MODAL_PROFILE=<profile>
-   uv run modal profile current
-   ```
+Install the client with `uv sync --extra modal`, then put your token pair from
+[modal.com/settings/tokens](https://modal.com/settings/tokens) into `.env`:
 
-   `MODAL_PROFILE` is required by the application. No workspace profile is hardcoded in source.
+```dotenv
+MODAL_TOKEN_ID=ak-...
+MODAL_TOKEN_SECRET=as-...
+```
+
+Both halves are required — Modal sends them as separate request headers, and the pipeline treats
+half a pair as unconfigured rather than failing at the first model call.
 
 **No Hugging Face account or token is required for either app.** DINO's weights are public.
 TRELLIS.2-4B is MIT and ungated, and TRELLIS.2's gated DINOv3 image encoder is baked into the image
@@ -28,45 +28,48 @@ from a digest-verified ungated mirror — see [`trellis/README.md`](trellis/READ
 
 ## Deploy
 
-From the repository root, with `MODAL_PROFILE` still set:
+```bash
+uv run litereality setup
+```
+
+That is the whole step, and it runs unattended. It checks the client is installed, quotes the build
+time, and runs both deploys below with the `.env` tokens injected into each subprocess — no browser
+login, no profile to manage, and nothing to confirm.
+
+Useful flags: `--skip-deploy` authenticates and records the profile only, `--env <name>` targets a
+non-default Modal environment, and `--profile <name>` forces a specific `~/.modal.toml` profile
+instead of the tokens.
+
+### Deploying by hand
+
+The two commands `setup` wraps, if you would rather run them yourself:
 
 ```bash
 uv run modal deploy --env main deploy/modal/dino/app.py
 uv run modal deploy --env main deploy/modal/trellis/app.py
 ```
 
-Then configure the pipeline. Modal is the default runtime, so `MODAL_PROFILE` alone is enough —
-the app names, function names, and environment already default:
+These need credentials in the environment first — either the same `MODAL_TOKEN_ID` /
+`MODAL_TOKEN_SECRET` pair exported, or a profile:
 
-```dotenv
-MODAL_PROFILE=<profile>
+```bash
+uv run modal setup
+uv run modal profile activate <profile>
+export MODAL_PROFILE=<profile>
 ```
 
-The first deployment builds the images, and the first invocation downloads model weights into
-persistent Modal Volumes. DINO runs on an L4. TRELLIS runs on one H100 with zero application
-retries and a ten-second idle scale-down window. A deployed app with zero active containers does
-not consume GPU compute, though its stored image and Volume data remain.
+A profile works everywhere the token pair does; set `MODAL_PROFILE=<profile>` in `.env` instead of
+the tokens. The app names, function names, and environment already default, so that one line is
+enough. `models/registry.py` selects Modal whenever either form of credential is configured.
 
-## What deployment costs
+### What deploying gets you
 
-Measured on a fresh workspace, 2026-08-06. The DINO image builds entirely on CPU. The TRELLIS image
-took 11.3 minutes and about $0.45, split almost evenly in time between the CPU dependency layers
-(318.0s) and the H100 extension compile (318.4s), with the GPU layer carrying roughly 78% of the
-cost. A redeploy after a source-only change took 2.8 seconds. The first request returned a valid
-512-texture GLB from `ChairCluster0` — 33,898 vertices, 47,793 faces — in 295.7s including the
-one-time weights download.
+The first deployment builds the images; the first *invocation* downloads model weights into
+persistent Modal Volumes, so both are slow once and fast afterwards. DINO runs on an L4. TRELLIS
+runs on one H100 with zero application retries and a ten-second idle scale-down window. A deployed
+app with zero active containers does not consume GPU compute, though its stored image and Volume
+data remain.
 
-Two known inefficiencies, both worth fixing before running this at volume:
-
-1. **Every workspace rebuilds the image.** Modal caches built images per workspace with no
-   cross-workspace sharing, so each deployer pays the same ~11 minutes and ~$0.45 to compile
-   identical extensions. Publishing the built image to a public registry and switching to
-   `modal.Image.from_registry(...)` would reduce a first deploy to a pull. The build needs an
-   NVIDIA GPU only because upstream's `setup.sh` checks `nvidia-smi` — `nvcc` itself compiles
-   without one, and `TORCH_CUDA_ARCH_LIST` is already pinned, so CI could build and publish it.
-2. **Weights download on the H100.** `_load_pipeline()` runs inside the `gpu="H100"` function, so
-   the first call transfers several GB at H100 prices (~$0.32 of that first request). A CPU-only
-   function populating the same Volume would cost about a cent.
 
 See [`dino/README.md`](dino/README.md) and [`trellis/README.md`](trellis/README.md) for model-specific
 details.

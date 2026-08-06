@@ -403,7 +403,11 @@ class AgentTrace:
             scene = self.path.parents[3]
             if not (scene / "scene_init").is_dir():
                 return None
-            out = scene / f"{scene.name}_trace_report.html"
+            # Alongside the viewer in room_preview/, so one folder holds everything there is to
+            # LOOK at. Created here rather than relied upon: publish builds room_preview/, and the
+            # runs that most need a report are the ones that never got there.
+            out = scene / "realism_authoring" / "room_preview" / "trace.html"
+            out.parent.mkdir(parents=True, exist_ok=True)
             trace_report.build(scene, out)
             return out
         except Exception:  # noqa: BLE001 — a report is a convenience, never a failure mode

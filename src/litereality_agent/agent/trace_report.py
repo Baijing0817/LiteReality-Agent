@@ -321,5 +321,9 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{{
 
 if __name__ == "__main__":
     scene = Path(sys.argv[1]).resolve()
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else scene / f"{scene.name}_trace_report.html"
+    out = (
+        Path(sys.argv[2]) if len(sys.argv) > 2
+        else scene / "realism_authoring" / "room_preview" / "trace.html"
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
     build(scene, out)

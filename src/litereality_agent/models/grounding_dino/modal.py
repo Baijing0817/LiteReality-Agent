@@ -24,6 +24,7 @@ class ModalDinoService:
         function_name: str = "infer",
         environment_name: str = "main",
         profile: str | None = None,
+        credentials: tuple[str, str] | None = None,
         model_id: str | None = None,
         embed_model_id: str | None = None,
         client: Any = None,
@@ -35,6 +36,7 @@ class ModalDinoService:
             function_name,
             environment_name=environment_name,
             profile=profile,
+            credentials=credentials,
         )
 
     def _run(self, payload: dict) -> dict:

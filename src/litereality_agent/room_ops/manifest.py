@@ -13,8 +13,8 @@ A scene package fixes that by writing **one manifest at the root of what init pr
         obj_stage/            <- object_init work tree, references, reconstructed GLBs
         scene_stage/          <- room_init (seed Room.py + Room.glb), _harness, _scene_assets
         capture/<scan>/       <- the RoomPlan capture (symlinked by default, copied on request)
-        realism_authoring/    <- STAGE 2's root: room/ (the Room.py it edits), room_preview/,
-                                 surface_ref/, logs/, and the finished viewer
+        realism_authoring/    <- STAGE 2's root: room/ (the Room.py it edits), surface_ref/,
+                                 logs/, and room_preview/ (the build, viewer.html, trace.html)
 
 Given that folder — and nothing else — stage 2 can rebuild the whole environment::
 
