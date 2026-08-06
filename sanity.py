@@ -246,7 +246,7 @@ def main() -> int:
         # inside /Applications/Blender.app/Contents/MacOS/) it reported "not found" and aborted a run
         # the pipeline itself would have completed.
         try:
-            from litereality_agent.room_format.paths import find_blender
+            from litereality_agent.room_ops.paths import find_blender
 
             binp = find_blender()
         except SystemExit:

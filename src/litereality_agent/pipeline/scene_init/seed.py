@@ -13,7 +13,7 @@ def complete(context: RunContext) -> bool:
 def run(context: RunContext, options: dict) -> StageResult:
     from litereality_agent.pipeline.scene_init import paths
     from litereality_agent.pipeline.scene_init.artifacts import ensure_stage_links, finalize
-    from litereality_agent.room_format import compile_room, export_scene
+    from litereality_agent.room_ops import compile_room, export_scene
 
     ensure_stage_links(context.scan)
     paths.set_scan(context.scan)

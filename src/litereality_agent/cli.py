@@ -105,7 +105,7 @@ def _stage(args) -> int:
 
 
 def _inspect(args) -> int:
-    from litereality_agent.room_format import manifest
+    from litereality_agent.room_ops import manifest
 
     package = manifest.require(args.target)
     print(package.summary())

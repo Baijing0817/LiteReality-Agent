@@ -4,7 +4,7 @@ The GLB is Draco+JPEG compressed then embedded as a base64 data URI, so the resu
 opens by double-click — no server, no sidecar files. Three.js loads from a CDN (needs internet the
 first time).
 
-structure.md lists this as a room-format capability: "What we can do with a `Room.py` folder ...
+structure.md lists this as a room-ops capability: "What we can do with a `Room.py` folder ...
 export to a self-contained Three.js HTML page for viewing." It is therefore PURE — a GLB plus
 already-gathered panel data in, one HTML file out. It knows nothing about the run tree.
 
@@ -50,7 +50,7 @@ def _compress_glb(glb: Path) -> Path:
     import subprocess
     import tempfile
 
-    from litereality_agent.room_format.paths import find_blender
+    from litereality_agent.room_ops.paths import find_blender
 
     try:
         binp = Path(find_blender())
@@ -488,7 +488,7 @@ def _trace_html(events: list[dict]) -> str:
 def _pairs_html(pairs: list) -> str:
     if not pairs:
         return ('<p class="muted">No comparison pairs. Build them with<br>'
-                '<code>uv run python -m litereality_agent.room_format.rendering.room_render.render_vs_capture '
+                '<code>uv run python -m litereality_agent.room_ops.rendering.room_render.render_vs_capture '
                 '--scan &lt;scan dir&gt; --room &lt;room dir&gt; --out &lt;out&gt;/compare --frames 6</code><br>'
                 'or run <code>uv run litereality stage publish &lt;scene&gt;</code> — publish builds them by default '
                 '(COMPARE_FRAMES=0 to skip).</p>')
@@ -505,7 +505,7 @@ def export_html(glb: str | Path, out: str | Path, label: str | None = None, comp
     """`Room.glb` + already-gathered panel data → one self-contained HTML file.
 
     `qc` / `trace` / `pairs` are DATA, not locations: this module cannot go looking for them
-    without knowing the run layout, which is exactly the knowledge that keeps room_format
+    without knowing the run layout, which is exactly the knowledge that keeps room_ops
     portable. Omit any of them and that panel simply renders empty."""
     glb, out = Path(glb), Path(out)
     if not glb.is_file():

@@ -1,9 +1,9 @@
-"""Gather the viewer's panel data from the RUN TREE, then hand it to the room-format exporter.
+"""Gather the viewer's panel data from the RUN TREE, then hand it to the room-ops exporter.
 
-The export itself is a room-format capability and lives in `room_format/viewer.py` — a GLB plus
+The export itself is a room-ops capability and lives in `room_ops/viewer.py` — a GLB plus
 panel data in, one HTML file out, with no idea where a run keeps its artifacts. Knowing where
 they are is a PIPELINE concern, so the three collectors stay here: QC calls `pipeline.room_qc`
-(which room_format must not import), and the trace and comparison pairs are found by run layout.
+(which room_ops must not import), and the trace and comparison pairs are found by run layout.
 
     python -m litereality_agent.pipeline.realism_authoring.publish.viewer <Room.glb> <out.html> \
            ["Room label"] [--room=DIR] [--scan=NAME] [--compare=DIR]
@@ -17,7 +17,7 @@ import os
 import sys
 from pathlib import Path
 
-from litereality_agent.room_format.viewer import export_html
+from litereality_agent.room_ops.viewer import export_html
 
 
 def collect_qc(room_dir: Path | None) -> dict:

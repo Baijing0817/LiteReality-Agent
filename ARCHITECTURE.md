@@ -23,7 +23,7 @@ src/litereality_agent/
 │       └── publish/     final compilation and viewer
 ├── agent/               agent runners, tools (each owning its source), traces, and narration
 │   └── providers/       which coding agent drives a session (`claude/` and `codex/`)
-├── room_format/         Room.py manifest, compilation, rendering, export, and validation
+├── room_ops/            Room.py manifest, compilation, rendering, and export
 ├── models/              canonical inference and model-specific service adapters
 │   └── llm/             provider integrations (`openai/` and `claude/`)
 └── runtimes/            hosted execution transports such as Modal
@@ -34,7 +34,7 @@ deploy/modal/             hosted model wrappers; never imported by application c
 
 There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layers. The directory
 name answers the ownership question: phase decisions belong in `pipeline`, reusable model-driven
-capabilities belong in `agent`, the portable room representation belongs in `room_format`, models
+capabilities belong in `agent`, the portable room representation belongs in `room_ops`, models
 own inference, and runtimes own execution location.
 
 `pipeline/realism_authoring/author` owns the optional post-authoring passes (`refine_objects`,
@@ -64,12 +64,12 @@ It fails with an explicit message rather than running without its only self-chec
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text
-cli.py → pipeline → agent → room_format
+cli.py → pipeline → agent → room_ops
                 ↘ models → runtimes
-                ↘ room_format
+                ↘ room_ops
 ```
 
-Arrows point from caller to dependency. Models, room-format code, and reusable agents never import
+Arrows point from caller to dependency. Models, room-ops code, and reusable agents never import
 pipeline code; the pipeline owns the CLI adapters that bind scene-package arguments before calling
 an agent. Runtime selection happens in `models/registry.py`; the pipeline consumes that small
 composition boundary.

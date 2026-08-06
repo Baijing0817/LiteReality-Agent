@@ -4,7 +4,7 @@ Layered by target (there is no aimless render):
   - "room"    → scene mode, every object chip-labelled
   - "Wall<N>" → wall_focus mode, only that wall outlined (both sides)
   - <Object>  → object mode, bbox on that object
-If `frames` is omitted the best frames are auto-picked via select_views. The room-format
+If `frames` is omitted the best frames are auto-picked via select_views. The room-ops
 rendering engine is imported lazily because it needs Blender.
 """
 
@@ -60,7 +60,7 @@ def _sync_stale_objects(room_dir) -> list[str]:
         tj = od / "textures.json"
         if tj.is_file():
             try:
-                from litereality_agent.room_format.compile.fetch_textures import materialize
+                from litereality_agent.room_ops.compile.fetch_textures import materialize
 
                 materialize(json.loads(tj.read_text()), od / "textures")
             except Exception:  # noqa: BLE001

@@ -1,7 +1,7 @@
 """Scene-definition and compilation API for LiteReality-Agent.
 
 A room is defined by a compact, editable **program**: `Room.py` (the assembler + a semantic
-SHELL) plus per-object `object.py`/GLBs and a manifest. `room_format` is the library that
+SHELL) plus per-object `object.py`/GLBs and a manifest. `room_ops` is the library that
 (a) **exports** that definition from a scan and (b) **compiles** it to a previewable `room.glb`.
 It's the room analog of an SDK + compiler — `Room.py` is authored against it, and it builds the
 artifact. This is the one place scene definition lives.
@@ -39,17 +39,17 @@ def export_viewer(glb, out, label=None, *, compress: bool = True,
                   pairs: "list | None" = None) -> "Path":
     """`Room.glb` → one self-contained Three.js HTML page. Returns the written path.
 
-    structure.md's fourth room-format capability. The optional `qc` / `trace` / `pairs` panels are
+    structure.md's fourth room-ops capability. The optional `qc` / `trace` / `pairs` panels are
     passed as DATA — finding them means knowing a run's layout, which is a pipeline concern (see
-    `pipeline/realism_authoring/publish/viewer.py`), and room_format stays portable by not knowing.
+    `pipeline/realism_authoring/publish/viewer.py`), and room_ops stays portable by not knowing.
     """
-    from litereality_agent.room_format import viewer
+    from litereality_agent.room_ops import viewer
 
     return viewer.export_html(glb, out, label, compress=compress, qc=qc, trace=trace, pairs=pairs)
 
 
 def blender_bin() -> str:
-    """Resolve the Blender executable through the room-format path configuration.
+    """Resolve the Blender executable through the room-ops path configuration.
 
     This used to fall back to the bare string `"blender"`, which is not a path: with Blender
     installed as a macOS app bundle and nothing on PATH, `subprocess.run` raised
@@ -59,14 +59,14 @@ def blender_bin() -> str:
     v = os.environ.get("LR_BLENDER", "").strip()
     if v:
         return str(Path(v) / "blender") if Path(v).is_dir() else v
-    from litereality_agent.room_format.paths import find_blender
+    from litereality_agent.room_ops.paths import find_blender
 
     return find_blender()
 
 
 def export_scene(scan: str, out_root: "Path | None" = None) -> "Path | None":
     """scan → `Room/<scan>/` definition (Room.py + SHELL + manifest). Returns the Room dir."""
-    from litereality_agent.room_format.export import export_room
+    from litereality_agent.room_ops.export import export_room
 
     return export_room.export(scan, out_root)
 
@@ -87,7 +87,7 @@ def compile_room(
     """
     room_dir = Path(room_dir)
     preview = Path(out_dir) if out_dir else (room_dir.parent / "room_preview")
-    cmd = [sys.executable, "-m", "litereality_agent.room_format.compile.build_from_room", "--room", str(room_dir)]
+    cmd = [sys.executable, "-m", "litereality_agent.room_ops.compile.build_from_room", "--room", str(room_dir)]
     if out_dir:
         cmd += ["--out", str(out_dir)]
     if regenerate:

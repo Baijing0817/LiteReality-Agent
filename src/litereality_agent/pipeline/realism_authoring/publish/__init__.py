@@ -32,7 +32,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     if quality_rc:
         warnings.append(f"scene quality checks reported violations; see {quality_log}")
     rc, log = run_module(
-        context, "litereality_agent.room_format.compile.build_from_room",
+        context, "litereality_agent.room_ops.compile.build_from_room",
         ["--room", context.authored_room, "--out", context.preview_dir, "--regenerate"],
         log_name="publish_compile",
     )
@@ -46,7 +46,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     # `carpet_mat`, `ceiling_tile_mat`) has no glTF representation, so it exports with neither a
     # texture nor a baseColorFactor and renders WHITE. Flat-RGB and fetched-image materials
     # survive either way, which is why this stayed invisible until a room used procedural ones.
-    from litereality_agent.room_format import api
+    from litereality_agent.room_ops import api
 
     bake_rc = api.bake_room(context.preview_dir / "Room.blend", glb)
     if bake_rc:

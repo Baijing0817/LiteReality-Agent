@@ -7,7 +7,7 @@ authoring pass that never reads a stitch). All four are recorded in the package 
 
 Usage in an entry point::
 
-    from litereality_agent.room_format import manifest
+    from litereality_agent.room_ops import manifest
     manifest.bootstrap()            # BEFORE importing anything that reads $LITEREALITY_*
     ...
     ap.add_argument("--scene", default=None)
@@ -74,7 +74,7 @@ def bind(a: argparse.Namespace, *, need: tuple[str, ...] = (), pkg=None) -> argp
     afterwards fails here, with the package that was consulted named in the message, rather than
     surfacing later as an empty render or a missing stitch.
     """
-    from litereality_agent.room_format import manifest
+    from litereality_agent.room_ops import manifest
 
     hint = getattr(a, "scene", None)
     bindable = ("room", *FROM_PACKAGE)

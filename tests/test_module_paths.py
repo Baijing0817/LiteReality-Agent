@@ -96,8 +96,8 @@ def test_no_retired_top_level_spelling():
 
 @pytest.mark.parametrize("dotted", [
     "litereality_agent.models.object_generation.generate",  # subprocess target used by the pipeline
-    "litereality_agent.room_format.compile.build_from_room",
-    "litereality_agent.room_format.manifest",
+    "litereality_agent.room_ops.compile.build_from_room",
+    "litereality_agent.room_ops.manifest",
     "litereality_agent.pipeline.scene_init.flow",
     "litereality_agent.models.grounding_dino.worker",
     "litereality_agent.pipeline.realism_authoring.author.evidence",
@@ -121,7 +121,7 @@ def test_executable_helpers_survived_the_layout_move():
         config.RENDER_TOOL,
         config.SELECT_TOOL,
         config.STITCH_TOOL,
-        PKG / "room_format" / "rendering" / "object_turntable.py",
+        PKG / "room_ops" / "rendering" / "object_turntable.py",
     )
     assert all(path.is_file() for path in paths), "missing helper(s): " + ", ".join(
         str(path) for path in paths if not path.is_file()
@@ -136,12 +136,12 @@ def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
 
 
 def test_agent_render_tool_uses_the_engine_under_its_own_source():
-    """The engine is the render tool's own source now; nothing may point back at room_format."""
+    """The engine is the render tool's own source now; nothing may point back at room_ops."""
     source = (PKG / "agent" / "tools" / "render" / "tool.py").read_text(encoding="utf-8")
     assert "litereality_agent.agent.tools.render.source" in source
-    assert "room_format.rendering.engine" not in source
-    assert not (PKG / "room_format" / "rendering" / "engine").exists(), (
-        "an engine reappeared under room_format — the render tool owns exactly one"
+    assert "room_ops.rendering.engine" not in source
+    assert not (PKG / "room_ops" / "rendering" / "engine").exists(), (
+        "an engine reappeared under room_ops — the render tool owns exactly one"
     )
 
 
@@ -154,10 +154,10 @@ def test_blender_render_worker_finds_the_camera_renderer():
     """
     worker = PKG / "agent" / "tools" / "render" / "source" / "_blender_frames.py"
     assert worker.is_file()
-    assert (PKG / "room_format" / "rendering" / "room_render" / "render_room_cameras.py").is_file()
+    assert (PKG / "room_ops" / "rendering" / "room_render" / "render_room_cameras.py").is_file()
 
     source = worker.read_text(encoding="utf-8")
-    assert '"room_format", "rendering", "room_render"' in source
+    assert '"room_ops", "rendering", "room_render"' in source
     assert 'os.path.join(_HERE, "..", "room_render")' not in source, (
         "back to the sibling assumption that the move already broke once"
     )
