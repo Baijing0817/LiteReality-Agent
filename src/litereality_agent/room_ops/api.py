@@ -17,7 +17,7 @@ Public API (everything else — export_room, build_room, wall_*, materials… �
     export_scene(scan)              scan → Room/<scan>/   (Room.py + SHELL + manifest)
     compile_room(room_dir)          Room.py → <preview>/Room.glb   (assemble in Blender, baked)
     bake_room(blend, glb)           bake SHELL node materials into the glb (faithful preview)
-    export_viewer(glb, out)         Room.glb → one self-contained Three.js HTML page
+    compress.compressed(glb, out)   Room.glb → the Draco copy `litereality view` serves
 
 `build_from_room` / `bake_glb` spawn Blender, so they run as subprocesses; the helpers wrap them.
 """
@@ -31,21 +31,7 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 
-__all__ = ["export_scene", "compile_room", "bake_room", "export_viewer", "blender_bin"]
-
-
-def export_viewer(glb, out, label=None, *, compress: bool = True,
-                  qc: "dict | None" = None, trace: "list | None" = None,
-                  pairs: "list | None" = None) -> "Path":
-    """`Room.glb` → one self-contained Three.js HTML page. Returns the written path.
-
-    structure.md's fourth room-ops capability. The optional `qc` / `trace` / `pairs` panels are
-    passed as DATA — finding them means knowing a run's layout, which is a pipeline concern (see
-    `pipeline/realism_authoring/publish/viewer.py`), and room_ops stays portable by not knowing.
-    """
-    from litereality_agent.room_ops import viewer
-
-    return viewer.export_html(glb, out, label, compress=compress, qc=qc, trace=trace, pairs=pairs)
+__all__ = ["export_scene", "compile_room", "bake_room", "blender_bin"]
 
 
 def blender_bin() -> str:

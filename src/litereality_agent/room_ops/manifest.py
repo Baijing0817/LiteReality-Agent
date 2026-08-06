@@ -14,7 +14,7 @@ A scene package fixes that by writing **one manifest at the root of what init pr
         scene_stage/          <- room_init (seed Room.py + Room.glb), _harness, _scene_assets
         capture/<scan>/       <- the RoomPlan capture (symlinked by default, copied on request)
         realism_authoring/    <- STAGE 2's root: room/ (the Room.py it edits), surface_ref/,
-                                 logs/, and room_preview/ (the build, viewer.html, trace.html)
+                                 logs/, and room_preview/ (the build, the web copy, trace.html)
 
 Given that folder — and nothing else — stage 2 can rebuild the whole environment::
 

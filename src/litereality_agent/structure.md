@@ -67,7 +67,7 @@ What we can do with a `Room.py` folder, whether or not agents have re-optimized 
 2. export to GLB
 3. render final videos — slightly duplicated with the rendering in `agent/tools`, but still worth
    keeping separate
-4. export to a self-contained Three.js HTML page for viewing
+4. serve it to a walkable Three.js viewer (`room_ops/walk`) — orbit, point-and-go, walk
 
 ### Where does the scene-editing demo go?
 
