@@ -19,6 +19,7 @@ import json
 import math
 import pickle
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,7 @@ from PIL import Image
 
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest.references import image_gen as image_model
+from litereality_agent.pipeline.scene_init.ingest.references.image_gen import image_workers
 
 # Per-category guidance: the specific structure to preserve when generating the
 # clean reference. Keyed by the lowercased category (digits stripped from the id).
@@ -299,13 +301,13 @@ def generate_for_scan(
     object_meta = load_scene_objects(scan)
     scan_result = {"scan": scan, "objects": []}
 
-    for obj_dir in object_dirs(scan, only, include_openings, include_chairs):
+    def generate_one(obj_dir: Path) -> dict | None:
         name = obj_dir.name
         category = category_from_name(name)
         meta = object_meta.get(name, {})
         scored = select_evidence_images(obj_dir, meta, max_images)
         if not scored:
-            continue
+            return None
 
         out_dir = output_root / scan / name
         input_sheet = out_dir / config.INPUT_SHEET
@@ -357,8 +359,14 @@ def generate_for_scan(
         if image_meta:
             record["image_meta"] = image_meta
         meta_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
-        scan_result["objects"].append(record)
         print(f"  [{status}] object {name}", flush=True)
+        return record
+
+    # One hosted image call per object, ~45s each and fully independent — this loop was serial and
+    # was most of the ingest stage's wall time. `map` keeps the manifest order deterministic.
+    targets = object_dirs(scan, only, include_openings, include_chairs)
+    with ThreadPoolExecutor(max_workers=image_workers(len(targets))) as pool:
+        scan_result["objects"] = [r for r in pool.map(generate_one, targets) if r is not None]
 
     (output_root / scan).mkdir(parents=True, exist_ok=True)
     (output_root / scan / "object_references.json").write_text(

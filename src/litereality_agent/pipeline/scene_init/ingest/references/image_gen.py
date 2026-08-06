@@ -15,6 +15,17 @@ from PIL import Image
 from litereality_agent import telemetry
 
 DEFAULT_IMAGE_MODEL = "gpt-image-1"
+
+# Reference generation is one hosted image call per object, ~45s each, and every caller had it in
+# a serial loop. The ceiling is OpenAI's rate limit, not local CPU, so the cap is about not opening
+# forty requests at once on a large room rather than about cores.
+MAX_IMAGE_WORKERS = int(os.environ.get("LR_IMAGE_WORKERS", "6"))
+
+
+def image_workers(n_items: int) -> int:
+    """Pool size for a batch of `n_items` reference images."""
+    return max(1, min(n_items, MAX_IMAGE_WORKERS))
+
 # gpt-image-1 token pricing ($/1M tokens); output image tokens dominate. Used only for the
 # rough cost line we log — override via env if OpenAI changes rates.
 _PRICE_IN_TEXT = float(os.environ.get("LR_OPENAI_PRICE_IN_TEXT", "5.0"))

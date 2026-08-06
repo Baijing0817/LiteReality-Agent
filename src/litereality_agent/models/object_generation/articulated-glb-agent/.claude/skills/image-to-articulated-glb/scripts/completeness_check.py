@@ -49,7 +49,11 @@ async def _ask(images: list[Path]) -> str:
         allowed_tools=["Read"],
         permission_mode="bypassPermissions",
         max_turns=len(images) + 3,
-        model=os.environ.get("HARNESS_MODEL", "claude-opus-5"),
+        # Its own knob, defaulting to the harness model (unchanged behaviour). This gate decides
+        # whether to throw a build away and rebuild it from scratch, so a cheaper judge is not a
+        # free win: too lenient ships an object missing parts, too strict costs a full agent
+        # rebuild. Worth measuring per-tier against known-good builds before moving the default.
+        model=os.environ.get("LR_COMPLETENESS_MODEL") or os.environ.get("HARNESS_MODEL", "claude-opus-5"),
     )
     listing = "\n".join(f"- IMAGE {i + 1}: {p}" for i, p in enumerate(images))
     full = f"First Read (view) EVERY image below, then answer.\n{listing}\n\n{PROMPT}"

@@ -471,8 +471,16 @@ def _skill_instructions() -> str:
 
 
 async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
+    # The QC gates below (probe_glb, completeness_report) are blocking subprocess.run calls, and
+    # one of them is a whole agent session. Called directly they stall the event loop, which
+    # freezes every OTHER job's agent session too — `--concurrency N` then buys nothing during
+    # the gates, and the gates are where most of the wall time is. Hand them to a thread.
     async with sem:
-        reasons = verify_reasons(job) if args.skip_existing else ["--skip-existing not set"]
+        reasons = (
+            await asyncio.to_thread(verify_reasons, job)
+            if args.skip_existing
+            else ["--skip-existing not set"]
+        )
         if args.skip_existing and not reasons:
             job.status = "skipped"
             drop_build_recipe(job.glb.parent)  # clean recipes left by earlier runs too
@@ -492,9 +500,14 @@ async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
                 await run_one(job, args, feedback)
             except Exception as e:  # noqa: BLE001
                 job.error = f"{type(e).__name__}: {e}"
-            if verify(job):  # deliverables exist AND geometric QC probe passes (stashes job.probe)
+            # deliverables exist AND geometric QC probe passes (stashes job.probe)
+            if await asyncio.to_thread(verify, job):
                 # Passed geometry; now the completeness gate (VLM: does it match the reference?).
-                comp = {"pass": True} if getattr(args, "no_completeness", False) else completeness_report(job)
+                comp = (
+                    {"pass": True}
+                    if getattr(args, "no_completeness", False)
+                    else await asyncio.to_thread(completeness_report, job)
+                )
                 job.completeness = comp
                 if comp.get("pass", True):
                     job.status = "ok"

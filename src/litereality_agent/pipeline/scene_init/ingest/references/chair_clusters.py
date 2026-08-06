@@ -26,6 +26,7 @@ import math
 import os
 import pickle
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -610,9 +611,15 @@ def cluster_and_generate(
         flush=True,
     )
     if not skip_image_generation:
+        # One ~45s hosted image call per cluster, each writing only into its own cluster dict.
         for cluster in result["clusters"]:
             print(f"  [image] {cluster['cluster_id']} {cluster['members']}", flush=True)
-            generate_for_cluster(scan, cluster, output_root, model, force_image_generation)
+        clusters = result["clusters"]
+        with ThreadPoolExecutor(max_workers=image_model.image_workers(len(clusters))) as pool:
+            list(pool.map(
+                lambda c: generate_for_cluster(scan, c, output_root, model, force_image_generation),
+                clusters,
+            ))
 
     scan_dir = output_root / scan
     scan_dir.mkdir(parents=True, exist_ok=True)
