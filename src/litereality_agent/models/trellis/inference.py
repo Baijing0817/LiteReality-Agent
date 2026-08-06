@@ -71,10 +71,13 @@ def prepare_local_model(model: str) -> str:
     return str(local)
 
 
-def load_pipeline(model_name: str):
+def load_pipeline(model_name: str, *, skip_rembg: bool = True):
     import torch
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
 
+    if skip_rembg:
+        # Must happen before ``from_pretrained`` constructs the matting model.
+        install_noop_rembg()
     torch.backends.cudnn.enabled = False
     print(f"[TRELLIS] loading {model_name} (downloads to {_env.WEIGHTS_DIR} on first run)")
     t0 = time.time()
@@ -136,7 +139,10 @@ def generate(pipeline, image_path: Path, output_path: Path, *, seed: int,
         remesh=True, remesh_band=1, remesh_project=0, verbose=False,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    glb.export(str(output_path), extension_webp=True)
+    # The upstream image installs pillow-simd without libwebp animation support;
+    # asking o-voxel for EXT_texture_webp then crashes after generation completes.
+    # Standard GLB textures are portable and avoid that private Pillow dependency.
+    glb.export(str(output_path), extension_webp=False)
 
 
 def is_pure_wall_or_floor(stem: str) -> bool:
@@ -264,9 +270,7 @@ def main() -> int:
             return 0
 
     print(f"[TRELLIS] {len(pairs)} image(s) to process")
-    if args.skip_rembg:
-        install_noop_rembg()
-    pipeline = load_pipeline(prepare_local_model(args.model))
+    pipeline = load_pipeline(prepare_local_model(args.model), skip_rembg=args.skip_rembg)
 
     t0 = time.time()
     for idx, (img, out) in enumerate(pairs, 1):

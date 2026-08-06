@@ -1,11 +1,7 @@
 """TRELLIS service for an isolated local process runtime.
 
-Symmetric with RunPodTrellisService (same Generation3DService interface), so `reconstructor`
-calls it the same way. Use this until the RunPod endpoint is grounded; to switch, just register
-the other backend under the "gen3d" role.
-
-    reconstructor.set_service(LocalTrellisService())          # local GPU now
-    # later: reconstructor.set_service(RunPodTrellisService()) # RunPod when the endpoint exists
+Symmetric with ModalTrellisService (same Generation3DService interface), so `reconstructor`
+calls it the same way.
 
 Needs the TRELLIS.2 GPU environment selected by `$LITEREALITY_TRELLIS_PYTHON`. The canonical
 inference module is used by default and can be overridden with `$LITEREALITY_TRELLIS_LAUNCHER`.
@@ -16,7 +12,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -31,11 +26,12 @@ def _resolve_python(explicit: str | None) -> str:
     for c in (
         explicit,
         os.environ.get("LITEREALITY_TRELLIS_PYTHON"),
-        sys.executable,
     ):
         if c and Path(c).exists():
             return str(c)
-    return sys.executable
+    raise RuntimeError(
+        "Local TRELLIS requires an explicit TRELLIS_PYTHON/LITEREALITY_TRELLIS_PYTHON."
+    )
 
 
 class LocalTrellisService:
@@ -64,7 +60,7 @@ class LocalTrellisService:
         *,
         out_dir: str,
         seed: int = 42,
-        simplify: float = 0.95,  # simplify accepted (RunPod parity), unused locally
+        simplify: float = 0.95,  # simplify accepted (hosted parity), unused locally
         decimation: int = 50000,
         texture_size: int = 4096,
     ) -> dict[str, str]:

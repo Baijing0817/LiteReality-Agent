@@ -1,66 +1,49 @@
-"""GroundingDINO and DINOv2 through one RunPod Serverless endpoint."""
+"""GroundingDINO and DINOv2 through one scale-to-zero Modal function."""
 
 from __future__ import annotations
 
 import base64
 import io
 import os
-import time
 from pathlib import Path
 from typing import Any
 
 from litereality_agent.models.grounding_dino.service import Detection
-from litereality_agent.runtimes.runpod import RunPodClient
+from litereality_agent.runtimes.modal import ModalClient
 
 
-class RunPodDinoService:
-    """DetectionService + EmbeddingService implemented as queued API jobs."""
+class ModalDinoService:
+    """Detection and embedding adapter for the deployed Modal DINO function."""
 
-    name = "dino-runpod"
-    _BAD = {"FAILED", "CANCELLED", "TIMED_OUT"}
+    name = "dino-modal"
 
     def __init__(
         self,
         *,
-        api_key: str | None = None,
-        endpoint_id: str | None = None,
+        app_name: str,
+        function_name: str = "infer",
+        environment_name: str = "main",
+        profile: str | None = None,
         model_id: str | None = None,
         embed_model_id: str | None = None,
-        poll_interval: float = 1.0,
-        job_timeout: float = 300.0,
         client: Any = None,
     ) -> None:
         self.model_id = model_id
         self.embed_model_id = embed_model_id
-        self.poll_interval = poll_interval
-        self.job_timeout = job_timeout
-        if client is not None:
-            self.client = client
-            return
-        key = api_key or os.environ.get("RUNPOD_API_KEY", "").strip()
-        endpoint = endpoint_id or os.environ.get("RUNPOD_DINO_ENDPOINT", "").strip()
-        if not key or not endpoint:
-            raise ValueError("RunPod DINO needs RUNPOD_API_KEY and RUNPOD_DINO_ENDPOINT")
-        self.client = RunPodClient(key, endpoint)
+        self.client = client or ModalClient(
+            app_name,
+            function_name,
+            environment_name=environment_name,
+            profile=profile,
+        )
 
     def _run(self, payload: dict) -> dict:
-        job_id = self.client.run(payload)
-        deadline = time.monotonic() + self.job_timeout
-        while time.monotonic() < deadline:
-            status = self.client.status(job_id)
-            state = status.get("status")
-            if state == "COMPLETED":
-                output = status.get("output") or {}
-                if output.get("error"):
-                    raise RuntimeError(output["error"])
-                return output
-            if state in self._BAD:
-                raise RuntimeError(status.get("error") or f"RunPod DINO job {state}")
-            time.sleep(self.poll_interval)
-        try:
-            self.client.cancel(job_id)
-        finally:
-            raise TimeoutError(f"RunPod DINO job exceeded {self.job_timeout:.0f}s")
+        output = self.client.map([payload])[0]
+        if isinstance(output, BaseException):
+            raise RuntimeError(f"Modal DINO failed: {output}") from output
+        if output.get("error"):
+            raise RuntimeError(str(output["error"]))
+        return output
 
     def detect(
         self,
@@ -103,10 +86,11 @@ class RunPodDinoService:
         return [[float(value) for value in row] for row in output.get("embeddings", [])]
 
     def close(self) -> None:
-        """Match the local worker lifecycle API; queued HTTP jobs hold no client process."""
+        """Match the local worker lifecycle API; Modal holds no local process."""
 
 
 def _image_b64(image: Any) -> str:
+    """Encode supported image inputs for the JSON-safe Modal request contract."""
     if isinstance(image, (str, os.PathLike)):
         raw = Path(image).read_bytes()
     elif isinstance(image, bytes):

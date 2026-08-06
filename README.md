@@ -17,9 +17,10 @@ uv sync --frozen --group dev
 cp .env.example .env
 ```
 
-Configure `OPENAI_API_KEY`, the scan/output paths, Blender, and a TRELLIS runtime. RunPod is the
-recommended TRELLIS runtime on macOS; local model environments are isolated and explicitly
-selected. See [ARCHITECTURE.md](ARCHITECTURE.md) for the package and runtime boundaries.
+Configure `OPENAI_API_KEY`, the scan/output paths, Blender, and a TRELLIS runtime. Modal is the
+hosted TRELLIS runtime; local model environments are isolated and explicitly selected. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the package and runtime boundaries.
+See [deploy/modal/README.md](deploy/modal/README.md) for hosted-model setup.
 
 ## Run
 
@@ -53,16 +54,19 @@ Output lives under `run/<scene>/`:
 Model packages contain one inference implementation and its application-facing adapters:
 
 ```text
-models/grounding_dino/{inference,service,runpod,worker}.py
+models/grounding_dino/{inference,service,modal,worker}.py
 models/dinov2/inference.py
-models/trellis/{inference,service,runpod}.py
-runtimes/runpod.py
-deploy/runpod/<model>/
+models/trellis/{inference,service,modal}.py
+models/object_generation/
+runtimes/modal.py
+deploy/modal/trellis/
+deploy/modal/dino/
 ```
 
-Inference does not move when execution moves. Local services use an isolated process; RunPod
-adapters call an endpoint through the shared runtime transport; container-only files live outside
-`src` under `deploy/`. The normal offline test suite never loads models or starts Blender.
+Inference does not move when execution moves. Local services use an isolated process; Modal wraps
+the same model implementation through the shared runtime transport; deployment-only files live
+outside `src` under `deploy/`. DINO can instead use an explicitly selected local environment.
+The normal offline test suite never loads models or starts Blender.
 
 A hosted API call is not a model package. Reference-image generation and quick classification are
 single requests to someone else's endpoint, with no inference to host and no runtime to choose, so

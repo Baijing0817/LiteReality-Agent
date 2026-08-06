@@ -86,13 +86,19 @@ class LiteRealitySettings(BaseSettings):
 
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
-    runpod_api_key: SecretStr | None = Field(default=None, validation_alias="RUNPOD_API_KEY")
-    runpod_trellis_endpoint: str | None = Field(
-        default=None, validation_alias="RUNPOD_TRELLIS_ENDPOINT"
+    # Modal is the default execution runtime, so the app names carry the deployed defaults and
+    # MODAL_PROFILE alone selects hosted execution. Override these only when a workspace deploys
+    # the apps under different names.
+    modal_trellis_app: str = Field(
+        default="litereality-trellis", validation_alias="MODAL_TRELLIS_APP"
     )
-    runpod_dino_endpoint: str | None = Field(
-        default=None, validation_alias="RUNPOD_DINO_ENDPOINT"
+    modal_trellis_function: str = Field(
+        default="generate", validation_alias="MODAL_TRELLIS_FUNCTION"
     )
+    modal_dino_app: str = Field(default="litereality-dino", validation_alias="MODAL_DINO_APP")
+    modal_dino_function: str = Field(default="infer", validation_alias="MODAL_DINO_FUNCTION")
+    modal_environment: str = Field(default="main", validation_alias="MODAL_ENVIRONMENT")
+    modal_profile: str | None = Field(default=None, validation_alias="MODAL_PROFILE")
 
     AGENT_PROVIDERS: ClassVar[tuple[str, ...]] = ("claude", "codex")
     _PROVIDER_ROLES: ClassVar[tuple[str, ...]] = (
@@ -175,13 +181,15 @@ class LiteRealitySettings(BaseSettings):
             "LR_OPENAI_IMAGE_MODEL": self.image_model,
             "LR_DINO_MODEL": self.dino_model,
             "LR_DINO_EMBED_MODEL": self.dino_embed_model,
-            "RUNPOD_TRELLIS_ENDPOINT": self.runpod_trellis_endpoint,
-            "RUNPOD_DINO_ENDPOINT": self.runpod_dino_endpoint,
+            "MODAL_TRELLIS_APP": self.modal_trellis_app,
+            "MODAL_TRELLIS_FUNCTION": self.modal_trellis_function,
+            "MODAL_DINO_APP": self.modal_dino_app,
+            "MODAL_DINO_FUNCTION": self.modal_dino_function,
+            "MODAL_ENVIRONMENT": self.modal_environment,
         }
         secrets = {
             "OPENAI_API_KEY": self.openai_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
-            "RUNPOD_API_KEY": self.runpod_api_key,
         }
         env = {key: str(value) for key, value in values.items() if value is not None}
         env.update(

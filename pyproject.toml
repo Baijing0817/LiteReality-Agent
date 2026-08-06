@@ -38,6 +38,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+modal = ["modal>=1.3,<2"]
 # Heavy local models run in their OWN env (isolated subprocess workers); install these only
 # in that env, NOT the light loop/agent env.
 detect = ["torch", "torchvision", "transformers"]  # GroundingDINO detect + DINOv2 grouping (torchvision required by DINOv2 image processor)

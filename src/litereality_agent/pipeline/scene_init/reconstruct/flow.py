@@ -253,13 +253,12 @@ def run_for_scan(
         print(f"[reconstruct] no references found for {scan}", flush=True)
         return plan
 
-    # Route to the gen3d TOOL (RunPod TRELLIS, on-demand cloud, parallel) when installed —
-    # else fall through to the local launcher below.
+    # Route to a configured backend. Never infer that the pipeline Python should run TRELLIS:
+    # local execution is allowed only when the caller supplied an explicit interpreter.
     from litereality_agent.pipeline.scene_init.reconstruct import service as reconstructor
 
-    if not reconstructor.using_service():
-        # auto-install the configured gen3d backend so TRELLIS uses the RunPod API whenever its
-        # endpoint is set, regardless of entry point (cli.main installs it; `run.py --full` didn't).
+    if not reconstructor.using_service() and python is None:
+        # Auto-install the configured backend regardless of entry point.
         try:
             from litereality_agent.models.registry import gen3d_from_settings
 
@@ -271,8 +270,14 @@ def run_for_scan(
                     flush=True,
                 )
         except Exception as exc:
-            print(f"[reconstruct] gen3d auto-install skipped: {exc}", flush=True)
+            plan["status"] = "backend_unconfigured"
+            plan["error"] = str(exc)
+            print(f"[reconstruct] {exc}", flush=True)
+            return plan
     if reconstructor.using_service():
+        service_name = getattr(
+            reconstructor.service(), "name", reconstructor.service().__class__.__name__
+        )
         refs_dir = recon_dir / "_refs"
         refs_dir.mkdir(parents=True, exist_ok=True)
         staged: list[tuple[str, Path]] = []
@@ -281,20 +286,32 @@ def run_for_scan(
             if not dst.exists() or dst.stat().st_mtime < ref.stat().st_mtime:
                 shutil.copy(ref, dst)
             staged.append((asset_id, dst))
-        plan["backend"] = "runpod-gen3d"
+        plan["backend"] = service_name
         plan["python"] = None
         plan["launcher"] = None
-        telemetry.event("reconstruct_launch", scan=scan, n_assets=len(refs), backend="runpod-gen3d")
+        telemetry.event("reconstruct_launch", scan=scan, n_assets=len(refs), backend=service_name)
         print(
-            f"[reconstruct] {len(refs)} asset(s) -> {recon_dir}  (gen3d tool: RunPod TRELLIS)",
+            f"[reconstruct] {len(refs)} asset(s) -> {recon_dir}  (gen3d tool: {service_name})",
             flush=True,
         )
         if dry_run:
             plan["status"] = "dry_run"
             return plan
-        reconstructor.reconstruct_refs(staged, recon_dir, seed=seed)  # simplify ratio default
-        generated = sorted(p.name for p in recon_dir.glob("*.glb"))
-        plan["status"] = "ok"
+        results = reconstructor.reconstruct_refs(
+            staged, recon_dir, seed=seed
+        )  # simplify ratio default
+        results = results or {}
+        failed = [
+            asset_id
+            for asset_id, _ in staged
+            if not results.get(asset_id) or not Path(results[asset_id]).is_file()
+        ]
+        generated = sorted(
+            Path(path).name for path in results.values() if path and Path(path).is_file()
+        )
+        plan["status"] = "ok" if not failed else "failed"
+        if failed:
+            plan["failed_assets"] = failed
         plan["generated"] = len(generated)
         plan["glb"] = generated
         rep = getattr(reconstructor.service(), "last_report", None)
@@ -314,7 +331,7 @@ def run_for_scan(
             scan=scan,
             status=plan["status"],
             generated=len(generated),
-            backend="runpod-gen3d",
+            backend=service_name,
             cost_usd=plan.get("cost_usd"),
             wall_s=plan.get("wall_s"),
         )
