@@ -3,6 +3,8 @@
 LiteReality-Agent turns a RoomPlan capture into an editable `Room.py`, a compiled `Room.glb`, and a
 self-contained viewer.
 
+![RGBD scan on the left, agentic reconstruction on the right](assets/demo.gif)
+
 ```text
 capture → scene_init (ingest → reconstruct → seed)
         → realism_authoring (author → publish)
