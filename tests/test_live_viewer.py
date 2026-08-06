@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
@@ -132,6 +133,77 @@ def test_rebuild_records_failure_without_raising(run_tree: Path, monkeypatch) ->
     assert room.state(0)["status"] == "failed"
     assert "unexpected EOF" in room.state(0)["error"]
     assert room.build == 0
+
+
+def test_geometry_publishes_before_the_bake(run_tree: Path, monkeypatch) -> None:
+    """The point of the two-phase build: the page must get geometry without waiting on the bake."""
+    room = live.LiveRoom(_context(run_tree), bake=True)
+    built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
+    built.parent.mkdir(parents=True, exist_ok=True)
+    built.write_bytes(b"geometry")
+
+    released = threading.Event()
+
+    def slow_bake(_blend, out, **_k):
+        released.wait(5)
+        Path(out).write_bytes(b"baked")
+        return 0
+
+    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", slow_bake)
+
+    assert room.rebuild() is True
+    assert room.state(0)["phase"] == "geometry"      # published while the bake is still running
+    assert room.glb.read_bytes() == b"geometry"
+
+    released.set()
+    for _ in range(100):
+        if room.state(0)["phase"] == "baked":
+            break
+        time.sleep(0.05)
+    assert room.state(0)["phase"] == "baked"
+    assert room.glb.read_bytes() == b"baked"
+    assert room.build == 2                            # one swap for each phase
+
+
+def test_superseded_bake_is_dropped(run_tree: Path, monkeypatch) -> None:
+    """A bake that finishes after a newer save must not paint stale materials over new geometry."""
+    room = live.LiveRoom(_context(run_tree), bake=True)
+    built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
+    built.parent.mkdir(parents=True, exist_ok=True)
+    built.write_bytes(b"geometry")
+
+    def bake(_blend, out, **_k):
+        room._gen += 1          # a newer save lands while this bake is running
+        Path(out).write_bytes(b"stale-bake")
+        return 0
+
+    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", bake)
+
+    room.rebuild()
+    for _ in range(100):
+        if not room.state(0)["baking"]:
+            break
+        time.sleep(0.05)
+    assert room.glb.read_bytes() == b"geometry"
+    assert room.state(0)["phase"] == "geometry"
+
+
+def test_no_bake_stays_single_phase(run_tree: Path, monkeypatch) -> None:
+    room = live.LiveRoom(_context(run_tree), bake=False)
+    built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
+    built.parent.mkdir(parents=True, exist_ok=True)
+    built.write_bytes(b"geometry")
+
+    def refuse(*_a, **_k):
+        raise AssertionError("bake_room must not run with bake=False")
+
+    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", refuse)
+
+    assert room.rebuild() is True
+    assert room.build == 1 and room.state(0)["phase"] == "geometry"
 
 
 def test_http_surface(run_tree: Path) -> None:
