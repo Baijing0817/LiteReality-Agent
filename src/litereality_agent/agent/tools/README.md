@@ -4,8 +4,9 @@ The tools the authoring / materials / QC agent is handed each run, on top of `Re
 `Glob`. `default_registry.build_default_registry()` assembles them into a `ToolRegistry`, and
 `author.build_capability_server` exposes them to the claude_agent_sdk as `mcp__cap__*`.
 
-Shared plumbing: `base.py` (declarative tool + strict pydantic params), `registry.py` (name →
-tool, OpenAI-format schemas), `code_region.py`, `_scene.py`, `_vlm.py` (self-contained VLM call).
+Shared plumbing: `base.py` defines tools and strict pydantic parameters. `registry.py` builds the
+tool registry and OpenAI schemas. `_scene.py` resolves the active room, and `_vlm.py` makes a
+self-contained vision call.
 
 **Where the backing code lives.** Each tool owns its source under its own folder:
 [`render/source/`](render/source/) is the render/annotate engine plus `wall_refs` and
