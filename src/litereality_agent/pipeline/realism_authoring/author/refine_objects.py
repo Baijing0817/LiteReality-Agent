@@ -367,7 +367,7 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
                         cost = m.total_cost_usd
             last_err = None
             break  # session completed
-        except BaseException as e:  # noqa: BLE001 — catch even SDK teardown errors; must not kill the scene
+        except Exception as e:  # noqa: BLE001 — a failed object must not kill the scene
             last_err = e
             print(f"  [{name}] attempt {attempt}/{_RETRIES} error: {type(e).__name__}: {e}", flush=True)
             if attempt < _RETRIES:
@@ -485,12 +485,19 @@ async def main():
         return
     counter: dict = {}
     print(f"== refine {objs} (<= {a.concurrency} at once) ==", flush=True)
+    async def settle(coro):
+        """Keep one provider failure local while allowing cancellation to stop the run."""
+        try:
+            return await coro
+        except Exception as exc:  # noqa: BLE001 — reported with the object that failed
+            return exc
+
     settled = await asyncio.gather(*(
-        refine_one(n, Path(a.room), Path(a.refroot), Path(a.scan), _blender(),
-                   a.model, a.max_turns, counter) for n in objs), return_exceptions=True)
+        settle(refine_one(n, Path(a.room), Path(a.refroot), Path(a.scan), _blender(),
+                          a.model, a.max_turns, counter)) for n in objs))
     results = []
     for n, r in zip(objs, settled):
-        results.append((n, {"error": repr(r)}) if isinstance(r, BaseException) else r)
+        results.append((n, {"error": repr(r)}) if isinstance(r, Exception) else r)
     out = dict(results)
     (RESULTS / "summary.json").write_text(json.dumps(out, indent=2))
 

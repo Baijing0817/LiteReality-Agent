@@ -100,6 +100,19 @@ class _ResultHarness:
         yield self.result
 
 
+class _CancelledHarness:
+    name = "test"
+    supports = frozenset()
+
+    def effective_model(self, spec):
+        return spec.model or "test"
+
+    async def run(self, _spec):
+        if False:
+            yield None
+        raise asyncio.CancelledError
+
+
 def _run_with_result(room, tmp_path, monkeypatch, result):
     from litereality_agent.agent import author, providers
 
@@ -112,6 +125,64 @@ def _run_with_result(room, tmp_path, monkeypatch, result):
     monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
     monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
     return asyncio.run(author.run(room, refs, scan, "test", 1))
+
+
+def test_cancelling_authoring_stops_the_run(room, tmp_path, monkeypatch):
+    from litereality_agent.agent import author, providers
+
+    refs = tmp_path / "refs"
+    scan = tmp_path / "scan"
+    refs.mkdir(exist_ok=True)
+    scan.mkdir(exist_ok=True)
+    monkeypatch.setattr(author, "surfaces_for", lambda _room: [])
+    monkeypatch.setattr(providers, "resolve", lambda *_args: _CancelledHarness())
+    monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
+    monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(author.run(room, refs, scan, "test", 1))
+
+
+def test_cancelling_object_refinement_is_not_retried(room, tmp_path, monkeypatch):
+    from PIL import Image
+
+    from litereality_agent.agent import providers
+    from litereality_agent.pipeline.realism_authoring.author import refine_objects
+
+    name = "Chair0"
+    obj_dir = room / "Objects" / "Procedural" / name
+    obj_dir.mkdir(parents=True)
+    (obj_dir / "object.py").write_text("def build():\n    return None\n", encoding="utf-8")
+    selected = tmp_path / "refs" / name / "images" / "frame_00001.jpg"
+    selected.parent.mkdir(parents=True)
+    selected.write_bytes(b"selected")
+    scan = tmp_path / "scan"
+    scan.mkdir()
+    Image.new("RGB", (4, 4), "white").save(scan / "frame_00001.jpg")
+
+    harness = _CancelledHarness()
+    harness.supports = frozenset({"inproc_tools"})
+    monkeypatch.setattr(providers, "resolve", lambda *_args: harness)
+    monkeypatch.setattr(refine_objects, "build_server", lambda *_args: (object(), []))
+    monkeypatch.setattr(refine_objects, "_snapshot_views", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(refine_objects, "_is_articulated", lambda *_args: False)
+    monkeypatch.setattr(refine_objects, "RESULTS", tmp_path / "results")
+    refine_objects.RESULTS.mkdir()
+    monkeypatch.setattr(refine_objects, "_SEM", asyncio.Semaphore(1))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(
+            refine_objects.refine_one(
+                name,
+                room,
+                tmp_path / "refs",
+                scan,
+                "blender",
+                "test",
+                1,
+                {},
+            )
+        )
 
 
 def test_terminal_provider_error_fails_authoring(room, tmp_path, monkeypatch):

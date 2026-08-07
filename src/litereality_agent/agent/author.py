@@ -385,7 +385,7 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
             stopped = m.stopped
             if m.is_error:
                 terminal_error = result_text or "provider reported a terminal error"
-    except BaseException as exc:  # noqa: BLE001 — including the SDK's turn-cap Exception
+    except Exception as exc:  # noqa: BLE001 — including the SDK's turn-cap Exception
         # Running out of turns is not a failed run. `Room.py` is edited IN PLACE, so by this
         # point the session's work is already on disk; raising here threw it away, because
         # the CLI runs authoring as a HARD stage and aborts the pipeline on a non-zero exit.
