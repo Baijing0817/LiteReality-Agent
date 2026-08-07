@@ -37,11 +37,3 @@ still writes a `Room.py`.
   needed.
 - **Regression tests name the failure they came from** in the docstring. Each one was checked to fail
   against the pre-fix code — a regression test that passes either way is decoration.
-
-## Known-failing, on purpose
-
-`test_agent_trace.py::test_stitch_coverage_is_tracked_where_the_tool_name_exists` is `xfail(strict=True)`:
-`agent/author.py` counts tools and tracks stitch coverage inside the `ToolResultBlock`
-branch, but that block carries no `name` and no `input` (pinned by the test above it), so a real run
-reports `calls=88 {'?': 88}` and marks every stitch `NEVER OPENED`. When those four statements move
-back under `elif b == "ToolUseBlock"`, this test XPASSes — remove the marker then.

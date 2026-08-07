@@ -7,10 +7,10 @@ type that does not carry them. Neither breaks a run; both destroy the evidence.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
-
-import pytest
+from types import SimpleNamespace
 
 from litereality_agent.agent.trace import AgentTrace
 
@@ -74,42 +74,42 @@ def test_a_broken_trace_never_breaks_the_run(tmp_path):
         tr.path.parent.chmod(0o700)
 
 
-def test_tool_result_block_carries_no_name_or_input():
-    """Pins the SDK fact behind the accounting bug below: a `ToolResultBlock` has only
-    `tool_use_id`, `content` and `is_error`. Anything that needs the tool NAME or its ARGUMENTS must
-    read the `ToolUseBlock`. If a future SDK adds these fields, this test fails and the workaround
-    can be revisited.
-    """
-    from claude_agent_sdk import ToolResultBlock
+def test_author_attributes_a_successful_stitch_read(tmp_path, monkeypatch, capsys):
+    """The author must recover a result's name and input from its matching use block."""
+    from claude_agent_sdk.types import ToolResultBlock, ToolUseBlock
 
-    fields = set(ToolResultBlock.__dataclass_fields__)
-    assert fields == {"tool_use_id", "content", "is_error"}
-    assert "name" not in fields and "input" not in fields
+    from litereality_agent.agent import author, providers
 
+    room = tmp_path / "run" / "scan" / "realism_authoring" / "room"
+    room.mkdir(parents=True)
+    (room / "Room.py").write_text("SHELL = {'walls': {}}\n", encoding="utf-8")
+    refs = tmp_path / "refs"
+    refs.mkdir()
+    stitch = refs / "Wall0_stitched.jpg"
+    stitch.write_bytes(b"reference")
+    scan = tmp_path / "scan"
+    scan.mkdir()
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="live bug: 113eff7 moved the per-tool counts and stitch-coverage tracking into the "
-    "ToolResultBlock branch (author.py:289-298), which carries neither name nor input — so a real "
-    "run prints calls=88 {'?': 88} and marks every stitch NEVER OPENED. Delete this marker when "
-    "the four statements move back under `elif b == \"ToolUseBlock\"`.",
-)
-def test_stitch_coverage_is_tracked_where_the_tool_name_exists():
-    """Source-level check: `read_surfaces` is the guardrail that reports whether the model actually
-    opened each head-on stitch. It must be populated in the branch that has `input`.
+    class ReadHarness:
+        name = "test"
+        supports = frozenset({"read_events"})
 
-    Checked statically because the accounting is inline in `author.run()` around a live `query()`
-    call; extracting it is the fix, not the test.
-    """
-    src = (
-        Path(__file__).resolve().parents[1]
-        / "src"
-        / "litereality_agent"
-        / "pipeline"
-        / "author"
-        / "agent.py"
-    ).read_text()
-    after_result_branch = src.split('elif b == "ToolResultBlock":', 1)[1]
-    assert "read_surfaces.add" not in after_result_branch, (
-        "coverage tracking sits in the ToolResultBlock branch, where input is always empty"
-    )
+        def effective_model(self, spec):
+            return spec.model or "test"
+
+        async def run(self, _spec):
+            use = ToolUseBlock(id="read-1", name="Read", input={"file_path": str(stitch)})
+            result = ToolResultBlock(tool_use_id="read-1", content="ok", is_error=False)
+            yield SimpleNamespace(content=[use, result])
+
+    monkeypatch.setattr(author, "surfaces_for", lambda _room: ["Wall0"])
+    monkeypatch.setattr(providers, "resolve", lambda *_args: ReadHarness())
+    monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
+    monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
+    monkeypatch.setattr("litereality_agent.agent.scratch.rescue", lambda *_args, **_kwargs: [])
+
+    assert asyncio.run(author.run(room, refs, scan, "test", 1)) == 0
+    output = capsys.readouterr().out
+    assert "calls=1 {'Read': 1}" in output
+    assert "✓ Wall0" in output
+    assert "NEVER OPENED" not in output
