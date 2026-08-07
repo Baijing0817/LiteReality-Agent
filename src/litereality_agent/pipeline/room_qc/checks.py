@@ -15,8 +15,8 @@ PASSTHROUGH). `pipeline/room_qc/fix.py` resolves what IS reported by nudging fur
 Everything is pure arithmetic over AABBs, so it's fast, exact, and needs no LLM.
 
 The box arithmetic itself lives with the tool that runs it on every agent turn
-(`agent/tools/check_collisions/source/geometry.py`); this module is the REPORT, which
-structure.md places in the pipeline.
+(`agent/tools/check_collisions/source/geometry.py`). This module owns the report because the
+pipeline decides whether the room passes.
 
     python -m litereality_agent.pipeline.room_qc.checks --room <room dir>
     python -m litereality_agent.pipeline.room_qc.checks --layout <room_layout.json> --shell <Room.py>

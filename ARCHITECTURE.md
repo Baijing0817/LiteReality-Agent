@@ -18,24 +18,24 @@ src/litereality_agent/
 ├── settings.py          Pydantic environment settings
 ├── pipeline/            workflow ordering, state, and phase implementations
 │   ├── scene_init/      capture ingest, reconstruction, and deterministic seed room
-│   └── realism_authoring/
-│       ├── author/      evidence and optional realism passes
-│       └── publish/     final compilation and viewer
+│   ├── realism_authoring/
+│   │   ├── author/      evidence and optional realism passes
+│   │   └── publish/     final compilation and viewer
+│   └── room_qc/         final checks and placement correction
 ├── agent/               agent runners, tools (each owning its source), traces, and narration
 │   └── providers/       which coding agent drives a session (`claude/` and `codex/`)
 ├── room_ops/            Room.py manifest, compilation, rendering, and export
-├── models/              canonical inference and model-specific service adapters
-│   └── llm/             provider integrations (`openai/` and `claude/`)
+├── models/              DINOv2, GroundingDINO, TRELLIS, and object generation
 └── runtimes/            hosted execution transports such as Modal
 
 scripts/                  standalone capture and publishing utilities
 deploy/modal/             hosted model wrappers; never imported by application code
 ```
 
-There are no `services`, `adapters`, `shared`, or nested `pipeline/stages` layers. The directory
-name answers the ownership question: phase decisions belong in `pipeline`, reusable model-driven
-capabilities belong in `agent`, the portable room representation belongs in `room_ops`, models
-own inference, and runtimes own execution location.
+There are no top-level `services`, `adapters`, or `shared` packages. There is also no nested
+`pipeline/stages` package. Phase decisions belong in `pipeline`. Reusable agent capabilities
+belong in `agent`, and the portable room representation belongs in `room_ops`. Models own
+inference, while runtimes own execution location.
 
 `pipeline/realism_authoring/author` owns the optional post-authoring passes (`refine_objects`,
 `materials`, and model-driven `quality`). They remain part of the authoring phase rather than
@@ -61,6 +61,22 @@ Object refinement is the one pass that is Claude-only: its `render_object` tool 
 object around live session state, so there is no registry entry for the stdio bridge to rebuild.
 It fails with an explicit message rather than running without its only self-check tool.
 
+## Agent capability tools
+
+`agent/tools/default_registry.py` is the source of truth for agent tools. The authoring pass uses
+this registry, and the materials and quality passes use the same one:
+
+1. `fetch_material` searches Poly Haven for a PBR material and can recolour it.
+2. `render` builds the room, selects useful views, and returns render and photo comparisons.
+3. `critic` grades images against a stated goal and returns issues to fix.
+4. `select_views` chooses capture frames for a room, wall, or object.
+5. `grid` draws a metric grid over a surface reference.
+6. `check_collisions` checks mesh or box collisions and suggests placement fixes.
+
+The `compile` package is shared code used by `render`. It is not a registered agent tool. Shared
+image selection and wall stitching code lives under `agent/tools/shared` because several tools and
+the evidence stage use it.
+
 Imports follow one direction, enforced by `tests/test_architecture.py`:
 
 ```text
@@ -73,6 +89,20 @@ Arrows point from caller to dependency. Models, room-ops code, and reusable agen
 pipeline code; the pipeline owns the CLI adapters that bind scene-package arguments before calling
 an agent. Runtime selection happens in `models/registry.py`; the pipeline consumes that small
 composition boundary.
+
+## Room ownership and quality control
+
+`room_ops` owns the portable room representation and operations that work without pipeline state:
+
+1. It reads and writes the Room.py manifest.
+2. It compiles Blender and GLB files.
+3. It renders rooms and exports assets.
+4. It serves the walkable viewer.
+
+Quality control has two scopes. `pipeline/scene_init/reconstruct/mesh_qc` checks each generated
+asset before it enters the room. `pipeline/room_qc` checks the assembled room and corrects object
+placement. The collision tool keeps its reusable geometry code under `agent/tools`, while the
+pipeline decides what to do with each result.
 
 ## Configuration and runtimes
 

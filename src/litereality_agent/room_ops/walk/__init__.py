@@ -1,8 +1,7 @@
 """The walkable viewer: orbit, point-and-go, and walk, as three modes over one room.
 
-This is how a finished room is looked at — structure.md's room-ops question, "what we do once we
-already have a room". It reads a glb and serves it; it never touches `Room.py`, which is what keeps
-it out of `pipeline/`.
+This viewer is a reusable room operation. It reads a glb and serves it. It never touches `Room.py`
+or pipeline state, so it stays under `room_ops`.
 
 Served rather than written to a file: a room runs to tens of megabytes, and a self-contained page
 would have to carry it base64'd a third larger again and parse the whole thing before drawing

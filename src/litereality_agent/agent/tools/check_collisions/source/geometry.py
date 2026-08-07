@@ -4,8 +4,8 @@ Split out of the old `room_ops/validation/room.py` when the QC moved into the pi
 (`pipeline/room_qc`): the *report* is a pipeline concern, but this arithmetic — parse the SHELL,
 does box A overlap box B, which wall is this fixture on — is what the TOOL runs on every
 invocation, so it lives under the tool that owns it. `pipeline.room_qc` imports it back the other
-way, which is the sanctioned direction (see structure.md: the tools' source lives in
-``agent/tools`` precisely so it can be reused outside the agentic loop).
+way. The root `ARCHITECTURE.md` documents this dependency direction and why reusable tool code
+lives under `agent/tools`.
 
 Everything here is pure arithmetic over oriented boxes and wall segments, so it is fast, exact,
 and needs neither Blender nor a compiled `Room.glb`.

@@ -137,6 +137,9 @@ In the formats you'd take elsewhere:
 
 ## Development
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for package ownership, dependency direction, and the current
+agent tool registry.
+
 Safe local verification is limited to static checks, offline unit tests, CLI parsing, and package
 builds:
 
