@@ -372,6 +372,13 @@ def _expected_by_branch(scan: str) -> dict[str, list[str]]:
     return {k: sorted(set(v)) for k, v in branches.items()}
 
 
+def _asset_is_built(recon: Path, name: str) -> bool:
+    if (recon / f"{name}.glb").is_file():
+        return True
+    d = recon / name
+    return any(d.glob("*.glb")) and (d / "object.py").is_file() and (d / "object.md").is_file()
+
+
 def _built_count(scan: str, expected: list[str]) -> int:
     """How many of `expected` are actually FINISHED.
 
@@ -385,15 +392,13 @@ def _built_count(scan: str, expected: list[str]) -> int:
     recon = config.reconstruct_dir(scan)
     if not recon.is_dir():
         return 0
-    done = 0
-    for name in expected:
-        if (recon / f"{name}.glb").is_file():  # neural: a single baked mesh, nothing else to write
-            done += 1
-            continue
-        d = recon / name
-        if any(d.glob("*.glb")) and (d / "object.py").is_file() and (d / "object.md").is_file():
-            done += 1
-    return done
+    return sum(_asset_is_built(recon, name) for name in expected)
+
+
+def _missing_assets(scan: str, expected: list[str]) -> list[str]:
+    """Expected assets that do not have a complete reconstruction on disk."""
+    recon = config.reconstruct_dir(scan)
+    return [name for name in expected if not _asset_is_built(recon, name)]
 
 
 def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, full: bool) -> None:
@@ -746,7 +751,18 @@ def main(argv: list[str] | None = None) -> int:
         )
         for result in results
     )
-    return int(reconstruction_failed)
+    builds_requested = args.full or args.reconstruct or args.procedural or args.build_openings
+    incomplete = {}
+    if builds_requested and not args.dry_run_reconstruct:
+        incomplete = {
+            result["scan"]: _missing_assets(result["scan"], _expected_assets(result["scan"]))
+            for result in results
+        }
+        incomplete = {scan: names for scan, names in incomplete.items() if names}
+        if incomplete:
+            for scan, names in incomplete.items():
+                print(f"reconstruction incomplete for {scan}: {', '.join(names)}")
+    return int(reconstruction_failed or bool(incomplete))
 
 
 if __name__ == "__main__":
