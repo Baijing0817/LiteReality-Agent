@@ -9,8 +9,8 @@ door/window openings from the wall-child USDAs. Writes, relative to the work roo
     input/rgbd/<scan>/...
     input/scene_data/<scan>/{walls,objects,wall_holes,floor}.pkl
 
-Heavy USD/torch/GroundingDINO code is NOT needed here — RoomPlan USDZ is parsed by
-unzipping + reading the USDA text (see lr_preprocessing/utils/utils.py).
+Heavy USD/torch/GroundingDINO code is NOT needed here. RoomPlan USDZ is parsed by
+the ported implementation under ``ingest/preprocessing/vendor``.
 """
 
 from __future__ import annotations
@@ -24,15 +24,28 @@ import numpy as np
 from PIL import Image
 
 from litereality_agent.pipeline.scene_init import paths as config
-
-config.ensure_lr_on_path()
-from preprocessing import Colors, extract_scene_data, save_scene_data  # noqa: E402
-from utils.utils import extract_rgbd, get_object_pose, get_scene_usda  # noqa: E402
+from litereality_agent.pipeline.scene_init.ingest.preprocessing.scene_data import (
+    Colors,
+    extract_rgbd,
+    extract_scene_data,
+    get_object_pose,
+    get_scene_usda,
+    save_scene_data,
+)
 
 # ── point-cloud helpers (a scan may ship pointcloud.pcd, an OBJ, or only depth) ──
-_PCD_DTYPES = {("I", 1): "i1", ("I", 2): "i2", ("I", 4): "i4", ("I", 8): "i8",
-               ("U", 1): "u1", ("U", 2): "u2", ("U", 4): "u4", ("U", 8): "u8",
-               ("F", 4): "f4", ("F", 8): "f8"}
+_PCD_DTYPES = {
+    ("I", 1): "i1",
+    ("I", 2): "i2",
+    ("I", 4): "i4",
+    ("I", 8): "i8",
+    ("U", 1): "u1",
+    ("U", 2): "u2",
+    ("U", 4): "u4",
+    ("U", 8): "u8",
+    ("F", 4): "f4",
+    ("F", 8): "f8",
+}
 
 
 def _parse_pcd_header(raw: bytes) -> tuple[dict, int]:

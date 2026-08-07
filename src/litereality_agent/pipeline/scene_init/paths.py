@@ -25,8 +25,8 @@ folders:
 
 Override the output root with ``--output-root`` / ``$LITEREALITY_OUTPUT``.
 
-The ported preprocessing (``lr_preprocessing/``) uses **relative** ``input/...``
-paths, so the stages that drive it ``chdir`` into the per-scan work root first
+The ported preprocessing uses **relative** ``input/...`` paths, so the stages
+that drive it ``chdir`` into the per-scan work root first
 (:func:`enter_work_root`). The reference/cluster stages use the absolute helpers
 below. Because the work root is per-scan, callers must select the scan with
 :func:`set_scan` (``enter_work_root(scan)`` does this) before using the helpers.
@@ -35,12 +35,9 @@ below. Because the work root is per-scan, callers must select the scan with
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 from litereality_agent.settings import load_settings
-
-LR_PREPROC_DIR = Path(__file__).resolve().parent / "ingest" / "extract" / "lr_preprocessing"
 
 # Raw RoomPlan scans. Defaults to <repo>/scans_uploaded; point at the old repo (or anywhere)
 # via $LR_SCANS_DIR so init can run on existing scan data without copying it.
@@ -59,9 +56,9 @@ _CURRENT_SCAN: str | None = None
 # `gemini_input.jpg` / `nano_banana_raw.png` — provider names, from before image-gen moved to
 # OpenAI, describing who made the file rather than what it is. Readers still accept the old
 # spellings so a tree from an earlier run keeps working without a costly re-init.
-INPUT_SHEET = "input2imagegen.jpg"        # the evidence sheet handed TO the image model
+INPUT_SHEET = "input2imagegen.jpg"  # the evidence sheet handed TO the image model
 CLEAN_REFERENCE = "clean_obj_reference.png"  # the model's raw output, before crop/recentre
-FINAL_REFERENCE = "reference_1024.png"    # the cropped, recentred reference the pipeline uses
+FINAL_REFERENCE = "reference_1024.png"  # the cropped, recentred reference the pipeline uses
 
 _LEGACY = {INPUT_SHEET: "gemini_input.jpg", CLEAN_REFERENCE: "nano_banana_raw.png"}
 
@@ -135,13 +132,12 @@ def work_root() -> Path:
 
 def enter_work_root(scan: str | None = None) -> Path:
     """Select ``scan``, mkdir + chdir into its work root (the ported preprocessing
-    reads/writes CWD-relative ``input/...`` paths), and put lr_preprocessing on path."""
+    reads/writes CWD-relative ``input/...`` paths)."""
     if scan is not None:
         set_scan(scan)
     root = work_root()
     root.mkdir(parents=True, exist_ok=True)
     os.chdir(root)
-    ensure_lr_on_path()
     return root
 
 
@@ -189,12 +185,3 @@ def parsed_images_dir(scan: str) -> Path:
 def scene_data_complete(scan: str) -> bool:
     d = scene_data_dir(scan)
     return all((d / f"{name}.pkl").exists() for name in ("walls", "objects", "wall_holes", "floor"))
-
-
-# ── importing the ported preprocessing package ───────────────────────────────
-def ensure_lr_on_path() -> None:
-    """Put ``lr_preprocessing/`` on sys.path so ``import preprocessing`` and its
-    internal ``from utils.X import ...`` resolve to the vendored copy."""
-    p = str(LR_PREPROC_DIR)
-    if p not in sys.path:
-        sys.path.insert(0, p)

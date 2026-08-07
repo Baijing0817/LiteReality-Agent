@@ -29,7 +29,7 @@ What remains is the part that is *not* frame selection: surface geometry, and co
 
 Three implementations of "how well does this frame see this target" still exist:
 `select_views.quality`, `surface_views.analyze`/`select`, and a hand-maintained copy in the init
-preprocessing (`pipeline/scene_init/ingest/extract/lr_preprocessing/utils/extract_image.py`, whose
+preprocessing (`pipeline/scene_init/ingest/preprocessing/vendor/litereality/object_image_extraction.py`, whose
 comment asks you to keep it consistent with `select_views.quality` by hand). Worth unifying, but
 it spans `agent` and `pipeline`, so it needs a shared home first.
 

@@ -15,9 +15,7 @@ import pickle
 import time
 
 from litereality_agent.pipeline.scene_init import paths as config
-
-config.ensure_lr_on_path()
-from preprocessing import (  # noqa: E402
+from litereality_agent.pipeline.scene_init.ingest.preprocessing.object_images import (
     Colors,
     prepare_camera_data_for_retrieval,
     process_all_folders,

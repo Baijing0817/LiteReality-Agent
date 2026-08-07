@@ -24,7 +24,7 @@ import pytest
 for _heavy in ("open3d", "cv2"):
     sys.modules.setdefault(_heavy, types.ModuleType(_heavy))
 
-from litereality_agent.pipeline.scene_init.ingest.extract.lr_preprocessing.utils.extract_image import (  # noqa: E402
+from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality.object_image_extraction import (  # noqa: E402
     project_to_pixels,
     round_to_int,
 )
@@ -42,8 +42,9 @@ def visible(points: np.ndarray) -> np.ndarray:
 
 def test_points_in_front_project_where_they_always_did():
     """The fix must not move a single valid point."""
-    p, in_front = project_to_pixels(np.array([[0.0, 0.0, 3.0], [0.5, 0.3, 4.0]]),
-                                    POSE, FX, FY, CX, CY)
+    p, in_front = project_to_pixels(
+        np.array([[0.0, 0.0, 3.0], [0.5, 0.3, 4.0]]), POSE, FX, FY, CX, CY
+    )
     assert in_front.all()
     assert p[0][0] == pytest.approx(CX) and p[1][0] == pytest.approx(CY)
     assert p[0][1] == pytest.approx(CX + 0.5 * FX / 4.0)
@@ -99,11 +100,13 @@ def test_round_to_int_never_casts_nan():
 
 
 def test_mixed_batch_keeps_only_the_valid_points():
-    points = np.array([
-        [0.0, 0.0, 3.0],    # visible
-        [0.0, 0.0, 0.0],    # on the plane
-        [0.2, 0.1, -3.0],   # behind
-        [0.5, 0.3, 4.0],    # visible
-        [50.0, 0.0, 3.0],   # in front but far outside the frame
-    ])
+    points = np.array(
+        [
+            [0.0, 0.0, 3.0],  # visible
+            [0.0, 0.0, 0.0],  # on the plane
+            [0.2, 0.1, -3.0],  # behind
+            [0.5, 0.3, 4.0],  # visible
+            [50.0, 0.0, 3.0],  # in front but far outside the frame
+        ]
+    )
     assert list(visible(points)) == [True, False, False, True, False]

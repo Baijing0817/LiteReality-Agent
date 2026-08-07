@@ -5,11 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from litereality_agent.pipeline.scene_init import paths
-
-paths.ensure_lr_on_path()
-from utils.utils import get_object_pose  # noqa: E402, I001
-
+from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality.roomplan import (
+    get_object_pose,
+)
 
 IDENTITY = "[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]"
 
@@ -17,8 +15,7 @@ IDENTITY = "[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]"
 def test_object_pose_parses_numeric_usda_literals(tmp_path: Path):
     usda = tmp_path / "object.usda"
     usda.write_text(
-        "point3f[] points = [[0, 0, 0], [1, 2, 3]]\n"
-        f"matrix4d xformOp:transform = {IDENTITY}\n",
+        f"point3f[] points = [[0, 0, 0], [1, 2, 3]]\nmatrix4d xformOp:transform = {IDENTITY}\n",
         encoding="utf-8",
     )
 

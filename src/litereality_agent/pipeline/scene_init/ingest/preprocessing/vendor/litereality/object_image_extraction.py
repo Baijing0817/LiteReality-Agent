@@ -1,3 +1,5 @@
+"""Object point cloud projection, ranking, and crop helpers from LiteReality."""
+
 import pickle
 import open3d as o3d
 import numpy as np
@@ -406,7 +408,7 @@ def crop_and_save_new(scan_path, pcd_input, semantic, eight_points, top_k):
         _, _, eight_point_mapping = compute_mapping_for_3D_bbox(scene_name, eight_points, i)
         # bbox3d = geometric 2D extent of the FULL projected 3D box (depth-independent), so an
         # under-scanned unit (e.g. a sink whose base cabinet has few points) still spans the whole
-        # object. The crop step opts into it per object via LR_ENLARGED_CROP_OBJECTS.
+        # object. The caller decides whether to use it for a given object.
         bbox3d = project_bbox_2d(scene_name, eight_points, i, W, H)
         if bbox is not None and (bbox[2] > bbox[0]) and (bbox[3] > bbox[1]):
             bbox = [int(x) for x in bbox]
@@ -732,4 +734,3 @@ def get_wall_hole_points(wall_holes, rotation_y_list, bbox_walls, obj_points):
 
     obj_pcd_list = crop_objs_with_bbox(window_eight_points, obj_points, rotation_y_only_holes)
     return obj_pcd_list
-

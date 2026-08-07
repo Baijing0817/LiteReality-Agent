@@ -32,7 +32,7 @@ class Colors:
     RESET = '\033[0m'
     BOLD = '\033[1m'
 
-from utils.extract_image import (
+from .object_image_extraction import (
     get_pcd_from_obj, 
     get_pcd_objs, 
     crop_and_save_new, 
@@ -42,7 +42,7 @@ from utils.extract_image import (
     get_wall_hole_points
 )
 
-from utils.utils import (
+from .roomplan import (
     get_scene_usda,
     get_wall_and_object_floor_files,
     get_line_segments_and_walls,
@@ -342,7 +342,14 @@ def save_scene_data(name_of_scan, walls, objects, wall_holes_result, floor):
     return output_folder
 
 
-def process_object_images(name_of_scan, walls, objects, wall_holes_result, include_walls=False):
+def process_object_images(
+    name_of_scan,
+    walls,
+    objects,
+    wall_holes_result,
+    include_walls=False,
+    enlarged_crop_objects=(),
+):
     """
     Process and extract 2D images for objects from point cloud.
     
@@ -357,9 +364,7 @@ def process_object_images(name_of_scan, walls, objects, wall_holes_result, inclu
         None
     """
     start_time = time.time()
-    # objects that should be cropped to their FULL projected 3D box instead of just their visible
-    # points (comma-separated ids, e.g. "Sink_Storage0"). Used for merged sink+storage sets.
-    _ENLARGED_CROP_OBJECTS = set(filter(None, os.environ.get("LR_ENLARGED_CROP_OBJECTS", "").split(",")))
+    enlarged_crop_objects = set(enlarged_crop_objects)
     print(f"{Colors.BLUE}🖼️{Colors.RESET} Starting to obtain 2D images for objects...")
     
     # Update wall corners data
@@ -441,8 +446,8 @@ def process_object_images(name_of_scan, walls, objects, wall_holes_result, inclu
             # ENLARGED CROP: for merged sets (e.g. a sink + its base-cabinet "Sink_Storage" unit),
             # the visible-points bbox only covers the well-scanned part (the sink). Crop instead to
             # the full projected 3D box so the evidence — and the generated reference — captures the
-            # WHOLE unit. Opt-in per object via LR_ENLARGED_CROP_OBJECTS; a small margin guards edges.
-            if object_id in _ENLARGED_CROP_OBJECTS and image_info.get("bbox3d"):
+            # WHOLE unit. Callers opt in per object; a small margin guards edges.
+            if object_id in enlarged_crop_objects and image_info.get("bbox3d"):
                 b = image_info["bbox3d"]
                 mx = int((b[2] - b[0]) * 0.06); my = int((b[3] - b[1]) * 0.06)
                 bbox = [max(0, b[0] - mx), max(0, b[1] - my), min(256, b[2] + mx), min(192, b[3] + my)]
