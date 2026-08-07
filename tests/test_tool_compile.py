@@ -11,6 +11,7 @@ The Blender build itself is `-m blender`.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -74,6 +75,26 @@ def test_stamp_never_raises_on_an_unwritable_room(room, monkeypatch):
 
 def test_missing_room_py_is_not_fresh_rather_than_an_error(tmp_path):
     assert compile_is_fresh(tmp_path / "no-such-room") is False
+
+
+def test_compile_api_rejects_a_missing_glb(room, tmp_path, monkeypatch):
+    from litereality_agent.room_ops import api
+
+    monkeypatch.setattr(api.subprocess, "run", lambda _cmd: SimpleNamespace(returncode=0))
+    assert api.compile_room(room, out_dir=tmp_path / "preview", bake=False) is None
+
+
+def test_compile_tool_does_not_stamp_a_missing_glb(room, tmp_path, monkeypatch):
+    missing = tmp_path / "preview" / "Room.glb"
+    monkeypatch.setattr("litereality_agent.room_ops.compile_room", lambda *_a, **_k: missing)
+
+    inv = CompileInvocation(CompileParams(regenerate=False))
+    inv.bind(str(room), None)
+    result = asyncio.run(inv.execute())
+
+    assert not result.is_success()
+    assert result.build == {"status": "error", "glb_path": None}
+    assert not (room / ".compile_stamp").exists()
 
 
 @pytest.mark.blender

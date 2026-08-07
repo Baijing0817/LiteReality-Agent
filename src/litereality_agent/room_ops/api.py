@@ -81,6 +81,8 @@ def compile_room(
     if subprocess.run(cmd).returncode != 0:
         return None
     glb = preview / "Room.glb"
+    if not glb.is_file():
+        return None
     if bake:
         bake_room(preview / "Room.blend", glb, blender=blender)
     return glb

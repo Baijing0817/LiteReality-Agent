@@ -177,6 +177,7 @@ def main() -> int:
     scan_dir = scan_frames if (scan_frames / "room.usdz").exists() else roomdir
 
     out_glb = preview / "Room.glb"
+    out_glb.unlink(missing_ok=True)
     # Run Room/<scan>/Room.py (its own copy of the SHELL); the shell rebuilds from SHELL, no usdz
     cmd = [
         blender,
@@ -202,7 +203,11 @@ def main() -> int:
         print(f"     {console.colour('dim')}… full log: {console.short(log)}{console.colour('off')}")
         return r.returncode
 
-    size = console.human_bytes(out_glb.stat().st_size) if out_glb.is_file() else "missing"
+    if not out_glb.is_file():
+        print(console.row("error", "Room.glb", f"missing   {detail}", "yellow"))
+        return 1
+
+    size = console.human_bytes(out_glb.stat().st_size)
     print(f"{console.row('done' if not failed else 'error', 'Room.glb', f'{size:<9} {detail}', 'yellow')}{took}")
     mark = "done" if built == len(manifest["assets"]) else "error"
     summary = f"{built}/{len(manifest['assets'])} objects" + (f"  ✗ {', '.join(failed)}" if failed else "")
