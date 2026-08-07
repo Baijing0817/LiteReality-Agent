@@ -46,7 +46,29 @@ def test_layer_imports_only_point_inward():
 
 def test_only_supported_package_areas_exist():
     retired = {"adapters", "services", "shared"}
-    present = {
-        path.name for path in PACKAGE.iterdir() if path.is_dir() and any(path.rglob("*.py"))
-    }
+    present = {path.name for path in PACKAGE.iterdir() if path.is_dir() and any(path.rglob("*.py"))}
     assert not present & retired
+
+
+def test_ported_preprocessing_stays_behind_project_adapters():
+    preprocessing = PACKAGE / "pipeline" / "scene_init" / "ingest" / "preprocessing"
+    vendor = preprocessing / "vendor" / "litereality"
+    assert {path.name for path in preprocessing.glob("*.py")} == {
+        "__init__.py",
+        "object_images.py",
+        "scene_data.py",
+    }
+    assert not (
+        PACKAGE / "pipeline" / "scene_init" / "ingest" / "extract" / "lr_preprocessing"
+    ).exists()
+
+    violations = []
+    for path in vendor.glob("*.py"):
+        for imported in imports(path):
+            if imported.startswith("litereality_agent"):
+                violations.append(f"{path.name}: {imported}")
+        if "LR_ENLARGED_CROP_OBJECTS" in path.read_text(encoding="utf-8"):
+            violations.append(f"{path.name}: project environment setting")
+    assert not violations, "project logic found in preprocessing vendor code:\n" + "\n".join(
+        violations
+    )

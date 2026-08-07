@@ -1,3 +1,5 @@
+"""RoomPlan USD parsing and RGBD extraction helpers from LiteReality."""
+
 import ast
 import filecmp
 import os
@@ -7,7 +9,7 @@ from typing import Any, Dict, List, Tuple
 from zipfile import ZipFile
 
 import numpy as np
-import utils.scannerapp_utils as scannerapp_utils
+from . import scanner_capture
 from trimesh import Trimesh
 
 
@@ -328,7 +330,7 @@ def get_objects(object_files):
 
 
 def extract_rgbd(scan_path, folder):
-    frames = scannerapp_utils.load_scan_frames_no_video(scan_path, scale_intrinsics_to_depth=True)
+    frames = scanner_capture.load_scan_frames_no_video(scan_path, scale_intrinsics_to_depth=True)
 
     subfolders = ["image", "depth", "intrinsic", "extrinsic"]
 

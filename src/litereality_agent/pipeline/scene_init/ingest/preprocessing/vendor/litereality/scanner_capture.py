@@ -1,3 +1,5 @@
+"""ScannerApp frame loading and RGBD conversion helpers from LiteReality."""
+
 import os
 
 

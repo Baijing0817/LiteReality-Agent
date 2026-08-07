@@ -5,10 +5,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from litereality_agent.pipeline.scene_init import paths
-
-paths.ensure_lr_on_path()
-from utils import utils as ingest_utils  # noqa: E402, I001
+from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality import (
+    roomplan as ingest_utils,
+)
 
 
 def _frame(image, depth):
@@ -29,7 +28,7 @@ def test_rgbd_copy_supports_paths_with_spaces(tmp_path, monkeypatch):
     depth.write_bytes(b"depth")
     output = tmp_path / "output folder"
     monkeypatch.setattr(
-        ingest_utils.scannerapp_utils,
+        ingest_utils.scanner_capture,
         "load_scan_frames_no_video",
         lambda *_args, **_kwargs: [_frame(image, depth)],
     )
@@ -44,7 +43,7 @@ def test_rgbd_copy_reports_a_missing_source(tmp_path, monkeypatch):
     image = tmp_path / "missing image.jpg"
     depth = tmp_path / "missing depth.jpg"
     monkeypatch.setattr(
-        ingest_utils.scannerapp_utils,
+        ingest_utils.scanner_capture,
         "load_scan_frames_no_video",
         lambda *_args, **_kwargs: [_frame(image, depth)],
     )
