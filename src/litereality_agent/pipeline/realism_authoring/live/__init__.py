@@ -39,6 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from litereality_agent import console
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.realism_authoring.live import page
 from litereality_agent.room_ops.serve import bind
@@ -153,6 +154,10 @@ class LiveRoom:
         self.status = "idle"
         self.phase = "none"
         self.error = ""
+        # Set by `start`. The banner goes out before the stage runs, when the page is still empty;
+        # the first build is when there is finally something to look at, and by then the banner is
+        # hundreds of lines of stage output further up. So the url is said once more, there.
+        self.url = ""
         # Set once the run that this viewer was started alongside has ended. The viewer deliberately
         # keeps serving afterwards — the finished room is the thing you most want to look at — so the
         # page needs to say so, otherwise a run that ended is indistinguishable from one gone quiet.
@@ -178,7 +183,12 @@ class LiveRoom:
         tmp.replace(self.glb)
         with self._lock:
             self.build += 1
+            first = self.build == 1
             self.phase = phase
+        if first and self.url:
+            cyan, bold, off = (console.colour(c) for c in ("cyan", "bold", "off"))
+            print(f"\n   {bold}{cyan}▶ room is live at {self.url}{off}   "
+                  f"{console.colour('dim')}first build ready{off}\n", flush=True)
 
     # -- compilation -------------------------------------------------------------------
     def _syntax_error(self) -> str:
@@ -423,14 +433,20 @@ def start(
     room = LiveRoom(context, poll=poll, bake=bake, bake_resolution=bake_resolution)
     # Bind before the watcher starts, so exhausting the port range leaves nothing running behind.
     server = bind(_handler(room, context.scan), host, port)
+    room.url = f"http://{host}:{server.server_port}/"  # so the first build can say it again
     room.trace.refresh()
     threading.Thread(target=room.watch, daemon=True).start()
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    return room, server, f"http://{host}:{server.server_port}/"
+    return room, server, room.url
 
 
 def require_room(context: RunContext) -> None:
-    """The viewer has nothing to show without a compiled-able room."""
+    """The viewer has nothing to show without a compiled-able room.
+
+    For standalone `litereality live` only. `--live` alongside a stage must NOT call this: there
+    the room is about to be written by the very stage the viewer is accompanying, and waiting for
+    it is the correct behaviour rather than an error.
+    """
     if not (context.authored_room / "Room.py").is_file():
         raise SystemExit(
             f"no authored room for {context.scan} — expected {context.authored_room / 'Room.py'}"
@@ -438,15 +454,27 @@ def require_room(context: RunContext) -> None:
 
 
 def describe(context: RunContext, url: str, bake: bool) -> None:
-    """The banner both entry points print, so `--live` says the same things `live` does."""
-    print(f"live viewer  {url}")
-    print(f"  room   {context.authored_room / 'Room.py'}")
-    print(f"  traces {', '.join(str(d) for d in trace_dirs(context) if d.is_dir()) or '(none yet)'}")
+    """The banner both entry points print, so `--live` says the same things `live` does.
+
+    Set apart with a rule and given the url a line of its own, because with `--live` this prints
+    BEFORE the stage does and the stage prints hundreds of lines. One url buried in the third
+    column of a wall of `cov=97% -> plain #9e9486` is a url nobody finds again.
+    """
+    room_py = context.authored_room / "Room.py"
+    cyan, bold, dim, off = (console.colour(c) for c in ("cyan", "bold", "dim", "off"))
+    print(console.rule("live viewer"))
+    print(f"\n   {bold}{cyan}{url}{off}\n")
+    # An empty page is alarming when you do not know it is expected. Say so before it happens.
+    pending = f"  {dim}(not written yet — the page waits for it){off}" if not room_py.is_file() else ""
+    print(f"   {dim}room  {off} {console.short(room_py)}{pending}")
+    traces = ", ".join(console.short(d) for d in trace_dirs(context) if d.is_dir()) or "(none yet)"
+    print(f"   {dim}traces{off} {traces}")
     print(
-        "  rebuilds on every save · "
+        f"   {dim}"
         + ("geometry first, materials baked right after" if bake else "geometry only (--no-bake)")
-        + " · ctrl-c to stop"
+        + f" · rebuilds on every save · ctrl-c to stop{off}"
     )
+    print(f"{dim}{'─' * 72}{off}")
 
 
 def serve(

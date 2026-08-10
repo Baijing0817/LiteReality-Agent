@@ -253,7 +253,7 @@ const feed = document.getElementById('feed');
 const dot = document.getElementById('dot');
 const tdot = document.getElementById('tdot');
 const statusEl = document.getElementById('status');
-let seenBuild = -1, cursor = 0, loading = false;
+let seenBuild = -1, cursor = 0, loading = false, lastBuild = '';
 
 /* How long the trace may go quiet before the page stops claiming the agent is working. Generous
    on purpose: a single render or compile tool call blocks the trace for the better part of a
@@ -268,7 +268,7 @@ const ago = (s) => s < 60 ? Math.round(s) + 's'
 
 const KIND = {
   tool: 'tool', think: 'think', session_start: 'session', session_end: 'session',
-  trace_start: 'session', result: 'result', images: 'images',
+  trace_start: 'session', result: 'result', images: 'images', build_progress: 'result',
 };
 
 /* The one argument that says what a call was FOR. A tool line reading just "Bash" is noise; the
@@ -326,6 +326,15 @@ function line(e) {
   else if (e.kind === 'session_end') { detail = (e.calls || 0) + ' calls'
                                        + (e.cost_usd ? ' · $' + Number(e.cost_usd).toFixed(2) : ''); }
   else if (e.kind === 'images') { detail = (e.n_images || 0) + ' image(s)'; }
+  else if (e.kind === 'build_progress') {
+    kind = 'build';
+    detail = (e.built || 0) + '/' + (e.total || 0) + ' built';
+    const per = e.branches ? Object.keys(e.branches).map((k) => k + ' ' + e.branches[k]) : [];
+    /* Which objects are mid-build matters more than the tally during a 20-minute pass, so it
+       leads; the per-branch split follows for the ones with nothing running. */
+    sub = (e.active && e.active.length ? 'building ' + e.active.join(', ') + '  ·  ' : '')
+        + per.join('  ·  ');
+  }
   else { detail = e.msg || e.name || e.stage || e.status || ''; }
 
   el.innerHTML = '<div class="dt"></div><div class="bd"><span class="k"></span>'
@@ -391,7 +400,18 @@ async function poll() {
       const stick = feed.scrollTop + feed.clientHeight > feed.scrollHeight - 60;
       const first = document.getElementById('empty');
       if (first) first.remove();
-      for (const e of s.events) feed.appendChild(line(e));
+      for (const e of s.events) {
+        /* Heartbeats exist to keep the liveness dot honest through a 20-minute object build; every
+           one of them reaching the feed would bury the agent's actual steps. Keep the ones that
+           moved the count or changed what is building, drop the rest — they have already done
+           their job by refreshing `idle_s` server-side. */
+        if (e.kind === 'build_progress') {
+          const sig = e.built + '|' + ((e.active || []).join(','));
+          if (sig === lastBuild) continue;
+          lastBuild = sig;
+        }
+        feed.appendChild(line(e));
+      }
       cursor = s.cursor;
       document.getElementById('tcount').textContent = s.total + ' events';
       if (stick) feed.scrollTop = feed.scrollHeight;

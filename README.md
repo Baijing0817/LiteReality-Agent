@@ -98,7 +98,7 @@ SANITY_DEEP=1 uv run python sanity.py
 The installed CLI is the only supported pipeline entry point. One command runs everything:
 
 ```bash
-uv run litereality run /path/to/capture
+uv run litereality run  scans/Elliott-Studio
 ```
 
 ### The stages
@@ -110,15 +110,31 @@ Authoring is agentic: the agent looks at the seed room, compares it against the 
 and edits it until it matches. Either half can be run on its own.
 
 ```bash
-# scene init — capture to seed room
-uv run litereality run /path/to/capture --through seed
+# scene init — capture to seed room. Takes the CAPTURE, writes run/Elliott-Studio/
+uv run litereality run scans/Elliott-Studio --through seed
 
-# authoring — seed room to finished room, on a package scene init already produced
-uv run litereality stage author run/my-room --force --polish --live
+# authoring — seed room to finished room. Takes the PACKAGE scene init just produced
+uv run litereality stage author run/Elliott-Studio --force --polish --live
 ```
 
+Note which folder each half is pointed at. Scene init reads a capture under `scans/` and produces
+a **scene package** at `run/<scan>/`. Authoring reads that package, so it is given the `run/` path
+— not the capture it came from:
+
+```bash
+uv run litereality stage author scans/Elliott-Studio   # ✗ refused: that is the capture
+uv run litereality stage author run/Elliott-Studio     # ✓ the package scene init wrote
+```
+
+This is enforced rather than merely documented. Naming the capture happens to resolve to the same
+scene while `--output-root` is the default, and then silently authors a different tree the moment
+it is not — so `author` and `publish` refuse anything but the package, and say which path to use.
+If the package does not exist yet, they say that instead and give you the scene-init command.
+
 `--polish` adds object refinement, materials, and a model-driven quality pass on top of authoring.
-`--live` shows how everything is built in real time, alongside the agent's trace.
+`--live` shows how everything is built in real time, alongside the agent's trace. With `--live` the
+viewer starts before the room exists and waits for it, so it works on a scene's first authoring
+run; it prints its url again once the first build lands.
 
 ## See the results
 

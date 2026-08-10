@@ -136,6 +136,22 @@ def test_summaries_read_as_english(tty, capsys):
     assert "still failing" not in capsys.readouterr().out
 
 
+def test_short_keeps_paths_outside_the_checkout_absolute(tmp_path):
+    """Relativising buys nothing without a shared prefix.
+
+    An `--output-root` on another volume came out as `../../../../../private/var/folders/…` —
+    longer than the absolute path it replaced, and it buries the part that identifies the run.
+    """
+    from litereality_agent import REPO_ROOT
+
+    inside = Path(REPO_ROOT) / "run" / "Scan" / "Room.py"
+    assert console.short(inside) == os.path.join("run", "Scan", "Room.py")
+
+    outside = tmp_path / "elsewhere" / "Room.py"
+    assert console.short(outside) == str(outside)
+    assert not console.short(outside).startswith("..")
+
+
 def test_colour_override_wins_both_ways(monkeypatch, capsys):
     """`| less -R` wants colour; `> run.log` never does. Neither is a tty."""
     monkeypatch.setenv("LR_COLOR", "1")
@@ -555,54 +571,198 @@ def test_branches_own_disjoint_objects(tmp_path, monkeypatch):
     assert len(everything) == len(set(everything)), "an object is claimed by two branches"
 
 
-def test_a_finished_branch_stays_on_the_board(tty, tmp_path, capsys):
+def _branch(total, built=(), active=(), queued=(), started=None, finished=None, result="",
+            activity=None):
+    """One branch as the reconstruction loop reports it: three sets, read off disk."""
+    return {"total": total, "done": len(built), "built": list(built), "active": list(active),
+            "activity": dict(activity or {}),
+            "queued": list(queued), "started": started, "finished": finished, "result": result}
+
+
+@pytest.fixture
+def window(monkeypatch):
+    """A terminal of known size. `shutil.get_terminal_size` reads these before it measures."""
+    def _set(columns=100, lines=40):
+        monkeypatch.setenv("COLUMNS", str(columns))
+        monkeypatch.setenv("LINES", str(lines))
+    _set()
+    return _set
+
+
+def test_a_finished_branch_stays_on_the_board(tty, window, tmp_path, capsys):
     """TRELLIS did its two chairs in 118s and vanished from the display — the phase then looked
     like two slow branches when three had run."""
     import time as _t
 
-    for n in ("trellis", "procedural"):
-        (tmp_path / f"{n}.log").write_text("")
-    board = console.BranchBoard(["trellis", "procedural"], 4, tmp_path, workers={"procedural": 2})
+    board = console.BranchBoard(["trellis", "procedural"], 4, workers={"procedural": 2})
     now = _t.time()
     board.render({
-        "trellis": {"done": 2, "total": 2, "started": now - 118, "finished": now,
-                    "result": "queued 94s · exec 21s"},
-        "procedural": {"done": 1, "total": 2, "started": now - 273, "finished": None},
+        "trellis": _branch(2, built=["chair_a", "chair_b"], started=now - 118, finished=now),
+        "procedural": _branch(2, built=["Table0"], active=["Table1"], started=now - 273),
     })
     out = capsys.readouterr().out
-    assert "trellis" in out and "2/2" in out and "queued 94s" in out
-    assert "procedural" in out and "1/2" in out and "2 workers" in out
-    assert "3/4" in out  # the total still adds up
+    assert "TRELLIS" in out and "2 / 2" in out
+    assert "Procedural" in out and "1 / 2" in out
+    assert "Table1" in out, "the object actually being built is the point of the board"
+    assert "3 / 26" not in out and "3 / 4" in out  # the overall total still adds up
 
 
-def test_a_full_bar_with_branches_running_says_verifying(tty, tmp_path, capsys):
-    """`6/6 · 486s` with the clock still climbing reads as a hang. It is not: the count is GLBs
-    on disk, and the articulated agent writes one, probe-checks it, renders it for a VLM
-    completeness check, and rewrites it if either gate fails."""
+def test_a_full_bar_with_branches_running_says_verifying(tty, window, tmp_path, capsys):
+    """`2/2` with the clock still climbing reads as a hang. It is not: the count is GLBs on disk,
+    and the articulated agent writes one, probe-checks it, renders it for a VLM completeness
+    check, and rewrites it if either gate fails."""
     import time as _t
 
-    for n in ("procedural", "openings"):
-        (tmp_path / f"{n}.log").write_text("")
-    board = console.BranchBoard(["procedural", "openings"], 4, tmp_path)
+    board = console.BranchBoard(["procedural", "openings"], 4)
     now = _t.time()
     board.render({
-        "procedural": {"done": 2, "total": 2, "started": now - 486, "finished": None},
-        "openings": {"done": 2, "total": 2, "started": now - 486, "finished": None},
+        "procedural": _branch(2, built=["a", "b"], started=now - 486),
+        "openings": _branch(2, built=["c", "d"], started=now - 486),
     })
     out = capsys.readouterr().out
-    assert "4/4 built" in out and "verifying" in out
-    assert "procedural" in out and "openings" in out
+    assert "4 / 4" in out and "verifying" in out
+    assert "Procedural" in out and "Openings" in out
 
 
-def test_a_finished_phase_does_not_claim_to_be_verifying(tty, tmp_path, capsys):
+def test_a_finished_phase_does_not_claim_to_be_verifying(tty, window, tmp_path, capsys):
     import time as _t
 
-    (tmp_path / "procedural.log").write_text("")
-    board = console.BranchBoard(["procedural"], 2, tmp_path)
+    board = console.BranchBoard(["procedural"], 2)
     now = _t.time()
-    board.render({"procedural": {"done": 2, "total": 2, "started": now - 60, "finished": now}})
+    board.render({"procedural": _branch(2, built=["a", "b"], started=now - 60, finished=now)})
     out = capsys.readouterr().out
-    assert "2/2 built" in out and "verifying" not in out and "running" not in out
+    assert "2 / 2" in out and "verifying" not in out
+
+
+def test_a_branch_that_finished_short_is_counted_as_failed(tty, window, tmp_path, capsys):
+    """Objects still queued have not failed. Objects a FINISHED branch never produced have."""
+    import time as _t
+
+    board = console.BranchBoard(["procedural", "openings"], 4)
+    now = _t.time()
+    board.render({
+        "procedural": _branch(2, built=["a"], started=now - 60, finished=now, result="1/2 built"),
+        "openings": _branch(2, built=[], queued=["c", "d"], started=now - 60),
+    })
+    out = capsys.readouterr().out
+    assert "1 failed" in out, "the one object the finished branch never built"
+    assert "2 queued" in out
+
+
+# --- the board holds still --------------------------------------------------- #
+STATE = {
+    "openings": _branch(5, built=["w1", "w2", "w3", "w4"], active=["door_01"], queued=["window_03"]),
+    "procedural": _branch(16, built=[f"o{i}" for i in range(8)], active=["wardrobe_02"],
+                          queued=[f"q{i}" for i in range(7)]),
+    "trellis": _branch(5, built=["sofa", "armchair_02"], active=["armchair_01"],
+                       queued=["side_table", "plant"]),
+}
+
+
+@pytest.mark.parametrize("columns,rows", [(120, 50), (100, 40), (84, 20), (70, 13), (60, 9),
+                                          (60, 5), (40, 4)])
+def test_the_board_never_outgrows_the_window(tty, tmp_path, columns, rows):
+    """The whole reason this is height-aware.
+
+    The board redraws by moving the cursor up one line per ROW it drew. A block taller than the
+    window cannot be reached that way, and a row wider than the window soft-wraps into two — both
+    leave the cursor short, and the board then marches down the screen a frame at a time instead
+    of refreshing. Neither dimension may ever be exceeded, at any size.
+    """
+    board = console.BranchBoard(["openings", "procedural", "trellis"], 26)
+    board._observe(STATE)
+    lines = board._fit(STATE, columns, rows - 1)
+
+    assert 0 < len(lines) <= rows - 1, "taller than the window it has to redraw inside"
+    for parts in lines:
+        visible = console._ANSI.sub("", console._paint(parts, columns))
+        assert len(visible) <= columns, f"{visible!r} is wider than the window and will wrap"
+
+
+def test_a_short_window_gives_up_the_queue_before_the_live_objects(tty, tmp_path):
+    """What is building now outranks what is waiting — you can only act on the former."""
+    board = console.BranchBoard(["openings", "procedural", "trellis"], 26)
+    board._observe(STATE)
+    roomy = "\n".join(console._paint(p, 100) for p in board._fit(STATE, 100, 39))
+    cramped = "\n".join(console._paint(p, 100) for p in board._fit(STATE, 100, 17))
+
+    assert "Queued" in roomy and "wardrobe_02" in roomy
+    assert "Queued" not in cramped, "the queue is the first thing a short window should shed"
+    assert "wardrobe_02" in cramped, "but not at the cost of what is building right now"
+
+
+def test_the_smallest_window_keeps_the_counts_rather_than_the_title(tty, tmp_path):
+    """Trimming the other end would spend the last lines of a tiny window on a banner."""
+    board = console.BranchBoard(["openings", "procedural", "trellis"], 26)
+    board._observe(STATE)
+    text = "\n".join(console._paint(p, 60) for p in board._fit(STATE, 60, 3))
+
+    assert "completed" in text
+    assert "LiteReality-Agent" not in text
+
+
+def test_the_board_shows_what_each_object_is_doing(tty, window, tmp_path, capsys):
+    """A caption that cannot change is not status.
+
+    "building frame" sat beside four openings for seven straight minutes — same words whether an
+    object was writing its build script or waiting on a VLM check. The caller works the phase out
+    from the object's own directory; the branch's generic verb is only the fallback.
+    """
+    board = console.BranchBoard(["openings"], 2, workers={"openings": 2})
+    board.render({"openings": _branch(
+        2, active=["Wall1_Door_1", "Wall4_Door_2"], started=1.0,
+        activity={"Wall1_Door_1": "checking result", "Wall4_Door_2": "rendering previews"},
+    )})
+    out = capsys.readouterr().out
+
+    assert "checking result" in out and "rendering previews" in out
+    assert "building frame" not in out
+
+
+def test_an_object_with_no_readable_phase_falls_back_to_the_branch_verb(tty, window, capsys):
+    """TRELLIS leaves nothing partial to read, so there is nothing to derive — say something."""
+    board = console.BranchBoard(["trellis"], 2, workers={})
+    board.render({"trellis": _branch(2, active=["sofa"], started=1.0)})
+
+    assert "reconstructing asset" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("files,dirs,expected", [
+    (["Wall1.glb"], ["previews"], "checking result"),
+    (["Wall1.glb"], [], "rendering previews"),
+    (["build_Wall1.py"], [], "running the build"),
+    ([], ["textures"], "preparing textures"),
+    ([], [], "starting up"),
+])
+def test_the_object_phase_reads_the_newest_milestone(tmp_path, files, dirs, expected):
+    """Builders write build script → GLB → previews → object.py/md, so the last one present wins."""
+    run = _run_module()
+    for name in files:
+        (tmp_path / name).write_bytes(b"")
+    for name in dirs:
+        (tmp_path / name).mkdir()
+
+    assert run._object_phase(tmp_path) == expected
+
+
+# --- estimates are earned, not invented --------------------------------------- #
+def test_no_estimate_until_something_has_actually_finished(tty, window, tmp_path, capsys):
+    """A remaining-time figure extrapolated from zero completions is a number-shaped guess."""
+    board = console.BranchBoard(["procedural"], 4)
+    board.render({"procedural": _branch(4, built=[], active=["a"], queued=["b", "c", "d"])})
+
+    assert "remaining" not in capsys.readouterr().out
+
+
+def test_objects_already_on_disk_do_not_count_toward_the_rate(tty, window, tmp_path, capsys):
+    """A resumed run starts with output already there. Counting it as work done in the last
+    instant makes the first estimate absurdly optimistic."""
+    board = console.BranchBoard(["procedural"], 4)
+    board.render({"procedural": _branch(4, built=["a", "b", "c"], active=["d"])})
+    out = capsys.readouterr().out
+
+    assert "3 / 4" in out
+    assert "remaining" not in out, "three objects appeared at once because they were already there"
 
 
 # --- what counts as built ------------------------------------------------------ #

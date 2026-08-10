@@ -410,6 +410,52 @@ def _missing_assets(scan: str, expected: list[str]) -> list[str]:
     return [name for name in expected if not _asset_is_built(recon, name)]
 
 
+def _object_phase(directory: Path) -> str:
+    """What a half-finished object directory says it is actually doing.
+
+    Every builder writes the same sequence into `<name>/`: a build script, the GLB that script
+    produces, preview renders of it, and finally the editable `object.py`/`object.md` once the
+    probe and VLM gates pass. So the newest milestone present names the phase.
+
+    This replaces a per-branch caption. "building frame" sat next to four openings for seven
+    straight minutes regardless of what any of them were doing, which is worse than no caption —
+    it looks like live status and is not.
+    """
+    if any(directory.glob("*.glb")):
+        return "checking result" if (directory / "previews").is_dir() else "rendering previews"
+    if any(directory.glob("build_*.py")):
+        return "running the build"
+    if (directory / "textures").is_dir():
+        return "preparing textures"
+    return "starting up"
+
+
+def _branch_split(scan: str, names: list[str]) -> tuple[list[str], list[str], list[str], dict]:
+    """Split a branch's objects into finished, building, and waiting — all read from disk.
+
+    Nothing reports in: every builder is a subprocess in another interpreter, and one of them is
+    an agent that rewrites its own output when a QC gate fails. What IS observable is the work
+    tree. The procedural and openings passes create `<name>/` and fill it, so a directory without
+    the complete set of artifacts is an object being built right now.
+
+    TRELLIS is the honest gap. It writes `<name>.glb` in a single step and leaves nothing partial
+    behind, so its objects appear here as waiting and then as finished, with no building phase for
+    the board to show. Reporting them as building on the strength of "the branch is running" would
+    be a guess at WHICH objects, and a wrong name on screen is worse than no name.
+    """
+    recon = config.reconstruct_dir(scan)
+    built, building, waiting, phase = [], [], [], {}
+    for name in names:
+        if _asset_is_built(recon, name):
+            built.append(name)
+        elif (recon / name).is_dir():
+            building.append(name)
+            phase[name] = _object_phase(recon / name)
+        else:
+            waiting.append(name)
+    return built, building, waiting, phase
+
+
 def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, full: bool) -> None:
     """Build every object, in parallel branches, behind one progress bar."""
     from concurrent.futures import ThreadPoolExecutor
@@ -484,10 +530,49 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
 
     state: dict[str, dict] = {
         name: {"done": 0, "total": len(per_branch.get(name, [])), "started": None,
-               "finished": None, "result": ""}
+               "finished": None, "result": "", "built": [], "active": [], "activity": {},
+               "queued": list(per_branch.get(name, []))}
         for name, _ in branches
     }
-    board = console.BranchBoard([n for n, _ in branches], len(expected), logs, workers=workers)
+
+    def poll() -> None:
+        """Re-read what is on disk into `state`; the board renders, it does not look."""
+        for branch, names in per_branch.items():
+            if branch not in state:
+                continue
+            built, building, waiting, phase = _branch_split(scan, names)
+            state[branch].update(done=len(built), built=built, active=building,
+                                 queued=waiting, activity=phase)
+
+    # The live viewer decides whether anything is alive from the age of the newest trace event, and
+    # the only build events reaching the trace were the per-object `agent_step` lines a builder
+    # writes when it FINISHES. One object takes 9-20 minutes; on Elliott-Studio the gaps between
+    # consecutive lines ran to 19 and 38 minutes, far past the viewer's 120s liveness threshold, so
+    # a phase with sixteen agents working reported "quiet" for nearly all of it. `poll()` already
+    # re-reads this state every second for the board — put it in the trace too, so liveness follows
+    # the work rather than the moments it happens to complete.
+    BEAT_S = 20.0
+    beat = {"at": 0.0, "counts": None}
+
+    def heartbeat() -> None:
+        """Emit build progress on change, and at least every BEAT_S while the phase runs."""
+        counts = {name: state[name]["done"] for name, _ in branches}
+        now = time.time()
+        if counts == beat["counts"] and now - beat["at"] < BEAT_S:
+            return
+        telemetry.event(
+            "build_progress",
+            scan=scan,
+            built=sum(counts.values()),
+            total=len(expected),
+            branches={n: f"{counts[n]}/{state[n]['total']}" for n, _ in branches},
+            # Which objects are mid-build, so a long phase says WHAT it is working on. TRELLIS
+            # contributes none by design — see _branch_split.
+            active=sorted(name for n, _ in branches for name in state[n]["active"]),
+        )
+        beat["at"], beat["counts"] = now, counts
+
+    board = console.BranchBoard([n for n, _ in branches], len(expected), workers=workers)
     tee = console.ThreadTee(sys.stdout)
     real_stdout, sys.stdout = sys.stdout, tee
 
@@ -516,14 +601,12 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
         with ThreadPoolExecutor(max_workers=len(branches)) as pool:
             futures = [pool.submit(run, name, fn) for name, fn in branches]
             while not all(f.done() for f in futures):
-                for name, names in per_branch.items():
-                    if name in state:
-                        state[name]["done"] = _built_count(scan, names)
+                poll()
+                heartbeat()
                 board.render(state)
                 time.sleep(1.0)
-            for name, names in per_branch.items():
-                if name in state:
-                    state[name]["done"] = _built_count(scan, names)
+            poll()
+            heartbeat()
             board.finish(state)
             for f in futures:
                 f.result()

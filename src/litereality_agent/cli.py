@@ -9,14 +9,20 @@ from __future__ import annotations
 import argparse
 import contextlib
 import os
+import sys
 import threading
 from pathlib import Path
 
+from litereality_agent import console
 from litereality_agent.pipeline import PipelineRunner, RunContext
 from litereality_agent.pipeline.stages import STAGES
 from litereality_agent.settings import load_settings
 
 SCAN_MARKERS = ("room.usdz", "roomplan/room.usdz")
+
+# Stages that CONSUME the scene package rather than producing it. Starting work here means the
+# package must already exist — and then which package is the entire question.
+AUTHORING_STAGES = frozenset({"author", "publish"})
 
 
 def looks_like_scan_dir(path: str | os.PathLike[str]) -> bool:
@@ -58,6 +64,44 @@ def _print_results(results) -> int:
 
 def _context(args) -> RunContext:
     return RunContext.resolve(args.target, output_root=getattr(args, "output_root", None))
+
+
+def _require_scene_package(target: str, context: RunContext, stage: str) -> None:
+    """Insist that an authoring stage is handed the scene package, not the capture it came from.
+
+    A capture folder resolves to a perfectly valid context — same scan name, same default output
+    root — so `stage author scans/<name>` appears to work. It stops appearing to work the moment
+    `--output-root` differs from the default, at which point the stage authors one tree while you
+    sit watching another, and nothing says so. The package path cannot be wrong in that way.
+
+    The two failures want different answers, so they get them: a package that does not exist yet
+    means scene init has not run, and saying so here beats the stage failing several steps later
+    on a missing seed room.
+    """
+    package = context.scene_dir / "scene.json"
+    try:
+        given_is_package = Path(target).expanduser().resolve() == context.scene_dir.resolve()
+    except OSError:
+        given_is_package = False
+    if package.is_file() and given_is_package:
+        return
+
+    red, bold, dim, off = (console.colour(c) for c in ("red", "bold", "dim", "off"))
+    scene, capture = console.short(context.scene_dir), console.short(context.capture_dir)
+    lines = [
+        f"\n{red}✗ {stage} runs on the scene package, not the capture{off}\n",
+        f"   {dim}given   {off} {target}",
+        f"   {dim}expected{off} {scene}{dim}  — the tree scene init produces{off}\n",
+    ]
+    if package.is_file():
+        lines += ["Point it at the package instead:\n",
+                  f"   {bold}uv run litereality stage {stage} {scene}{off}\n"]
+    else:
+        lines += [f"{dim}{scene}/scene.json does not exist — scene init has not produced it yet.{off}\n",
+                  f"   {bold}uv run litereality run {capture} --through seed{off}",
+                  f"   {bold}uv run litereality stage {stage} {scene}{off}\n"]
+    print("\n".join(lines), file=sys.stderr)
+    raise SystemExit(2)
 
 
 def _author_options(args) -> dict:
@@ -123,6 +167,14 @@ def _live_viewer(args, context):
     Yields a callback the caller uses to say how the run turned out. Sharing one `RunContext` with
     the stage is the whole point — a separately launched viewer can be pointed at a different
     `--output-root` than the run it is meant to be watching, and then silently shows nothing.
+
+    Deliberately does NOT require the room to exist first. The stage this wraps is the thing that
+    creates it — `author` copies the seed room in as its first act — so demanding it up front made
+    `--live` work only on the SECOND authoring run of a scene, which is the run you least need to
+    watch. Every layer below already copes with a room that is not there yet: the watcher ignores a
+    missing `Room.py` and fires the moment one appears, the server answers `no build yet`, and the
+    page says "waiting for a build". Standalone `litereality live` keeps the hard check, because
+    nothing in that command is going to produce a room.
     """
     if not getattr(args, "live", False):
         yield lambda _note: None
@@ -130,7 +182,6 @@ def _live_viewer(args, context):
 
     from litereality_agent.pipeline.realism_authoring import live
 
-    live.require_room(context)
     bake = not args.live_no_bake
     room, server, url = live.start(context, port=args.live_port, bake=bake)
     live.describe(context, url, bake)
@@ -138,7 +189,11 @@ def _live_viewer(args, context):
     try:
         yield room.finish
     finally:
-        print(f"\nviewer still serving at {url} — ctrl-c to stop")
+        bold, cyan, off = (console.colour(c) for c in ("bold", "cyan", "off"))
+        # Same burial problem as the opening banner, at the other end: this lands under whatever
+        # the stage printed last, and it is the line you need in order to go and look at the room.
+        print(f"\n   {bold}{cyan}▶ viewer still serving at {url}{off}"
+              f"   {console.colour('dim')}ctrl-c to stop{off}\n")
         try:
             _block_until_interrupt()
         except KeyboardInterrupt:
@@ -151,6 +206,10 @@ def _live_viewer(args, context):
 
 def _run(args) -> int:
     context = _context(args)
+    # Only when the run STARTS at authoring. A full `run scans/<name>` legitimately begins with a
+    # capture and produces the package on the way through.
+    if args.from_stage in AUTHORING_STAGES:
+        _require_scene_package(args.target, context, args.from_stage)
     with _live_viewer(args, context) as finished:
         results = PipelineRunner().run(
             context,
@@ -167,6 +226,8 @@ def _run(args) -> int:
 
 def _stage(args) -> int:
     context = _context(args)
+    if args.stage in AUTHORING_STAGES:
+        _require_scene_package(args.target, context, args.stage)
     with _live_viewer(args, context) as finished:
         result = PipelineRunner().run_stage(
             context,

@@ -19,7 +19,7 @@ from pathlib import Path
 # The TRELLIS image compiles CUDA extensions on an H100. Measured on a fresh workspace 2026-08-06;
 # see deploy/modal/README.md for the breakdown. Quoted up front so a first deploy is never a
 # surprise charge.
-TRELLIS_BUILD_ESTIMATE = "~11 minutes (one-time, per workspace)"
+TRELLIS_BUILD_ESTIMATE = "~11 minutes (one-time, per workspace, it will be around 3s in future runs)"
 
 APPS = (("dino", "deploy/modal/dino/app.py"), ("trellis", "deploy/modal/trellis/app.py"))
 
