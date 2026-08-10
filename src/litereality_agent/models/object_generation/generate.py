@@ -562,13 +562,46 @@ async def process(job: Job, sem: asyncio.Semaphore, args) -> None:
         )
 
 
+async def run_all(jobs: list[Job], collect, sem: asyncio.Semaphore, args) -> list[Job]:
+    """Run every job, re-reading the work list each time one finishes.
+
+    The list used to be a single snapshot taken at startup, and the references it is built from
+    are written by a stage that can still be running. On a seven-opening room two reference
+    images landed 27s and 49s after this process listed its work: those two openings were never
+    built, never reported, and never counted as failed. They simply were not there when we looked,
+    and nothing looked again.
+
+    A free worker is the natural moment to look again, so that is when it re-collects. Anything
+    that appeared since is picked up by the slot that just opened. `seen` is keyed on the job name
+    rather than the job, so a finished or failed object is never dispatched twice.
+    """
+    seen = {job.name for job in jobs}
+    everything = list(jobs)
+    pending = {asyncio.create_task(process(job, sem, args)) for job in jobs}
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            task.result()  # a crashed worker surfaces here rather than being swallowed
+        for job in collect():
+            if job.name in seen:
+                continue
+            seen.add(job.name)
+            everything.append(job)
+            print(f"[new ] {job.scan}/{job.name} ({job.category}) — appeared after the run started",
+                  flush=True)
+            pending.add(asyncio.create_task(process(job, sem, args)))
+    return everything
+
+
 async def main_async(args) -> int:
     work = (args.work or default_work()).resolve()
     # per-scan layout: out defaults to the scan's reconstructed_objs/ dir (sibling of object_init/)
     out_root = (args.out or (work.parent / "reconstructed_objs")).resolve()
     only_cats = set(args.only) if args.only else None
     if args.openings:
-        jobs = collect_opening_jobs(work, args.scan, only_cats, out_root)
+        def collect():
+            return collect_opening_jobs(work, args.scan, only_cats, out_root)
+        jobs = collect()
         if not jobs:
             print(
                 "no opening jobs found (run object_init.references.opening_references first)",
@@ -576,7 +609,9 @@ async def main_async(args) -> int:
             )
             return 2
     else:
-        jobs = collect_jobs(work, args.scan, only_cats, out_root)
+        def collect():
+            return collect_jobs(work, args.scan, only_cats, out_root)
+        jobs = collect()
         if not jobs:
             print(
                 "no procedural-route jobs found (run object_init.classify.classify_complexity first)",
@@ -598,7 +633,7 @@ async def main_async(args) -> int:
     )
 
     sem = asyncio.Semaphore(args.concurrency)
-    await asyncio.gather(*(process(j, sem, args) for j in jobs))
+    jobs = await run_all(jobs, collect, sem, args)
 
     report = {
         "out": str(out_root),

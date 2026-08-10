@@ -29,7 +29,7 @@ import sys
 import time
 from pathlib import Path
 
-__all__ = ["stage_event", "rule", "row", "colour", "use_colour", "enabled", "short"]
+__all__ = ["stage_event", "rule", "row", "colour", "use_colour", "enabled", "short", "plain"]
 
 _C = {
     "dim": "\033[2m", "bold": "\033[1m", "off": "\033[0m",
@@ -163,6 +163,17 @@ _NOISE = re.compile(
 
 def _clean(line: str) -> str:
     return _ANSI.sub("", line).replace("\t", " ").strip()
+
+
+def plain(text: str) -> str:
+    """`text` with the escapes removed and in-place redraws unrolled — what a log file wants.
+
+    Unlike `_clean` this keeps whole streams rather than one line: no stripping, no tab handling,
+    and the line structure preserved. A live display redraws by returning to the start of the line
+    and moving the cursor up; written verbatim into a file that collapses into one unreadable
+    mega-line, so each redraw becomes an ordinary line instead.
+    """
+    return _ANSI.sub("", text).replace("\r\n", "\n").replace("\r", "\n")
 
 
 class _StageStream:
@@ -301,15 +312,21 @@ def row(mark: str, label: str, value: str, label_colour: str = "") -> str:
 
 
 def short(path) -> str:
-    """A path relative to the checkout — absolute ones wrap and bury the part that differs."""
+    """A path relative to the checkout — absolute ones wrap and bury the part that differs.
+
+    Only when it IS under the checkout. A `--output-root` somewhere else relativises to
+    `../../../../../private/var/folders/…`, which is longer than the absolute path and harder to
+    read: the point was to drop a shared prefix, and there is no shared prefix to drop.
+    """
     from litereality_agent import REPO_ROOT
 
     if not path:
         return ""
     try:
-        return os.path.relpath(os.path.realpath(str(path)), os.path.realpath(str(REPO_ROOT)))
-    except ValueError:
+        relative = os.path.relpath(os.path.realpath(str(path)), os.path.realpath(str(REPO_ROOT)))
+    except ValueError:  # different drive on Windows: no relative path exists at all
         return str(path)
+    return str(path) if relative.startswith("..") else relative
 
 
 def stage_event(name: str, scan: str, status: str, data: dict) -> None:
@@ -486,103 +503,340 @@ class ThreadTee:
 
 
 # ── the reconstruction board ─────────────────────────────────────────────────
+BRANCH_LABEL = {"trellis": "TRELLIS", "procedural": "Procedural", "openings": "Openings"}
+BRANCH_ACTIVITY = {"trellis": "reconstructing asset", "procedural": "generating geometry",
+                   "openings": "building frame"}
+_BRANCH_STAGE = {"trellis": "reconstruct", "procedural": "procedural", "openings": "build_openings"}
+
+
+def fmt_clock(seconds: float) -> str:
+    """`02:44` — a stopwatch, for something being measured rather than guessed."""
+    minutes, secs = divmod(int(max(0.0, seconds)), 60)
+    if minutes < 60:
+        return f"{minutes:02d}:{secs:02d}"
+    return f"{minutes // 60}:{minutes % 60:02d}:{secs:02d}"
+
+
+def fmt_rough(seconds: float) -> str:
+    """`3m 20s` — spaced, so an estimate does not read like a stopwatch."""
+    minutes, secs = divmod(int(max(0.0, seconds)), 60)
+    return f"{minutes}m {secs:02d}s" if minutes else f"{secs}s"
+
+
+def bar(done: int, total: int, cells: int) -> str:
+    filled = int(cells * done / total) if total else 0
+    return "█" * min(cells, filled) + "░" * max(0, cells - filled)
+
+
+def _paint(parts, width: int) -> str:
+    """Render `(text, colour)` segments, clipped to `width` VISIBLE characters.
+
+    Width is counted on the text alone. Measuring the escape codes too — which is what happens
+    if you build the string first and slice it — makes every coloured line clip early, and a
+    line that overshoots instead is worse: it wraps, and a display that redraws by moving the
+    cursor up one line per ROW then lands short and walks down the screen.
+    """
+    out, used = [], 0
+    for text, hue in parts:
+        if used >= width:
+            break
+        room = width - used
+        if len(text) > room:
+            text = text[: max(0, room - 1)] + "…"
+        used += len(text)
+        out.append(f"{colour(hue)}{text}{colour('off')}" if hue else text)
+    return "".join(out)
+
+
 class BranchBoard:
-    """A live line per branch, plus a total — for a phase you wait five minutes on.
+    """The reconstruction phase as a live board: what is building, what is done, what is waiting.
 
-    A single aggregate bar hid what the phase was doing: a finished branch simply disappeared
-    (TRELLIS did its two chairs in 118s and left no trace on screen), and the two slow branches
-    collapsed into one word each, so five objects in flight looked like two. Each branch keeps
-    its own row: how many of ITS objects are done, how long it has been going, and what it is
-    working on right now — read from the tail of its log, so no worker needs instrumenting.
+        LiteReality-Agent Obj Reconstruction                        02:44 elapsed
 
-        ✓ trellis      2/2   118s  queued 94s · exec 21s
-        ▶ procedural   1/2  4m33s  Table1 · 2 workers
-        ▶ openings     0/2  4m33s  Wall5_Window_0 · 2 workers
-        ── total ██████████████░░░░░░ 4/6
+        Overall   ███████████░░░░░░░░░░░░░  11 / 26   42%
+                  ~3m 20s remaining
+
+        Generating now
+          ◉ Openings      door_01      building frame           32s   ~18s left
+          ◉ Procedural    wardrobe_02  generating geometry    1m42s   ~40s left
+
+        Progress
+          Openings       ████████░░   4 / 5
+          Procedural     █████░░░░░   8 / 16
+          TRELLIS        ████░░░░░░   2 / 5   · verifying
+
+        Queued
+          Procedural     desk_lamp · shelf · radiator · +5
+        ──────────────────────────────────────────────────────────────────────
+        3 active  ·  11 completed  ·  12 queued  ·  0 failed
+
+    Every count comes from disk, not from a worker reporting in: the builders are subprocesses in
+    other interpreters, and one is an agent that rewrites its own output when a QC gate fails. The
+    caller hands over the three sets each poll and this only renders them.
+
+    Timings are therefore INFERRED, and the `~` on each estimate is not decoration. An object is
+    timed from the first poll that saw it building, and its estimate is the average of the ones its
+    branch has already finished. TRELLIS writes `<name>.glb` in one step, leaving nothing partial,
+    so its objects step from queued to done with no visible building phase — the board shows what
+    it can rather than inventing a name to put there.
+
+    It redraws by moving the cursor up, which only reaches while the whole block is on screen. So
+    it measures the window every frame and sheds detail — the airy spacing, then the queue, then
+    the per-object rows — until the block fits. A taller board that scrolls is worse than a short
+    one that holds still. Degrades to one line per change when stdout is not a terminal.
     """
 
-    def __init__(self, branches: list[str], total: int, log_dir, workers=None):
+    # Richest first; the first layout that fits the window wins. Each step gives up the least
+    # useful thing left: the airy spacing, then the queue, then per-object rows, then the blank
+    # lines between sections, and finally the headings themselves.
+    # (spaced, show queue, cap on per-object rows, no blank lines, no headings)
+    TIERS = (
+        (True,  True,  None, False, False),
+        (False, True,  None, False, False),
+        (False, True,  6,    False, False),
+        (False, False, 6,    False, False),
+        (False, False, 3,    False, False),
+        (False, False, 0,    False, False),
+        (False, False, 0,    True,  False),
+        (False, False, 0,    True,  True),
+    )
+
+    # Below this the per-object rows lose their activity phrase rather than clipping the estimate
+    # off the right-hand end — "wardrobe_02 … 1m42s ~40s left" is the useful part of that line.
+    PHRASE_MIN_WIDTH = 76
+
+    def __init__(self, branches: list[str], total: int, workers=None,
+                 title: str = "Obj Reconstruction"):
         self.branches = branches
         self.total = total
-        self.log_dir = Path(log_dir)
         self.workers = workers or {}  # {branch: worker count}
+        self.title = title
         self._drawn = 0
         self._t0 = time.time()
+        self._started_at: dict[str, float] = {}       # "branch/object" -> first seen building
+        self._durations: dict[str, list[float]] = {}  # branch -> how long its objects took
+        self._finished: set[str] = set()
+        self._completions: list[float] = []           # when each object landed, for the rate
+        self._primed = False
+        self._last_summary = ""
 
-    def _tail(self, name: str) -> str:
-        """The newest line worth showing from a branch's log."""
-        path = self.log_dir / f"{name}.log"
-        try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            return ""
-        for raw in reversed(lines[-40:]):
-            line = _clean(raw)
-            if line and not _NOISE.match(line) and not line.startswith("$"):
-                return line
-        return ""
+    # --- what the board has learned by watching ------------------------------ #
+    def _observe(self, state: dict) -> None:
+        now = time.time()
+        for branch in self.branches:
+            item_state = state.get(branch) or {}
+            for name in item_state.get("active") or ():
+                self._started_at.setdefault(f"{branch}/{name}", now)
+            for name in item_state.get("built") or ():
+                key = f"{branch}/{name}"
+                if key in self._finished:
+                    continue
+                self._finished.add(key)
+                if not self._primed:
+                    continue  # a resumed run starts with objects already on disk: not our rate
+                self._completions.append(now)
+                start = self._started_at.get(key)
+                if start:
+                    self._durations.setdefault(branch, []).append(now - start)
+        self._primed = True
+
+    # Below a second an estimate is a number-shaped nothing — "~0s left" next to a spinner reads
+    # as a stall. Say nothing instead.
+    ETA_FLOOR = 1.0
+
+    def _overall_eta(self, done: int) -> float:
+        """Seconds left, from the rate THIS session has actually achieved. 0 when unknowable."""
+        remaining = self.total - done
+        elapsed = time.time() - self._t0
+        if remaining <= 0 or len(self._completions) < 2 or elapsed <= 0:
+            return 0.0
+        eta = remaining * elapsed / len(self._completions)
+        return eta if eta >= self.ETA_FLOOR else 0.0
+
+    def _item_eta(self, branch: str, elapsed: float) -> float:
+        seen = self._durations.get(branch)
+        if not seen:
+            return 0.0
+        eta = sum(seen) / len(seen) - elapsed
+        return eta if eta >= self.ETA_FLOOR else 0.0
+
+    @staticmethod
+    def _hue(branch: str) -> str:
+        return STAGES.get(_BRANCH_STAGE.get(branch, branch), (None, "grey"))[1]
+
+    @staticmethod
+    def _names(state: dict, branch: str, key: str) -> list:
+        return list((state.get(branch) or {}).get(key) or ())
+
+    # --- composition ---------------------------------------------------------- #
+    def _compose(self, state: dict, width: int, *, airy: bool, queue: bool, cap,
+                 tight: bool, dense: bool) -> list:
+        now = time.time()
+        done = sum(len(self._names(state, b, "built")) for b in self.branches)
+        eta = self._overall_eta(done)
+        blank: list = []
+        lines: list = []
+
+        def gap() -> None:
+            if not (tight or dense):
+                lines.append(blank)
+
+        def spaced() -> None:
+            if airy:
+                lines.append(blank)
+
+        stamp = f"{fmt_clock(now - self._t0)} elapsed"
+        title = f"LiteReality-Agent {self.title}"
+        lines.append([(title, "bold"), (" " * max(1, width - len(title) - len(stamp)), ""),
+                      (stamp, "dim")])
+        gap()
+
+        pct = int(100 * done / self.total) if self.total else 0
+        lines.append([("Overall   ", ""), (bar(done, self.total, 24), "cyan"),
+                      (f"  {done} / {self.total}   {pct}%", "bold")])
+        if eta and not dense:
+            lines.append([(f"          ~{fmt_rough(eta)} remaining", "dim")])
+        gap()
+
+        active = [(b, name) for b in self.branches for name in self._names(state, b, "active")]
+        if active and cap != 0:
+            shown = active if cap is None else active[:cap]
+            lines.append([("Generating now", "bold")])
+            spaced()
+            for branch, name in shown:
+                lines.append(self._active_row(state, branch, name, now, width))
+                spaced()
+            if len(active) > len(shown):
+                lines.append([(f"    … +{len(active) - len(shown)} more building", "dim")])
+            if not airy:
+                gap()
+
+        if not dense:
+            lines.append([("Progress", "bold")])
+            spaced()
+        for branch in self.branches:
+            lines.append(self._progress_row(state, branch))
+        gap()
+
+        if queue:
+            waiting = [(b, names) for b in self.branches
+                       if (names := self._names(state, b, "queued"))]
+            if waiting:
+                lines.append([("Queued", "bold")])
+                spaced()
+                for branch, names in waiting:
+                    lines.append([(f"  {BRANCH_LABEL.get(branch, branch):<15}", self._hue(branch)),
+                                  (self._queue_text(names), "dim")])
+                gap()
+
+        lines.append([("─" * width, "dim")])
+        footer = self._footer(state, done)
+        if eta and dense:  # nowhere else left for it, and it is the reason anyone is watching
+            footer.append((f"  ·  ~{fmt_rough(eta)} left", "dim"))
+        lines.append(footer)
+        if eta and not dense:
+            lines.append([(f"Estimated completion: ~{fmt_rough(eta)}", "dim")])
+        return lines
+
+    def _active_row(self, state: dict, branch: str, name: str, now: float, width: int) -> list:
+        started = self._started_at.get(f"{branch}/{name}")
+        elapsed = now - started if started else 0.0
+        eta = self._item_eta(branch, elapsed)
+        row = [("  ◉ ", self._hue(branch)),
+               (f"{BRANCH_LABEL.get(branch, branch):<15}", self._hue(branch)),
+               (f"{name:<18}", "")]
+        if width >= self.PHRASE_MIN_WIDTH:
+            # What THIS object is doing, when the caller could work it out; the branch's generic
+            # verb only as a fallback. A caption that cannot change is not status.
+            phase = ((state.get(branch) or {}).get("activity") or {}).get(name)
+            row.append((f"{phase or BRANCH_ACTIVITY.get(branch, 'building'):<22}", "dim"))
+        row.append((f"{fmt_elapsed(elapsed):>6}", ""))
+        row.append((f"   ~{fmt_rough(eta)} left" if eta else "", "dim"))
+        return row
+
+    def _progress_row(self, state: dict, branch: str) -> list:
+        item_state = state.get(branch) or {}
+        built = len(self._names(state, branch, "built"))
+        total = item_state.get("total", 0)
+        # A full bar with the clock still running reads as a hang. It is not: the count is GLBs on
+        # disk, and the articulated agent writes one, probe-checks it, renders it for a VLM
+        # completeness check, and rewrites it if either gate fails. The file exists long before the
+        # object is accepted, so say which of the two we are looking at.
+        note, hue = "", "dim"
+        if item_state.get("finished"):
+            note = "   ✓ done" if built >= total else f"   ✗ {item_state.get('result', 'incomplete')}"
+            hue = "green" if built >= total else "red"
+        elif item_state.get("started") and total and built >= total:
+            note, hue = "   · verifying", "yellow"
+        elif self.workers.get(branch, 1) > 1:
+            # Why one branch outruns another: eight objects at a time, not one.
+            note = f"   · {self.workers[branch]} workers"
+        return [(f"  {BRANCH_LABEL.get(branch, branch):<15}", self._hue(branch)),
+                (bar(built, total, 10), self._hue(branch)),
+                (f"   {built} / {total}", ""), (note, hue)]
+
+    @staticmethod
+    def _queue_text(names: list, show: int = 3) -> str:
+        head = " · ".join(names[:show])
+        return f"{head} · +{len(names) - show}" if len(names) > show else head
+
+    def _footer(self, state: dict, done: int) -> list:
+        active = sum(len(self._names(state, b, "active")) for b in self.branches)
+        queued = sum(len(self._names(state, b, "queued")) for b in self.branches)
+        # Only a FINISHED branch can have failures — an object still queued has not failed yet.
+        failed = sum(max(0, (state.get(b) or {}).get("total", 0) - len(self._names(state, b, "built")))
+                     for b in self.branches if (state.get(b) or {}).get("finished"))
+        return [(f"{active} active  ·  {done} completed  ·  {queued} queued  ·  ", ""),
+                (f"{failed} failed", "red" if failed else "dim")]
+
+    # --- drawing --------------------------------------------------------------- #
+    def _fit(self, state: dict, width: int, height: int) -> list:
+        lines: list = []
+        for airy, queue, cap, tight, dense in self.TIERS:
+            lines = self._compose(state, width, airy=airy, queue=queue, cap=cap,
+                                  tight=tight, dense=dense)
+            if len(lines) <= height:
+                return lines
+        # Even the densest layout overflows. Keep the TAIL: the counts and the estimate are what
+        # a window this short still has room to be useful for — trimming the other end would
+        # spend the last few lines on a title.
+        return lines[-max(1, height):]
 
     def render(self, state: dict) -> None:
-        """`state[name]` = {done, total, started, finished, result}."""
+        """`state[branch]` = {total, built, active, queued, started, finished, result}."""
         if not enabled():
             return
-        rows = []
-        for name in self.branches:
-            s = state.get(name) or {}
-            done, total = s.get("done", 0), s.get("total", 0)
-            started, finished = s.get("started"), s.get("finished")
-            hue = STAGES.get({"trellis": "reconstruct", "procedural": "procedural",
-                              "openings": "build_openings"}.get(name, name), (None, "grey"))[1]
-            if finished:
-                mark, secs, detail = "done", finished - (started or finished), s.get("result", "")
-                if total and done < total:
-                    mark = "error"
-            elif started:
-                mark, secs = "run", time.time() - started
-                detail = self._tail(name)
-                n_workers = (self.workers or {}).get(name, 1)
-                if n_workers > 1:
-                    suffix = f"{n_workers} workers"
-                    detail = f"{detail}  ·  {suffix}" if detail else suffix
-            else:
-                mark, secs, detail = "wait", 0.0, "queued"
-            glyph = {"done": "✓", "error": "✗", "run": "▶", "wait": "·"}[mark]
-            gc = {"done": colour("green"), "error": colour("red"),
-                  "run": colour("dim"), "wait": colour("dim")}[mark]
-            width = shutil.get_terminal_size((100, 24)).columns
-            head = (f"   {gc}{glyph}{colour('off')} {colour(hue)}{name:<11}{colour('off')} "
-                    f"{done}/{total}  {colour('dim')}{fmt_elapsed(secs):>6}{colour('off')}  ")
-            room = max(10, width - len(name) - 28)
-            rows.append(head + colour("dim") + detail[: room - 1] + ("…" if len(detail) > room else "")
-                        + colour("off"))
-
-        done_total = sum((state.get(n) or {}).get("done", 0) for n in self.branches)
-        filled = int(24 * done_total / self.total) if self.total else 0
-        # A full bar with the clock still running reads as a hang. It is not: the count is GLBs
-        # ON DISK, and the articulated agent writes one, then probe-checks it, renders it for a
-        # VLM completeness check, and rewrites it if either gate fails. The file exists long
-        # before the object is accepted, so say which of the two we are looking at.
-        still = [n for n in self.branches
-                 if (state.get(n) or {}).get("started") and not (state.get(n) or {}).get("finished")]
-        note = ""
-        if still and done_total >= self.total:
-            note = f"  {colour('yellow')}· verifying ({', '.join(still)}){colour('off')}"
-        elif still:
-            note = f"  {colour('dim')}· {len(still)} branch{'es' if len(still) > 1 else ''} running{colour('off')}"
-        rows.append(f"   {colour('cyan')}{'total':<13}{colour('off')} "
-                    f"{'█' * filled}{'░' * (24 - filled)} {done_total}/{self.total} built"
-                    f"  {colour('dim')}{fmt_elapsed(time.time() - self._t0)}{colour('off')}{note}")
-
+        self._observe(state)
         out = _out()
-        if use_colour():
-            if self._drawn:
-                print(f"\033[{self._drawn}A", end="", file=out)
-            for r in rows:
-                print(f"\033[K{r}", file=out)
-            self._drawn = len(rows)
-            out.flush()
-        else:
-            print(rows[-1].strip(), file=out, flush=True)  # a log gets the total only
+        if not use_colour():  # a log gets one line per change, never a redrawn frame
+            line = self._summary_line(state)
+            if line != self._last_summary:
+                print(line, file=out, flush=True)
+                self._last_summary = line
+            return
+
+        size = shutil.get_terminal_size((100, 24))
+        lines = self._fit(state, size.columns, max(1, size.lines - 1))
+        if self._drawn:
+            print(f"\033[{self._drawn}A", end="", file=out)
+        painted = 0
+        for parts in lines:
+            print(f"\033[K{_paint(parts, size.columns)}", file=out)
+            painted += 1
+        while painted < self._drawn:  # a shorter tier than last frame: wipe what it left behind
+            print("\033[K", file=out)
+            painted += 1
+        self._drawn = painted
+        out.flush()
+
+    def _summary_line(self, state: dict) -> str:
+        done = sum(len(self._names(state, b, "built")) for b in self.branches)
+        per = "  ·  ".join(
+            f"{BRANCH_LABEL.get(b, b)} {len(self._names(state, b, 'built'))}"
+            f"/{(state.get(b) or {}).get('total', 0)}"
+            for b in self.branches
+        )
+        return f"   reconstruction {done}/{self.total} built  ·  {per}"
 
     def finish(self, state: dict) -> None:
         self.render(state)

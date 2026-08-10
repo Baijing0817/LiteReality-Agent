@@ -60,13 +60,20 @@ class RunContext:
             if (candidate / "scene.json").is_file():
                 scene = candidate
                 scan = candidate.name
+                capture = None
                 try:
                     from litereality_agent.room_ops.manifest import read
 
                     package = read(candidate)
-                    scan = package.scan
+                    scan = package.scan or scan
                     capture = package.capture
                 except Exception:  # malformed packages are validated by the stage that consumes them
+                    capture = None
+                if not capture:
+                    # A scene.json that is readable but names nothing — half-written by an
+                    # interrupted run, or hand-edited — used to reach `Path(None)` and die with a
+                    # TypeError mentioning neither the file nor the scan. Fall back to where the
+                    # capture would live, and let the consuming stage report what is missing.
                     capture = settings.resolved_scans_dir() / scan
                 return cls(scan, Path(capture).resolve(), scene, out, settings.repo_root, settings)
             if not _looks_like_scan(candidate):

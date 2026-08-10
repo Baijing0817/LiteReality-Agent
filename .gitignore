@@ -5,6 +5,7 @@
 /output
 /data
 /weights
+/scans
 /scans_uploaded
 .env
 .env.*
@@ -39,3 +40,6 @@ __MACOSX
 /legacy/
 # scratch measurement runs (run-measure, run-measure2, ...)
 /run-measure*
+
+# macOS finder junk
+.DS_Store

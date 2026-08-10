@@ -10,8 +10,68 @@ import json
 from PIL import Image
 
 
-def project_to_pixels(points, pose, fx, fy, cx, cy, bx=0.0, by=0.0):
+class FrameStore:
+    """One capture's per-frame data (intrinsic, pose, inverse pose, depth), loaded once.
+
+    ``compute_mapping``, ``compute_mapping_for_3D_bbox`` and ``project_bbox_2d`` each take
+    ``(scene_name, points, frame_id)`` and each did their own ``np.load`` / ``cv2.imread``. That
+    signature is self-contained and easy to test, but it puts file I/O in the INNERMOST loop of a
+    scan: ``crop_and_save_new`` sweeps every frame once PER OBJECT, so the same frames were read
+    over and over. On a 28-object / 307-frame capture that is 25,788 ``np.load`` pairs and 17,192
+    16-bit-PNG decodes of only 307 distinct images — measured at ~390 ms per object, of which just
+    ~16 ms was the projection maths. Everything else was re-reading files already in memory.
+
+    Frame data depends only on ``frame_id``, never on the object, so it belongs one level up. Hold
+    a store across the object loop and each frame is read exactly once. The pose inverse is cached
+    with it: ``np.linalg.inv`` was being recomputed three times per (object, frame) on 307
+    matrices. Roughly 100 KB per frame, so ~30 MB for a 307-frame capture.
+
+    Passing ``frames=None`` to any of those functions keeps the original read-per-call behaviour,
+    so existing callers are unaffected.
+    """
+
+    def __init__(self, scene_name):
+        self.scene_name = scene_name
+        self._intrinsic = {}
+        self._pose = {}
+        self._pose_inv = {}
+        self._depth = {}
+
+    def intrinsic(self, frame_id):
+        if frame_id not in self._intrinsic:
+            self._intrinsic[frame_id] = np.load(
+                f"input/rgbd/{self.scene_name}/intrinsic/intrinsic_{frame_id}.npy"
+            )
+        return self._intrinsic[frame_id]
+
+    def pose(self, frame_id):
+        if frame_id not in self._pose:
+            self._pose[frame_id] = np.load(
+                f"input/rgbd/{self.scene_name}/extrinsic/extrinsic_{frame_id}.npy"
+            )
+        return self._pose[frame_id]
+
+    def pose_inv(self, frame_id):
+        if frame_id not in self._pose_inv:
+            self._pose_inv[frame_id] = np.linalg.inv(self.pose(frame_id))
+        return self._pose_inv[frame_id]
+
+    def depth(self, frame_id):
+        """The depth map. Despite the ``.jpg`` name these are 16-bit greyscale PNGs, so this is a
+        real PNG decode rather than the cheap JPEG read the extension suggests — which is why
+        repeating it per object dominated the stage."""
+        if frame_id not in self._depth:
+            self._depth[frame_id] = cv2.imread(
+                f"input/rgbd/{self.scene_name}/depth/frame_{frame_id}.jpg", cv2.IMREAD_UNCHANGED
+            )
+        return self._depth[frame_id]
+
+
+def project_to_pixels(points, pose, fx, fy, cx, cy, bx=0.0, by=0.0, world_to_camera=None):
     """World points -> pixel coords, with the points that CANNOT be projected marked.
+
+    ``world_to_camera`` is the already-inverted ``pose``; pass it to reuse a FrameStore's cached
+    inverse instead of re-inverting the same matrix on every call.
 
     Returns ``(p, in_front)`` where ``p`` is the 4xN camera-space array with rows 0/1 replaced by
     pixel u/v, and ``in_front`` is the boolean mask of points that legitimately project.
@@ -29,7 +89,8 @@ def project_to_pixels(points, pose, fx, fy, cx, cy, bx=0.0, by=0.0):
         not actually in, and the reference image is built from it.
     """
     points_world = np.concatenate([points, np.ones([points.shape[0], 1])], axis=1)
-    world_to_camera = np.linalg.inv(pose)
+    if world_to_camera is None:
+        world_to_camera = np.linalg.inv(pose)
     p = np.matmul(world_to_camera, points_world.T)  # [Xb, Yb, Zb, 1]: 4, n
 
     in_front = np.isfinite(p[2]) & (p[2] > 1e-6)
@@ -46,29 +107,32 @@ def round_to_int(p):
     return np.round(np.where(np.isfinite(p), p, 0.0)).astype(int)
 
 
-def compute_mapping_for_3D_bbox(scene_name, points, frame_id):  
+def compute_mapping_for_3D_bbox(scene_name, points, frame_id, frames=None):
     """
     :param points: N x 3 format
     :param depth: H x W format
     :param intrinsic: 3x3 format
+    :param frames: optional FrameStore holding this capture's already-loaded frames
     :return: mapping, N x 3 format, (H,W,mask)
     """
 
     mapping = np.zeros((2, points.shape[0]), dtype=int)
-    
-    # Load the intrinsic matrix
-    depth_intrinsic = np.load(f"input/rgbd/{scene_name}/intrinsic/intrinsic_{frame_id}.npy")
-    depth = cv2.imread(f"input/rgbd/{scene_name}/depth/frame_{frame_id}.jpg", cv2.IMREAD_UNCHANGED)
-    pose = np.load(f"input/rgbd/{scene_name}/extrinsic/extrinsic_{frame_id}.npy")
+
+    if frames is None:
+        frames = FrameStore(scene_name)
+    depth_intrinsic = frames.intrinsic(frame_id)
+    depth = frames.depth(frame_id)
+    pose = frames.pose(frame_id)
 
     fx = depth_intrinsic[0,0]
     fy = depth_intrinsic[1,1]
     cx = depth_intrinsic[0,2]
     cy = depth_intrinsic[1,2]
     bx, by = 0, 0
-    
-    p, in_front = project_to_pixels(points, pose, fx, fy, cx, cy, bx, by)
-    
+
+    p, in_front = project_to_pixels(points, pose, fx, fy, cx, cy, bx, by,
+                                    world_to_camera=frames.pose_inv(frame_id))
+
     # out-of-image check
     mask = in_front * (p[0] > 0) * (p[1] > 0) \
                     * (p[0] < depth.shape[1]-1) \
@@ -105,29 +169,32 @@ def compute_mapping_for_3D_bbox(scene_name, points, frame_id):
     return bbox, num_visible, mapping
 
 
-def compute_mapping(scene_name, points, frame_id):  
+def compute_mapping(scene_name, points, frame_id, frames=None):
     """
     :param points: N x 3 format
     :param depth: H x W format
     :param intrinsic: 3x3 format
+    :param frames: optional FrameStore holding this capture's already-loaded frames
     :return: mapping, N x 3 format, (H,W,mask)
     """
 
     mapping = np.zeros((2, points.shape[0]), dtype=int)
-    
-    # Load the intrinsic matrix
-    depth_intrinsic = np.load(f"input/rgbd/{scene_name}/intrinsic/intrinsic_{frame_id}.npy")
-    depth = cv2.imread(f"input/rgbd/{scene_name}/depth/frame_{frame_id}.jpg", cv2.IMREAD_UNCHANGED)
-    pose = np.load(f"input/rgbd/{scene_name}/extrinsic/extrinsic_{frame_id}.npy")
+
+    if frames is None:
+        frames = FrameStore(scene_name)
+    depth_intrinsic = frames.intrinsic(frame_id)
+    depth = frames.depth(frame_id)
+    pose = frames.pose(frame_id)
 
     fx = depth_intrinsic[0,0]
     fy = depth_intrinsic[1,1]
     cx = depth_intrinsic[0,2]
     cy = depth_intrinsic[1,2]
     bx, by = 0, 0
-    
-    p, in_front = project_to_pixels(points, pose, fx, fy, cx, cy, bx, by)
-    
+
+    p, in_front = project_to_pixels(points, pose, fx, fy, cx, cy, bx, by,
+                                    world_to_camera=frames.pose_inv(frame_id))
+
     # out-of-image check
     mask = in_front * (p[0] > 0) * (p[1] > 0) \
                     * (p[0] < depth.shape[1]-1) \
@@ -373,19 +440,21 @@ def object_view_quality(bbox, num_vis, max_vis, frame_w=256, frame_h=192):
     return size_term * (0.85 + 0.15 * centred) * vis
 
 
-def project_bbox_2d(scene_name, points, frame_id, W=256, H=192):
+def project_bbox_2d(scene_name, points, frame_id, W=256, H=192, frames=None):
     """2D extent of the 3D box corners projected into a frame — PURELY GEOMETRIC (no depth/occlusion
     masking, unlike compute_mapping_for_3D_bbox). This is what an ENLARGED crop needs: it spans the
     whole box even where the object has no depth returns (e.g. a base cabinet under a sink). Returns
     [x0,y0,x1,y1] clamped to the depth-image size, or None if the box isn't in front of the camera."""
+    if frames is None:
+        frames = FrameStore(scene_name)
     try:
-        K = np.load(f"input/rgbd/{scene_name}/intrinsic/intrinsic_{frame_id}.npy")
-        pose = np.load(f"input/rgbd/{scene_name}/extrinsic/extrinsic_{frame_id}.npy")
+        K = frames.intrinsic(frame_id)
+        pose_inv = frames.pose_inv(frame_id)
     except Exception:
         return None
     fx, fy, cx, cy = K[0, 0], K[1, 1], K[0, 2], K[1, 2]
     pts = np.concatenate([np.asarray(points, float), np.ones((len(points), 1))], axis=1)
-    p = np.matmul(np.linalg.inv(pose), pts.T)   # 4 x N (camera space)
+    p = np.matmul(pose_inv, pts.T)   # 4 x N (camera space)
     front = p[2] > 1e-6
     if front.sum() < 2:
         return None
@@ -398,18 +467,22 @@ def project_bbox_2d(scene_name, points, frame_id, W=256, H=192):
     return [int(x0), int(y0), int(x1), int(y1)]
 
 
-def crop_and_save_new(scan_path, pcd_input, semantic, eight_points, top_k):
+def crop_and_save_new(scan_path, pcd_input, semantic, eight_points, top_k, frames=None):
+    """Rank this object's frames. Pass `frames` — a FrameStore shared across the whole object loop
+    — so the capture is read once for the scan rather than once per object; see FrameStore."""
     scene_name = scan_path.split("/")[-1]
     total_frame_numpy = len(glob.glob(f"{scan_path}/image/*.jpg"))
+    if frames is None:
+        frames = FrameStore(scene_name)
     W, H = 256, 192
     image_info = {}
     for i in range(total_frame_numpy):
-        bbox, num_vis, mapping = compute_mapping(scene_name, pcd_input, i)
-        _, _, eight_point_mapping = compute_mapping_for_3D_bbox(scene_name, eight_points, i)
+        bbox, num_vis, mapping = compute_mapping(scene_name, pcd_input, i, frames)
+        _, _, eight_point_mapping = compute_mapping_for_3D_bbox(scene_name, eight_points, i, frames)
         # bbox3d = geometric 2D extent of the FULL projected 3D box (depth-independent), so an
         # under-scanned unit (e.g. a sink whose base cabinet has few points) still spans the whole
         # object. The caller decides whether to use it for a given object.
-        bbox3d = project_bbox_2d(scene_name, eight_points, i, W, H)
+        bbox3d = project_bbox_2d(scene_name, eight_points, i, W, H, frames)
         if bbox is not None and (bbox[2] > bbox[0]) and (bbox[3] > bbox[1]):
             bbox = [int(x) for x in bbox]
             image_info[i] = {"bbox": bbox, "num_vis": int(num_vis), "score": float(num_vis),

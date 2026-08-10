@@ -18,13 +18,79 @@ DEFAULT_IMAGE_MODEL = "gpt-image-1"
 
 # Reference generation is one hosted image call per object, ~45s each, and every caller had it in
 # a serial loop. The ceiling is OpenAI's rate limit, not local CPU, so the cap is about not opening
-# forty requests at once on a large room rather than about cores.
-MAX_IMAGE_WORKERS = int(os.environ.get("LR_IMAGE_WORKERS", "6"))
+# an unbounded number of requests at once on a large room rather than about cores.
+#
+# 6 meant a typical 17-object room ran three serial waves — about 135s, most of a cold scene_init.
+# 20 covers a normal room in one wave. It is safe to raise only because the retry path below now
+# waits out a 429 instead of burning its attempts in nine seconds: exceeding the account's budget
+# costs time, not quality. Lower it with $LR_IMAGE_WORKERS on a constrained tier.
+MAX_IMAGE_WORKERS = int(os.environ.get("LR_IMAGE_WORKERS", "20"))
+
+# A rate-limited request needs to wait out the account's per-minute image budget, so it gets its
+# own ladder (20s, 40s, ...) rather than the short one used for a timeout or a transient 5xx.
+_RATE_LIMIT_BACKOFF = 20.0
+_MAX_BACKOFF = 90.0
 
 
 def image_workers(n_items: int) -> int:
     """Pool size for a batch of `n_items` reference images."""
     return max(1, min(n_items, MAX_IMAGE_WORKERS))
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    """The server's own Retry-After, when it sent one. Trust it over any guess we make."""
+    headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+    for key, scale in (("retry-after-ms", 0.001), ("retry-after", 1.0)):
+        raw = headers.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw) * scale
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _is_rate_limit(exc: Exception) -> bool:
+    return getattr(exc, "status_code", None) == 429 or type(exc).__name__ == "RateLimitError"
+
+
+# OpenAI answers 429 for two unrelated conditions: "you are going too fast" and "your balance is
+# empty". Only the first clears by waiting.
+_OUT_OF_CREDIT = ("insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached")
+
+
+def is_out_of_credit(exc: Exception) -> bool:
+    """True for a 429 that means no credits rather than too many requests.
+
+    Worth separating because the two need opposite handling, and the backoff above makes getting
+    it wrong expensive: waiting 20s then 40s for a balance that will never refill costs a minute
+    per object before the identical failure lands anyway. Fail on the first attempt instead, and
+    say what to do about it — an empty account otherwise reads as a mysterious rate limit.
+    """
+    body = getattr(exc, "body", None)
+    detail = ""
+    if isinstance(body, dict):
+        err = body.get("error") or {}
+        detail = f"{err.get('type', '')} {err.get('code', '')}"
+    haystack = f"{detail} {exc}".lower()
+    return any(marker in haystack for marker in _OUT_OF_CREDIT)
+
+
+def retry_delay(exc: Exception, attempt: int) -> float:
+    """Seconds to wait before retrying `exc`.
+
+    A 429 is a different failure from a timeout: it says the account's images-per-minute budget is
+    spent, and no amount of retrying inside that minute will help. The old fixed 1.5/3/4.5s ladder
+    spent all three attempts in nine seconds and then raised — which object_references turns into a
+    PLACEHOLDER reference, so a rate limit degraded the room silently instead of failing loudly.
+    """
+    explicit = _retry_after_seconds(exc)
+    if explicit is not None:
+        return min(explicit + 0.5, _MAX_BACKOFF)
+    if _is_rate_limit(exc):
+        return min(_RATE_LIMIT_BACKOFF * (2 ** attempt), _MAX_BACKOFF)
+    return 1.5 * (attempt + 1)
 
 # gpt-image-1 token pricing ($/1M tokens); output image tokens dominate. Used only for the
 # rough cost line we log — override via env if OpenAI changes rates.
@@ -141,7 +207,26 @@ def generate_reference(
             }
         except Exception as exc:  # noqa: BLE001
             last_err = f"{type(exc).__name__}: {exc}"
-            time.sleep(1.5 * (attempt + 1))
+            if is_out_of_credit(exc):
+                telemetry.on_image_generation(
+                    prompt, sheet_path, out_path, "error", model=f"openai:{img_model}",
+                    elapsed_sec=round(time.time() - call_t0, 3), error=str(last_err)[:400],
+                )
+                raise RuntimeError(
+                    "OpenAI has no credits remaining, so every reference from here will fail. "
+                    "Top up at https://platform.openai.com/settings/organization/billing/ and "
+                    f"re-run — finished references are kept and skipped. ({last_err})"
+                ) from exc
+            if attempt == retries - 1:
+                break  # nothing left to wait for; the old code slept anyway
+            delay = retry_delay(exc, attempt)
+            if _is_rate_limit(exc):
+                print(
+                    f"    [openai-image] rate limited on {out_path.name}; "
+                    f"waiting {delay:.0f}s (attempt {attempt + 1}/{retries})",
+                    flush=True,
+                )
+            time.sleep(delay)
 
     telemetry.on_image_generation(
         prompt, sheet_path, out_path, "error", model=f"openai:{img_model}",

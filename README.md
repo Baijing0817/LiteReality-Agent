@@ -98,10 +98,8 @@ SANITY_DEEP=1 uv run python sanity.py
 The installed CLI is the only supported pipeline entry point. One command runs everything:
 
 ```bash
-uv run litereality run /path/to/capture
+uv run litereality run  scans/<scan>
 ```
-
-### The stages
 
 A reconstruction has two stages: **scene init** followed by **authoring**.
 
@@ -110,15 +108,17 @@ Authoring is agentic: the agent looks at the seed room, compares it against the 
 and edits it until it matches. Either half can be run on its own.
 
 ```bash
-# scene init — capture to seed room
-uv run litereality run /path/to/capture --through seed
+# scene init — capture to seed room. Takes the CAPTURE, writes run/Elliott-Studio/
+uv run litereality run scans/<scan> --through seed
 
-# authoring — seed room to finished room, on a package scene init already produced
-uv run litereality stage author run/my-room --force --polish --live
+# authoring — seed room to finished room. Takes the PACKAGE scene init just produced
+uv run litereality stage author run/<scan> --force --polish --live
 ```
 
 `--polish` adds object refinement, materials, and a model-driven quality pass on top of authoring.
-`--live` shows how everything is built in real time, alongside the agent's trace.
+`--live` shows how everything is built in real time, alongside the agent's trace. With `--live` the
+viewer starts before the room exists and waits for it, so it works on a scene's first authoring
+run; it prints its url again once the first build lands.
 
 ## See the results
 

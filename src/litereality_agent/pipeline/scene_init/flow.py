@@ -131,17 +131,26 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     telemetry.stage("box_merge", scan, "done", merged=len(merge_res.get("merged", {})))
 
     # 2. per-object crops
+    # Reuse mirrors extract_scene above: the stage inspects the disk and decides for itself, rather
+    # than depending on the caller passing a flag. It only reused with an explicit --skip-crop
+    # before, and the ingest stage never passes one, so every run re-cropped from scratch — ~11s a
+    # run on a 28-object scan even when nothing had changed. `crops_current` compares the crops
+    # against the scene data they were built from, so a box_merge that reshapes the object set
+    # still invalidates them.
     telemetry.stage("crop_objects", scan, "start")
-    if not args.skip_crop:
+    if args.skip_crop:
+        if not config.parsed_images_dir(scan).exists():
+            raise SystemExit(f"--skip-crop but no crops at {config.parsed_images_dir(scan)}")
+        telemetry.stage("crop_objects", scan, "reused")
+    elif crop_objects.crops_current(scan, args.include_walls) and not args.force_crop:
+        print("[crop] crops match the current scene data — reusing (use --force-crop to redo)")
+        telemetry.stage("crop_objects", scan, "reused")
+    else:
         crop_objects.crop(scan, include_walls=args.include_walls)
         cropped = config.parsed_images_dir(scan)
         telemetry.stage("crop_objects", scan, "done",
                       n_objects=sum(1 for d in cropped.iterdir() if d.is_dir())
                       if cropped.is_dir() else 0)
-    elif not config.parsed_images_dir(scan).exists():
-        raise SystemExit(f"--skip-crop but no crops at {config.parsed_images_dir(scan)}")
-    else:
-        telemetry.stage("crop_objects", scan, "reused")
 
     # 2b. Optional GroundingDINO bbox refinement. RoomPlan's projected crop is the
     # default path; DINO is an explicit enhancement for environments that provide it.
@@ -401,6 +410,52 @@ def _missing_assets(scan: str, expected: list[str]) -> list[str]:
     return [name for name in expected if not _asset_is_built(recon, name)]
 
 
+def _object_phase(directory: Path) -> str:
+    """What a half-finished object directory says it is actually doing.
+
+    Every builder writes the same sequence into `<name>/`: a build script, the GLB that script
+    produces, preview renders of it, and finally the editable `object.py`/`object.md` once the
+    probe and VLM gates pass. So the newest milestone present names the phase.
+
+    This replaces a per-branch caption. "building frame" sat next to four openings for seven
+    straight minutes regardless of what any of them were doing, which is worse than no caption —
+    it looks like live status and is not.
+    """
+    if any(directory.glob("*.glb")):
+        return "checking result" if (directory / "previews").is_dir() else "rendering previews"
+    if any(directory.glob("build_*.py")):
+        return "running the build"
+    if (directory / "textures").is_dir():
+        return "preparing textures"
+    return "starting up"
+
+
+def _branch_split(scan: str, names: list[str]) -> tuple[list[str], list[str], list[str], dict]:
+    """Split a branch's objects into finished, building, and waiting — all read from disk.
+
+    Nothing reports in: every builder is a subprocess in another interpreter, and one of them is
+    an agent that rewrites its own output when a QC gate fails. What IS observable is the work
+    tree. The procedural and openings passes create `<name>/` and fill it, so a directory without
+    the complete set of artifacts is an object being built right now.
+
+    TRELLIS is the honest gap. It writes `<name>.glb` in a single step and leaves nothing partial
+    behind, so its objects appear here as waiting and then as finished, with no building phase for
+    the board to show. Reporting them as building on the strength of "the branch is running" would
+    be a guess at WHICH objects, and a wrong name on screen is worse than no name.
+    """
+    recon = config.reconstruct_dir(scan)
+    built, building, waiting, phase = [], [], [], {}
+    for name in names:
+        if _asset_is_built(recon, name):
+            built.append(name)
+        elif (recon / name).is_dir():
+            building.append(name)
+            phase[name] = _object_phase(recon / name)
+        else:
+            waiting.append(name)
+    return built, building, waiting, phase
+
+
 def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, full: bool) -> None:
     """Build every object, in parallel branches, behind one progress bar."""
     from concurrent.futures import ThreadPoolExecutor
@@ -475,10 +530,49 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
 
     state: dict[str, dict] = {
         name: {"done": 0, "total": len(per_branch.get(name, [])), "started": None,
-               "finished": None, "result": ""}
+               "finished": None, "result": "", "built": [], "active": [], "activity": {},
+               "queued": list(per_branch.get(name, []))}
         for name, _ in branches
     }
-    board = console.BranchBoard([n for n, _ in branches], len(expected), logs, workers=workers)
+
+    def poll() -> None:
+        """Re-read what is on disk into `state`; the board renders, it does not look."""
+        for branch, names in per_branch.items():
+            if branch not in state:
+                continue
+            built, building, waiting, phase = _branch_split(scan, names)
+            state[branch].update(done=len(built), built=built, active=building,
+                                 queued=waiting, activity=phase)
+
+    # The live viewer decides whether anything is alive from the age of the newest trace event, and
+    # the only build events reaching the trace were the per-object `agent_step` lines a builder
+    # writes when it FINISHES. One object takes 9-20 minutes; on Elliott-Studio the gaps between
+    # consecutive lines ran to 19 and 38 minutes, far past the viewer's 120s liveness threshold, so
+    # a phase with sixteen agents working reported "quiet" for nearly all of it. `poll()` already
+    # re-reads this state every second for the board — put it in the trace too, so liveness follows
+    # the work rather than the moments it happens to complete.
+    BEAT_S = 20.0
+    beat = {"at": 0.0, "counts": None}
+
+    def heartbeat() -> None:
+        """Emit build progress on change, and at least every BEAT_S while the phase runs."""
+        counts = {name: state[name]["done"] for name, _ in branches}
+        now = time.time()
+        if counts == beat["counts"] and now - beat["at"] < BEAT_S:
+            return
+        telemetry.event(
+            "build_progress",
+            scan=scan,
+            built=sum(counts.values()),
+            total=len(expected),
+            branches={n: f"{counts[n]}/{state[n]['total']}" for n, _ in branches},
+            # Which objects are mid-build, so a long phase says WHAT it is working on. TRELLIS
+            # contributes none by design — see _branch_split.
+            active=sorted(name for n, _ in branches for name in state[n]["active"]),
+        )
+        beat["at"], beat["counts"] = now, counts
+
+    board = console.BranchBoard([n for n, _ in branches], len(expected), workers=workers)
     tee = console.ThreadTee(sys.stdout)
     real_stdout, sys.stdout = sys.stdout, tee
 
@@ -507,14 +601,12 @@ def _reconstruction_phase(scan: str, args: argparse.Namespace, result: dict, ful
         with ThreadPoolExecutor(max_workers=len(branches)) as pool:
             futures = [pool.submit(run, name, fn) for name, fn in branches]
             while not all(f.done() for f in futures):
-                for name, names in per_branch.items():
-                    if name in state:
-                        state[name]["done"] = _built_count(scan, names)
+                poll()
+                heartbeat()
                 board.render(state)
                 time.sleep(1.0)
-            for name, names in per_branch.items():
-                if name in state:
-                    state[name]["done"] = _built_count(scan, names)
+            poll()
+            heartbeat()
             board.finish(state)
             for f in futures:
                 f.result()
@@ -593,6 +685,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--skip-crop", action="store_true", help="Reuse existing crops, never crop."
+    )
+    parser.add_argument(
+        "--force-crop",
+        action="store_true",
+        help="Re-crop even when the crops on disk match the current scene data.",
     )
     parser.add_argument(
         "--skip-references",

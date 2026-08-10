@@ -425,12 +425,23 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    config.enter_work_root()
-    scans = args.scan or [p.name for p in sorted(config.scene_data_root().iterdir()) if p.is_dir()]
-    out_root = config.work_root() / "opening_refs"
+    # The work root is per scan, so it has to be selected inside the loop — entering it once up
+    # front (as this did) resolved every path against the `_shared` fallback and wrote to a tree
+    # no scan reads. Discovering scans needs the OUTPUT root rather than scene_data, for the same
+    # reason: there is no scene_data to list until a scan has been chosen.
     only = set(args.only) if args.only else None
+    scans = args.scan
+    if not scans:
+        root = config.output_root()
+        scans = sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
+        if not scans:
+            raise SystemExit(f"no scans under {config.output_root()}; pass --scan")
+
     results = []
+    out_root = None
     for scan in scans:
+        config.enter_work_root(scan)
+        out_root = config.work_root() / "opening_refs"
         print(f"[openings] {scan}", flush=True)
         results.append(
             generate_for_scan(
@@ -443,7 +454,7 @@ def main() -> int:
                 only=only,
             )
         )
-    (out_root).mkdir(parents=True, exist_ok=True)
+    out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "opening_manifest.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     n_ok = sum(1 for r in results for o in r["openings"] if o["status"] == "ok")
     n_tot = sum(len(r["openings"]) for r in results)

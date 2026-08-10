@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import errno
 import json
+import shutil
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -459,6 +460,61 @@ def test_live_flag_shares_one_run_context_with_the_stage(run_tree: Path, monkeyp
 
     assert seen["context"] is context, "the viewer must watch the very context the stage runs in"
     assert seen["bake"] is False, "--live-no-bake must reach the viewer"
+
+
+def test_live_starts_before_the_room_exists(run_tree: Path, monkeypatch, capsys) -> None:
+    """The chicken-and-egg `--live` used to lose to.
+
+    `author` CREATES the authored room — it copies the seed room in as its first act — so on a
+    scene's first authoring run there is no `Room.py` when the viewer starts. Requiring one up
+    front made `--live` usable only on the second run, which is the run you least need to watch.
+    """
+    from litereality_agent import cli
+
+    context = _context(run_tree)
+    shutil.rmtree(context.authored_room)  # a scene that has been seeded but never authored
+    started = {}
+
+    def fake_start(ctx, **kw):
+        started["yes"] = True
+        return live.LiveRoom(ctx), _StubServer(), "http://127.0.0.1:8770/"
+
+    monkeypatch.setattr(live, "start", fake_start)
+    monkeypatch.setattr(cli, "_block_until_interrupt", lambda: None)
+
+    with cli._live_viewer(_LiveArgs(live=True, live_port=8770, live_no_bake=True), context) as done:
+        done("author finished")
+
+    assert started.get("yes"), "the viewer must start and wait, not abort the run"
+    assert "not written yet" in capsys.readouterr().out, "an empty page needs explaining"
+
+
+def test_standalone_live_still_refuses_a_scene_with_no_room(run_tree: Path) -> None:
+    """Nothing in `litereality live` will ever create a room, so waiting there is a hang."""
+    context = _context(run_tree)
+    shutil.rmtree(context.authored_room)
+
+    with pytest.raises(SystemExit, match="no authored room"):
+        live.require_room(context)
+
+
+def test_the_viewer_picks_the_room_up_when_the_stage_writes_it(run_tree: Path, monkeypatch) -> None:
+    """Starting without a room is only useful if the watcher then notices one arriving."""
+    context = _context(run_tree)
+    source = context.authored_room / "Room.py"
+    body = source.read_text(encoding="utf-8")
+    shutil.rmtree(context.authored_room)
+
+    room = live.LiveRoom(context, poll=0.01)
+    builds = []
+    monkeypatch.setattr(room, "rebuild", lambda: builds.append(True) or True)
+
+    assert room._changed() is False, "a missing Room.py is not a change, and must not raise"
+
+    context.authored_room.mkdir(parents=True, exist_ok=True)  # the stage's copytree lands
+    source.write_text(body, encoding="utf-8")
+
+    assert room._changed() is True, "the room appearing must register as a change"
 
 
 def test_without_live_flag_nothing_is_served(run_tree: Path, monkeypatch) -> None:
