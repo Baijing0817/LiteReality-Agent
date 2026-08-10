@@ -131,17 +131,26 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     telemetry.stage("box_merge", scan, "done", merged=len(merge_res.get("merged", {})))
 
     # 2. per-object crops
+    # Reuse mirrors extract_scene above: the stage inspects the disk and decides for itself, rather
+    # than depending on the caller passing a flag. It only reused with an explicit --skip-crop
+    # before, and the ingest stage never passes one, so every run re-cropped from scratch — ~11s a
+    # run on a 28-object scan even when nothing had changed. `crops_current` compares the crops
+    # against the scene data they were built from, so a box_merge that reshapes the object set
+    # still invalidates them.
     telemetry.stage("crop_objects", scan, "start")
-    if not args.skip_crop:
+    if args.skip_crop:
+        if not config.parsed_images_dir(scan).exists():
+            raise SystemExit(f"--skip-crop but no crops at {config.parsed_images_dir(scan)}")
+        telemetry.stage("crop_objects", scan, "reused")
+    elif crop_objects.crops_current(scan, args.include_walls) and not args.force_crop:
+        print("[crop] crops match the current scene data — reusing (use --force-crop to redo)")
+        telemetry.stage("crop_objects", scan, "reused")
+    else:
         crop_objects.crop(scan, include_walls=args.include_walls)
         cropped = config.parsed_images_dir(scan)
         telemetry.stage("crop_objects", scan, "done",
                       n_objects=sum(1 for d in cropped.iterdir() if d.is_dir())
                       if cropped.is_dir() else 0)
-    elif not config.parsed_images_dir(scan).exists():
-        raise SystemExit(f"--skip-crop but no crops at {config.parsed_images_dir(scan)}")
-    else:
-        telemetry.stage("crop_objects", scan, "reused")
 
     # 2b. Optional GroundingDINO bbox refinement. RoomPlan's projected crop is the
     # default path; DINO is an explicit enhancement for environments that provide it.
@@ -593,6 +602,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--skip-crop", action="store_true", help="Reuse existing crops, never crop."
+    )
+    parser.add_argument(
+        "--force-crop",
+        action="store_true",
+        help="Re-crop even when the crops on disk match the current scene data.",
     )
     parser.add_argument(
         "--skip-references",

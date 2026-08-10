@@ -18,7 +18,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     if options.get("skip_image_generation"):
         args.append("--skip-image-generation")
     if options.get("force"):
-        args.extend(("--force-extract", "--force-image-generation"))
+        args.extend(("--force-extract", "--force-crop", "--force-image-generation"))
     rc, log = run_module(
         context, "litereality_agent.pipeline.scene_init.flow", args, log_name="ingest"
     )
