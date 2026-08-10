@@ -33,9 +33,10 @@ class Colors:
     BOLD = '\033[1m'
 
 from .object_image_extraction import (
-    get_pcd_from_obj, 
-    get_pcd_objs, 
-    crop_and_save_new, 
+    FrameStore,
+    get_pcd_from_obj,
+    get_pcd_objs,
+    crop_and_save_new,
     canve_for_ref_images, 
     get_pcd_objs_walls, 
     calculate_wall_corners, 
@@ -72,6 +73,11 @@ def extract_ranking(filename):
         return 999999
 
 
+# The evidence sheet stitch_top_images writes into each object's crop folder. Named once so the
+# input glob can exclude it — see the note in stitch_top_images.
+STITCHED_NAME = 'stitched_image.jpg'
+
+
 def stitch_top_images(folder_path, num_images=4, columns=2, gap=10):
     """
     Stitches top images from a folder into a grid layout.
@@ -85,12 +91,19 @@ def stitch_top_images(folder_path, num_images=4, columns=2, gap=10):
     Returns:
         None: Saves the stitched image to the folder
     """
-    # Get all .jpg images sorted by name in the folder
+    # Get all .jpg images sorted by name in the folder, EXCLUDING this function's own output.
+    # `extract_ranking` sorts unmatched names last (999999), so with 4+ ranking crops the stitched
+    # image fell outside the top `num_images` and was never noticed. An object with FEWER than
+    # num_images crops — the wall doors/windows, which often rank only 1-3 frames — pulled the
+    # previous stitched_image.jpg back into its own input, so every re-crop stitched the stitch:
+    # Wall2_Door_0 went 444x1450 -> 2910x1450 -> 2910x5830 -> 11670x5830 over four runs and then
+    # tripped PIL's decompression-bomb limit, at which point the object silently lost its sheet.
     image_paths = sorted(
-        [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.jpg')],
+        [os.path.join(folder_path, f) for f in os.listdir(folder_path)
+         if f.endswith('.jpg') and f != STITCHED_NAME],
         key=lambda x: extract_ranking(os.path.basename(x))
     )
-    
+
     # Select the top images (up to the specified number)
     selected_images = image_paths[:num_images]
     
@@ -132,8 +145,8 @@ def stitch_top_images(folder_path, num_images=4, columns=2, gap=10):
         stitched_image.paste(img, (x_offset, y_offset))
     
     # Save the final stitched image as JPG (smaller file size for streaming)
-    stitched_image.save(os.path.join(folder_path, 'stitched_image.jpg'), 'JPEG', quality=85, optimize=True)
-    print(f'{Colors.GREEN}✓{Colors.RESET} Stitched image saved at {folder_path}/stitched_image.jpg')
+    stitched_image.save(os.path.join(folder_path, STITCHED_NAME), 'JPEG', quality=85, optimize=True)
+    print(f'{Colors.GREEN}✓{Colors.RESET} Stitched image saved at {folder_path}/{STITCHED_NAME}')
 
 
 def process_all_folders(base_path):
@@ -417,6 +430,10 @@ def process_object_images(
         bbox_dict.update(bbox_walls)
     bbox_dict["Floor"] = np.zeros((8, 3))
     
+    # Every object ranks itself against the SAME frames, so the capture is loaded once here and
+    # shared, rather than re-read inside each object's frame sweep. See FrameStore.
+    frames = FrameStore(name_of_scan)
+
     # Process each object
     for object_id, pcd_input in tqdm(crop_out_objs.items()):
         obj_start_time = time.time()
@@ -426,7 +443,7 @@ def process_object_images(
             print(f"  {Colors.YELLOW}⚠{Colors.RESET} Warning: No visible points for {object_id}, skipping")
             continue
 
-        top_k_images = crop_and_save_new(image_dir, pcd_input, object_id, bbox_dict.get(object_id, np.zeros((8, 3))), top_k=4)
+        top_k_images = crop_and_save_new(image_dir, pcd_input, object_id, bbox_dict.get(object_id, np.zeros((8, 3))), top_k=4, frames=frames)
         if not top_k_images:
             print(f"  {Colors.YELLOW}⚠{Colors.RESET} Warning: No ranked crops for {object_id}, skipping")
             continue
