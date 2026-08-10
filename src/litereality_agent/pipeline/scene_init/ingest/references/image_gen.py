@@ -55,6 +55,28 @@ def _is_rate_limit(exc: Exception) -> bool:
     return getattr(exc, "status_code", None) == 429 or type(exc).__name__ == "RateLimitError"
 
 
+# OpenAI answers 429 for two unrelated conditions: "you are going too fast" and "your balance is
+# empty". Only the first clears by waiting.
+_OUT_OF_CREDIT = ("insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached")
+
+
+def is_out_of_credit(exc: Exception) -> bool:
+    """True for a 429 that means no credits rather than too many requests.
+
+    Worth separating because the two need opposite handling, and the backoff above makes getting
+    it wrong expensive: waiting 20s then 40s for a balance that will never refill costs a minute
+    per object before the identical failure lands anyway. Fail on the first attempt instead, and
+    say what to do about it — an empty account otherwise reads as a mysterious rate limit.
+    """
+    body = getattr(exc, "body", None)
+    detail = ""
+    if isinstance(body, dict):
+        err = body.get("error") or {}
+        detail = f"{err.get('type', '')} {err.get('code', '')}"
+    haystack = f"{detail} {exc}".lower()
+    return any(marker in haystack for marker in _OUT_OF_CREDIT)
+
+
 def retry_delay(exc: Exception, attempt: int) -> float:
     """Seconds to wait before retrying `exc`.
 
@@ -185,6 +207,16 @@ def generate_reference(
             }
         except Exception as exc:  # noqa: BLE001
             last_err = f"{type(exc).__name__}: {exc}"
+            if is_out_of_credit(exc):
+                telemetry.on_image_generation(
+                    prompt, sheet_path, out_path, "error", model=f"openai:{img_model}",
+                    elapsed_sec=round(time.time() - call_t0, 3), error=str(last_err)[:400],
+                )
+                raise RuntimeError(
+                    "OpenAI has no credits remaining, so every reference from here will fail. "
+                    "Top up at https://platform.openai.com/settings/organization/billing/ and "
+                    f"re-run — finished references are kept and skipped. ({last_err})"
+                ) from exc
             if attempt == retries - 1:
                 break  # nothing left to wait for; the old code slept anyway
             delay = retry_delay(exc, attempt)

@@ -93,3 +93,51 @@ def test_no_sleep_after_the_final_attempt(tmp_path, monkeypatch):
         image_gen.generate_reference(sheet, "prompt", tmp_path / "out.png", retries=3)
 
     assert len(slept) == 2  # three attempts, two waits between them
+
+
+class OutOfCredit(Exception):
+    """The 429 OpenAI sends for an empty balance — same status as a rate limit, opposite remedy."""
+
+    status_code = 429
+
+    def __init__(self):
+        super().__init__(
+            "Error code: 429 - {'error': {'message': 'You have no credits remaining.', "
+            "'type': 'insufficient_quota', 'code': 'credit_balance_exhausted'}}"
+        )
+        self.body = {
+            "error": {"type": "insufficient_quota", "code": "credit_balance_exhausted"}
+        }
+        self.response = _Response({})
+
+
+def test_empty_balance_is_told_apart_from_a_rate_limit():
+    assert image_gen.is_out_of_credit(OutOfCredit()) is True
+    assert image_gen.is_out_of_credit(RateLimited()) is False
+    assert image_gen.is_out_of_credit(RuntimeError("boom")) is False
+
+
+def test_empty_balance_fails_on_the_first_attempt(tmp_path, monkeypatch):
+    """Waiting 20s then 40s for a balance that will never refill is a minute wasted per object."""
+    slept: list[float] = []
+    monkeypatch.setattr(image_gen.time, "sleep", slept.append)
+    calls: list[int] = []
+
+    class _Client:
+        def __init__(self, *_, **__):
+            self.images = self
+
+        def edit(self, **__):
+            calls.append(1)
+            raise OutOfCredit()
+
+    monkeypatch.setattr("openai.OpenAI", _Client)
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    sheet = tmp_path / "sheet.jpg"
+    sheet.write_bytes(b"x")
+
+    with pytest.raises(RuntimeError, match="no credits remaining"):
+        image_gen.generate_reference(sheet, "prompt", tmp_path / "out.png", retries=3)
+
+    assert calls == [1]  # one attempt, not three
+    assert slept == []   # and no backoff at all
