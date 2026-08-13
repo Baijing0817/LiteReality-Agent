@@ -863,8 +863,13 @@ def test_polish_reuses_a_recorded_run(tmp_path, monkeypatch):
     assert out["reused"] is True and out["refined_total"] == 29
 
 
+@pytest.mark.live
 def test_force_ignores_the_marker(tmp_path, monkeypatch):
-    """After new crops or a different detector, the recorded run is stale."""
+    """After new crops or a different detector, the recorded run is stale.
+
+    Marked live: unlike the reuse case above, force=True skips the marker and runs the real
+    detector, which needs the Modal extra and Modal credentials.
+    """
     pytest.importorskip("cv2")
     import json as _json
     import sys
