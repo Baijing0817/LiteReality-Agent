@@ -61,6 +61,31 @@ CATEGORY_HINTS = {
     "plant": "the pot shape and material and the plant's overall silhouette and foliage; keep it natural",
 }
 
+# What habitually surrounds a category in a real room, named so the generator can be told to drop it.
+# Every evidence tile for a meeting table shows chairs, so the generator reads them as part of the
+# subject and fuses them in — and because the pipeline reconstructs chairs separately (chair
+# clusters), the scene then gets both: eight real chairs placed, six more welded to the tabletop.
+# The generic "other furniture" in the removal list does not survive that much visual evidence;
+# naming the specific intruder does.
+CATEGORY_COMPANIONS = {
+    "table": "chairs, stools, benches",
+    "desk": "chairs, stools, monitors, desk lamps",
+    "counter": "stools, chairs",
+    "sink": "stools, chairs",
+    "sink storage": "stools, chairs",
+    "sofa": "coffee tables, side tables, floor lamps, rugs",
+    "bed": "nightstands, benches, rugs, lamps",
+    "chair": "tables, desks, and any other chair",
+    "stool": "tables, counters, and any other stool",
+    "bench": "tables, and any other bench",
+    "television": "TV stands, media consoles, soundbars, shelves",
+    "nightstand": "beds, lamps",
+    "whiteboard": "tables, chairs",
+    "mirror": "vanities, sinks, cabinets",
+    "lamp": "tables, nightstands, sofas",
+    "plant": "tables, shelves, plant stands",
+}
+
 
 def natural_key(path: Path) -> list[object]:
     return [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", path.name)]
@@ -224,6 +249,15 @@ def build_prompt(object_name: str, category: str, object_meta: dict, evidence_co
     )
     context = object_context(object_meta)
     context_sentence = f" Scan metadata: {context}." if context else ""
+    companions = CATEGORY_COMPANIONS.get(category)
+    # Stated twice, at both ends: the removal list in the middle of the prompt loses to three tiles
+    # that all show the object ringed by its companions.
+    solo = (
+        f" RENDER EXACTLY ONE OBJECT — the {category} alone, nothing else in frame."
+        + (f" The evidence almost certainly shows {companions} around it; those are separate objects "
+           "that this pipeline captures and rebuilds on their own, so drawing any of them here puts "
+           "a duplicate in the scene. Render none of them, not even partially or in shadow." if companions else "")
+    )
     return (
         f"The input image is a visual-only evidence sheet for one scanned object: {object_name}, "
         f"category {category}. The large upper tile is the primary view and should define the "
@@ -231,7 +265,7 @@ def build_prompt(object_name: str, category: str, object_meta: dict, evidence_co
         "bottom tiles are secondary evidence only; use them to verify hidden sides and structural "
         "details, not as separate objects. Some views may be noisy, partially occluded, or contain "
         f"nearby room content.{context_sentence} Create one clean object-only 3D-asset reference "
-        "render of the furniture/object itself. Use a front-biased three-quarter view, upright and "
+        f"render of the furniture/object itself.{solo} Use a front-biased three-quarter view, upright and "
         "centered, with the full object visible from top to bottom. Preserve the real object type: "
         "if it is wall-mounted or wall-hanging, keep it wall-mounted/wall-hanging and do not turn it "
         "into a freestanding cabinet; if it is freestanding, keep its base/legs/supports. Preserve "
@@ -246,7 +280,8 @@ def build_prompt(object_name: str, category: str, object_meta: dict, evidence_co
         "element the evidence shows (drawers, doors, shelves, legs, panels, cushions, sink bowls). Do NOT drop, "
         "merge, omit, or simplify a real feature — never turn a panelled, glazed, or multi-drawer piece into a "
         "plain box, and never reduce a 3-leg/4-leg/pedestal base to a different count. Match reality: neither add "
-        "nor remove structure. Use a solid pure black background edge-to-edge."
+        f"nor remove structure. Use a solid pure black background edge-to-edge. Final check before you render: "
+        f"exactly one {category} fills the frame and no other object appears anywhere in the image."
     )
 
 
