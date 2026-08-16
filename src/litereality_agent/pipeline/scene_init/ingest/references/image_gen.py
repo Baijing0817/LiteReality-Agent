@@ -194,6 +194,11 @@ def _call_gemini(sheet_path, full_prompt, img_model, key, timeout):
             full_prompt,
             types.Part.from_bytes(data=Path(sheet_path).read_bytes(), mime_type=mime),
         ],
+        # We pass no tools, and leaving AFC on makes the SDK warn once per call — one line of noise
+        # per object, so a 20-object room buries its own progress output.
+        config=types.GenerateContentConfig(
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
     )
     png = None
     for candidate in (result.candidates or []):
