@@ -37,7 +37,8 @@ Tested on **macOS** (Apple Silicon) and **Linux** (with a >=24 GB GPU).
 
 1. [`uv`](https://docs.astral.sh/uv/)
 2. **Blender 5.x** (tested on 5.1). `BLENDER_PATH` points at the install *directory*, not the binary.
-3. **OpenAI API key** for reference image generation — typically under $1 per scene.
+3. **An image-generation API key** for reference images — typically under $1 per scene.
+   `OPENAI_API_KEY` by default, or `GEMINI_API_KEY` with `LR_IMAGE_PROVIDER=gemini`.
 4. **A logged-in agent CLI on your `PATH`** — this drives all reasoning. `claude`
    (Claude Code) is the default; `codex` (OpenAI Codex) is also supported, selected with
    `LR_AGENT_PROVIDER` in `models.env`.
@@ -65,6 +66,7 @@ cp .env.example .env
 | variable | where it comes from |
 |---|---|
 | `OPENAI_API_KEY` | reference image generation — typically under $1 per scene |
+| `GEMINI_API_KEY` | only for `LR_IMAGE_PROVIDER=gemini` → [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | `MODAL_TOKEN_ID` · `MODAL_TOKEN_SECRET` | a free [Modal](https://modal.com) account → [modal.com/settings/tokens](https://modal.com/settings/tokens) |
 | `BLENDER_PATH` | your Blender install **directory**, not the binary |
 | `LR_SCANS_DIR` | the folder holding your scans |
