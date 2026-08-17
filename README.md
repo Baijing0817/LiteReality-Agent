@@ -20,7 +20,7 @@ turns it into a complete, graphics-ready scene with articulated assets.
 </p>
 
 <p align="center">
-  <img src="assets/demo.jpg" width="100%"
+  <img src="assets/demo.jpg" width="80%"
        alt="RGBD scan on the left, agentic reconstruction on the right">
 </p>
 
