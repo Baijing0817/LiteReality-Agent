@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from litereality_agent import PACKAGE_ROOT  # the launcher is CODE, shipped in the wheel
+from litereality_agent import PACKAGE_ROOT, SRC_ROOT  # the launcher is CODE, shipped in the wheel
 
 DEFAULT_LAUNCHER = PACKAGE_ROOT / "models" / "trellis" / "inference.py"
 
@@ -95,8 +95,16 @@ class LocalTrellisService:
                 "--skip-existing",
             ]
             print(f"  [trellis-local] {len(items)} asset(s) via {self.launcher.name}", flush=True)
+            # The isolated interpreter has no editable/site-packages install of litereality_agent —
+            # only src/ on the path makes `from litereality_agent...` importable there. Prepend
+            # rather than setdefault: a machine with e.g. a ROS PYTHONPATH already set would
+            # otherwise keep that value verbatim and never pick up src/.
+            environ = {**os.environ}
+            environ["PYTHONPATH"] = os.pathsep.join(
+                filter(None, [str(SRC_ROOT), environ.get("PYTHONPATH")])
+            )
             t0 = time.time()
-            rc = subprocess.run(cmd).returncode
+            rc = subprocess.run(cmd, env=environ).returncode
             self.last_report = {"rc": rc, "seconds": round(time.time() - t0, 1), "n": len(items)}
         finally:
             shutil.rmtree(refs, ignore_errors=True)

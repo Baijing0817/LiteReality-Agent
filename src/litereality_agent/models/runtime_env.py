@@ -25,7 +25,8 @@ LAUNCHER_DIR = Path(__file__).resolve().parent
 # CHECKOUT root (which `.gitignore` already excludes), never inside src/. Deriving them from
 # `__file__` would follow the code into the wheel and download gigabytes into site-packages.
 THIRD_PARTY = REPO_ROOT
-TRELLIS2_DIR = THIRD_PARTY / "TRELLIS.2"
+# deploy/local-gpu.md has the user `git clone` this into `backends/TRELLIS.2`, not the repo root.
+TRELLIS2_DIR = THIRD_PARTY / "backends" / "TRELLIS.2"
 WEIGHTS_DIR = Path(os.environ.get("LITEREALITY_WEIGHTS", THIRD_PARTY / "weights")).resolve()
 
 # TRELLIS.2's pipeline.json references the GATED `facebook/dinov3-vitl16-pretrain-lvd1689m`

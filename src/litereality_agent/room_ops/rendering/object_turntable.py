@@ -65,7 +65,17 @@ radius = max((maxs - mins).length / 2, 0.3)
 world = bpy.data.worlds.new("w")
 bpy.context.scene.world = world
 world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[1].default_value = 1.2
+# look the node up by type: the default node's NAME is localized / renamed
+# across Blender versions (5.x no longer calls it "Background")
+_bg = next((n for n in world.node_tree.nodes if n.type == "BACKGROUND"), None)
+if _bg is None:
+    _bg = world.node_tree.nodes.new("ShaderNodeBackground")
+    _out = next(
+        (n for n in world.node_tree.nodes if n.type == "OUTPUT_WORLD"),
+        world.node_tree.nodes.new("ShaderNodeOutputWorld"),
+    )
+    world.node_tree.links.new(_bg.outputs["Background"], _out.inputs["Surface"])
+_bg.inputs["Strength"].default_value = 1.2
 sun = bpy.data.lights.new("sun", "SUN")
 sun.energy = 3.0
 so = bpy.data.objects.new("sun", sun)

@@ -19,7 +19,10 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any
 
-from litereality_agent import REPO_ROOT  # worker cwd: the checkout, so relative data paths resolve
+from litereality_agent import (  # cwd: the checkout; PYTHONPATH: where the package lives
+    REPO_ROOT,
+    SRC_ROOT,
+)
 
 
 @dataclass(slots=True)
@@ -61,7 +64,13 @@ class DinoSubprocessService:
         if self._proc is not None and self._proc.poll() is None:
             return
         environ = {**os.environ, **(self.env or {})}
-        environ.setdefault("PYTHONPATH", self.cwd)
+        # The isolated interpreter has no editable/site-packages install of litereality_agent —
+        # only src/ on the path makes `-m litereality_agent...` importable there. Prepend rather
+        # than setdefault: a machine with e.g. a ROS PYTHONPATH already set would otherwise keep
+        # that value verbatim and never pick up src/.
+        environ["PYTHONPATH"] = os.pathsep.join(
+            filter(None, [str(SRC_ROOT), environ.get("PYTHONPATH")])
+        )
         self._proc = subprocess.Popen(
             self.command,
             stdin=subprocess.PIPE,

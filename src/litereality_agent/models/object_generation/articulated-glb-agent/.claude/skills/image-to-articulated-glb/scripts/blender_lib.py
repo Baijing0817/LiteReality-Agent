@@ -36,7 +36,9 @@ def reset_scene(fps=24):
 def make_plain_material(name, color, metallic=0.0, roughness=0.5):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    # look the BSDF up by node type: the default node's NAME is localized /
+    # renamed across Blender versions (5.x no longer calls it "Principled BSDF")
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
     bsdf.inputs["Metallic"].default_value = metallic
     bsdf.inputs["Roughness"].default_value = roughness

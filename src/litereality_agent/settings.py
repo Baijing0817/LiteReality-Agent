@@ -77,6 +77,10 @@ class LiteRealitySettings(BaseSettings):
         default="claude-opus-5", validation_alias="LR_PROCEDURAL_MODEL"
     )
     image_model: str = Field(default="gpt-image-2", validation_alias="LR_OPENAI_IMAGE_MODEL")
+    # Which backend generates reference images: openai (default) or gemini. `image_gen.py` reads
+    # this straight off os.environ, so it must round-trip through apply_environment() below or a
+    # `.env` value never reaches the process that image_gen.py runs in.
+    image_provider: str = Field(default="openai", validation_alias="LR_IMAGE_PROVIDER")
     dino_model: str = Field(
         default="IDEA-Research/grounding-dino-tiny", validation_alias="LR_DINO_MODEL"
     )
@@ -85,6 +89,11 @@ class LiteRealitySettings(BaseSettings):
     )
 
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    # Third-party relay endpoints for the two keys above — openai-python and google-genai each
+    # read their own env var directly, so these must round-trip the same way.
+    openai_base_url: str | None = Field(default=None, validation_alias="OPENAI_BASE_URL")
+    gemini_api_key: SecretStr | None = Field(default=None, validation_alias="GEMINI_API_KEY")
+    gemini_base_url: str | None = Field(default=None, validation_alias="GOOGLE_GEMINI_BASE_URL")
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     # Modal is the default execution runtime, so the app names carry the deployed defaults and
     # MODAL_PROFILE alone selects hosted execution. Override these only when a workspace deploys
@@ -208,6 +217,9 @@ class LiteRealitySettings(BaseSettings):
             "LR_CHAIR_JUDGE_MODEL": self.chair_judge_model,
             "LR_PROCEDURAL_MODEL": self.procedural_model,
             "LR_OPENAI_IMAGE_MODEL": self.image_model,
+            "LR_IMAGE_PROVIDER": self.image_provider,
+            "OPENAI_BASE_URL": self.openai_base_url,
+            "GOOGLE_GEMINI_BASE_URL": self.gemini_base_url,
             "LR_DINO_MODEL": self.dino_model,
             "LR_DINO_EMBED_MODEL": self.dino_embed_model,
             "MODAL_TRELLIS_APP": self.modal_trellis_app,
@@ -218,6 +230,7 @@ class LiteRealitySettings(BaseSettings):
         }
         secrets = {
             "OPENAI_API_KEY": self.openai_api_key,
+            "GEMINI_API_KEY": self.gemini_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
             # Exported so `modal deploy` and the model subprocesses authenticate from `.env`
             # without a ~/.modal.toml on the machine.
