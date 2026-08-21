@@ -52,19 +52,29 @@ def _droppable(line, drop_assigns):
     m = re.match(r"^import\s+([\w.]+)(\s+as\s+\w+)?\s*$", s)
     if m and m.group(1).split(".")[0] in DROP_IMPORTS:
         return True
-    if s.startswith("sys.path.insert") or s.startswith("import blender_lib"):
+    # sys.path.insert(...) is handled in drop_lines() itself, which needs to see it before
+    # this line-by-line check to also swallow a multi-line call's trailing args/`)`.
+    if s.startswith("import blender_lib"):
         return True
     return any(re.match(rf"^{re.escape(name)}\s*=", s) for name in drop_assigns)
 
 
 def drop_lines(src, drop_assigns=()):
     """Drop blender_lib imports, sys.path hacks and given top-level assignments.
-    Handles the multi-line `from blender_lib import (...)` form."""
+    Handles the multi-line `from blender_lib import (...)` and `sys.path.insert(...)` forms —
+    a recipe that wraps either call across several lines used to have only its opening line
+    dropped, leaving the trailing args and closing paren behind as a syntax error."""
     out, lines, i = [], src.splitlines(keepends=True), 0
     while i < len(lines):
         s = lines[i].strip()
         if s.startswith("from blender_lib import"):
             if "(" in s and ")" not in s:  # multi-line import block
+                while i < len(lines) and ")" not in lines[i]:
+                    i += 1
+            i += 1
+            continue
+        if s.startswith("sys.path.insert"):
+            if "(" in s and ")" not in s:  # multi-line call
                 while i < len(lines) and ")" not in lines[i]:
                     i += 1
             i += 1
@@ -116,7 +126,7 @@ def bundle(recipe_path, lib_path, name):
         "TEXDIR = _argv[0] if _argv else os.path.join(HERE, 'textures')\n"
         f"OUT_GLB = _argv[1] if len(_argv) > 1 else os.path.join(HERE, '{name}.glb')\n"
     )
-    return "".join(
+    result = "".join(
         [
             header,
             "\n",
@@ -132,6 +142,18 @@ def bundle(recipe_path, lib_path, name):
             "\n",
         ]
     )
+    # A text transform that silently emits broken Python is worse than one that fails loudly:
+    # the recipe author (and everyone downstream) only finds out hours later, when Blender tries
+    # to run the file. Catch it here, at the one place that has the recipe path to blame.
+    try:
+        ast.parse(result)
+    except SyntaxError as exc:
+        raise SyntaxError(
+            f"make_selfcontained.py produced invalid Python from recipe {recipe_path!r} "
+            f"(line {exc.lineno}: {exc.msg}) — check that recipe for a multi-line "
+            "sys.path.insert(...) or blender_lib import that drop_lines() doesn't fully strip"
+        ) from exc
+    return result
 
 
 def main():

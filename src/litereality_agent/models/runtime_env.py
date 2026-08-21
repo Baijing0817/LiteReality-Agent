@@ -4,8 +4,9 @@ The ``TRELLIS.2/`` clone is kept pristine so it can be reproduced on another mac
 This module makes that clone usable without modifying it by:
 
   * putting the clone package on ``sys.path`` so ``import trellis2`` resolves,
-  * pointing the HuggingFace cache at ``backends/weights/`` so model weights
-    **auto-download there on first run** (nothing is vendored into git),
+  * pointing the HuggingFace cache at ``<repo root>/weights/`` (override with
+    ``$LITEREALITY_WEIGHTS``) so model weights **auto-download there on first run**
+    (nothing is vendored into git),
   * setting the GPU-friendly defaults TRELLIS.2 expects (sdpa attention, EXR I/O,
     expandable CUDA segments, a writable flex-gemm autotune cache).
 

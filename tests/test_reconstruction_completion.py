@@ -49,3 +49,65 @@ def test_flow_allows_a_room_with_no_expected_assets(monkeypatch):
     monkeypatch.setattr(flow, "_missing_assets", lambda _scan, _expected: [])
 
     assert flow.main(["--scan", "capture", "--reconstruct"]) == 0
+
+
+def _context(tmp_path: Path):
+    from litereality_agent.pipeline.context import RunContext
+    from litereality_agent.settings import LiteRealitySettings
+
+    settings = LiteRealitySettings(repo_root=tmp_path, output_root=tmp_path / "run")
+    return RunContext("scan", tmp_path / "capture", tmp_path / "run" / "scan", tmp_path / "run", settings=settings)
+
+
+def _write_routing(context, names: list[str]) -> None:
+    import json
+
+    routing = context.object_root / "object_init" / "routing" / "routing_manifest.json"
+    routing.parent.mkdir(parents=True, exist_ok=True)
+    routing.write_text(
+        json.dumps({"scans": {context.scan: [{"name": n} for n in names]}}), encoding="utf-8"
+    )
+
+
+def test_reconstruct_stage_is_not_complete_when_a_routed_object_has_no_glb(tmp_path):
+    """The exact shape of the real incident: an OOM-killed batch leaves ChairCluster0 built and
+    ChairCluster1/ChairCluster2 missing. The old check ("does any .glb exist") called this
+    complete and a bare rerun would have silently reused the partial tree."""
+    from litereality_agent.pipeline.scene_init.reconstruct import complete
+
+    context = _context(tmp_path)
+    _write_routing(context, ["ChairCluster0", "ChairCluster1", "ChairCluster2"])
+    recon = context.object_root / "reconstructed_objs"
+    recon.mkdir(parents=True)
+    (recon / "ChairCluster0.glb").write_bytes(b"glb")
+
+    assert complete(context) is False
+
+
+def test_reconstruct_stage_is_complete_once_every_routed_object_and_opening_has_a_glb(tmp_path):
+    from litereality_agent.pipeline.scene_init.reconstruct import complete
+
+    context = _context(tmp_path)
+    _write_routing(context, ["Table0"])
+    opening = context.object_root / "object_init" / "opening_refs" / context.scan / "Wall0_Door_0"
+    opening.mkdir(parents=True)
+
+    recon = context.object_root / "reconstructed_objs"
+    (recon / "Table0").mkdir(parents=True)
+    (recon / "Table0" / "Table0.glb").write_bytes(b"glb")
+    (recon / "Wall0_Door_0.glb").write_bytes(b"glb")
+
+    assert complete(context) is True
+
+
+def test_reconstruct_stage_falls_back_to_any_glb_when_there_is_no_routing_manifest(tmp_path):
+    """No routing/opening manifest to check against (e.g. a hand-placed tree) — the stage falls
+    back to the old, coarser signal instead of refusing to ever reuse it."""
+    from litereality_agent.pipeline.scene_init.reconstruct import complete
+
+    context = _context(tmp_path)
+    recon = context.object_root / "reconstructed_objs"
+    recon.mkdir(parents=True)
+    (recon / "Whatever.glb").write_bytes(b"glb")
+
+    assert complete(context) is True
